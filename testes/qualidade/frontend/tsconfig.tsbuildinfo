@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/api/qualidadeapi.ts","./src/shared/formatters.ts","./src/views/analises/analises.tsx","./src/views/detalheprodutor/detalheprodutor.tsx","./src/views/gestaoprodutores/gestaoprodutores.tsx","./src/views/inicio/inicio.tsx"],"version":"5.9.3"}

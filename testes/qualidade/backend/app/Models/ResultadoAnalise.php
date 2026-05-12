@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class ResultadoAnalise extends Model
 {
-    protected $connection = 'clean';
+    protected $connection = 'raw';
 
     protected $table = 'resultadosanalises';
 

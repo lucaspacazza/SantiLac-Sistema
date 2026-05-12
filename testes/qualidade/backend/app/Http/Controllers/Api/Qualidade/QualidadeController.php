@@ -30,6 +30,14 @@ class QualidadeController extends Controller
         ]);
     }
 
+    public function analises(Request $request): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $this->qualidade->analises($request),
+        ]);
+    }
+
     public function produtor(string $codigo): JsonResponse
     {
         $data = $this->qualidade->produtor($codigo);
@@ -39,7 +47,7 @@ class QualidadeController extends Controller
                 'success' => false,
                 'error' => [
                     'code' => 'PRODUCER_410',
-                    'message' => 'Produtor nao encontrado.',
+                    'message' => 'Produtor não encontrado.',
                     'details' => [
                         'codigo' => $codigo,
                     ],
@@ -62,7 +70,7 @@ class QualidadeController extends Controller
                 'success' => false,
                 'error' => [
                     'code' => 'PRODUCER_410',
-                    'message' => 'Produtor nao encontrado.',
+                    'message' => 'Produtor não encontrado.',
                     'details' => [
                         'codigo' => $codigo,
                     ],

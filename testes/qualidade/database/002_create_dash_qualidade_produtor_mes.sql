@@ -1,8 +1,11 @@
 -- SantiLac Core - Laboratorio Qualidade
 -- Agregado mensal futuro para dashboards e relatorios.
 --
--- Banco esperado:
---   santilac_clean
+-- Banco esperado no teste do módulo:
+--   santilac_raw
+--
+-- Observação:
+--   agregado reservado para depois que o processor existir.
 
 CREATE TABLE IF NOT EXISTS dash_qualidade_produtor_mes (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

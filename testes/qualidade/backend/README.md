@@ -1,17 +1,17 @@
-# Backend Do Laboratorio Qualidade
+# Backend do módulo Qualidade
 
-Este backend ainda nao esta no Laravel principal.
+Este backend ainda não está no Laravel principal.
 
-Ele e o desenho do modulo antes da promocao.
+Ele é o desenho do módulo antes da promoção.
 
 ## Arquivos
 
-- `routes/api.php`: rotas futuras do modulo
+- `routes/api.php`: rotas futuras do módulo
 - `contracts/api.md`: contrato esperado pelo frontend
-- `app/Http/Controllers/Api/QualidadeController.php`: controller do modulo
+- `app/Http/Controllers/Api/QualidadeController.php`: controller do módulo
 - `app/Services/QualidadeService.php`: consultas e regras de leitura
 - `app/Models/ProdutorQualidade.php`: leitura de `santilac_raw.produtores`
-- `app/Models/ResultadoAnalise.php`: leitura de `santilac_clean.resultadosanalises`
+- `app/Models/ResultadoAnalise.php`: leitura de `santilac_raw.resultadosanalises`
 
 ## Regra
 
