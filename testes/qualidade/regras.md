@@ -2,79 +2,57 @@
 
 ## Escopo
 
-O laboratorio de Qualidade cobre o modulo amplo, mas o primeiro bloco testavel e:
+O laboratorio de Qualidade cobre o modulo real, nao apenas importacao.
 
 ```text
-qualidade / analises laboratoriais
+overview -> produtores -> detalhe do produtor -> relatorios -> importacoes -> programas auxiliares
 ```
 
 ## Ordem
 
-1. Criar contrato.
-2. Criar fixtures.
-3. Criar testes automatizados.
-4. Implementar no processor.
-5. Integrar Laravel depois que o processor estiver validado.
+1. Backend do modulo.
+2. Contratos de API.
+3. Database e colunas.
+4. Frontend.
+5. Processor/importacoes.
+6. Integracao no laboratorio.
+7. Validacao manual.
+8. Promocao para o sistema principal.
 
-## Regra Principal
+## Regra Principal Do Momento
 
-O parser de analises deve ser tolerante ao formato da planilha, mas rigoroso com regra.
+Nao comecar por processor.
 
-Pode variar:
+O backend deve definir:
 
-- ordem das colunas
-- maiusculo/minusculo
-- acentos em cabecalho
-- delimitador de CSV
-- formato de data suportado
-- decimal com virgula ou ponto
+- quais telas existem
+- quais endpoints alimentam cada tela
+- quais tabelas entram no modulo
+- quais colunas sao usadas
+- quais dados vem do raw
+- quais dados vem de tabelas validadas/dash
+- quais respostas o frontend pode esperar
 
-Nao pode faltar:
+## Bancos
 
-- codigo do produtor
-- data da analise
+`santilac_raw`:
 
-## Contrato Do Processor
+- produtores e dados brutos/base importada
 
-Funcao inicial esperada pelos testes:
+`santilac_clean`:
 
-```python
-parse_analysis_file(file_path, valid_producer_codes=None)
-```
+- resultados de qualidade validados
+- tabelas dash
+- dados processados pelo modulo
 
-Entrada:
+## Primeiro Backend
 
-- `file_path`: caminho do arquivo `.csv`, `.xlsx` ou `.xls`
-- `valid_producer_codes`: conjunto opcional de codigos de produtores conhecidos
+O primeiro backend deve cobrir:
 
-Saida:
+- resumo da qualidade
+- listagem de produtores com ultima analise
+- detalhe do produtor
+- historico de analises do produtor
+- relatorios principais
 
-```json
-{
-  "success": true,
-  "operation": "qualidade.importar_analises",
-  "summary": {
-    "total": 0,
-    "valid": 0,
-    "errors": 0,
-    "warnings": 0
-  },
-  "records": [],
-  "errors": [],
-  "warnings": [],
-  "metadata": {}
-}
-```
-
-## Resultado Validado
-
-Cada registro valido deve sair com:
-
-- `produtor_codigo`
-- `data`
-- campos de analise quando existirem
-- `line`
-- `sheet`
-
-O processor nao grava banco.
-
+Importacao fica fora deste primeiro passo.

@@ -4,11 +4,11 @@ Tudo do modulo Qualidade nasce aqui antes de ir para `backend/`, `processor/` ou
 
 Regra atual:
 
-- primeiro documentar contrato
-- depois criar testes
-- depois implementar o minimo
-- depois validar com dados reais ou parecidos com reais
-- somente entao promover para o sistema principal
+- primeiro alinhar contrato e backend do modulo
+- depois database do modulo
+- depois tela/frontend
+- depois processor/importacoes quando o fluxo pedir
+- depois integrar, validar manualmente e promover
 
 Escopo entendido do V3:
 
@@ -20,14 +20,21 @@ Escopo entendido do V3:
 - inclui Mais Leite
 - inclui notas fiscais
 
-Primeiro bloco recomendado:
+Estrutura do laboratorio:
 
 ```text
-qualidade / analises laboratoriais
+testes/qualidade/
+  backend/
+  database/
+  frontend/
+  processor/
+  docs/
 ```
 
-Motivo: e o menor bloco que prova o fluxo completo:
+Ordem combinada agora:
 
 ```text
-arquivo original -> raw/auditoria -> processor Python -> Laravel valida -> resultadosanalises -> API futura
+backend + contratos + tabelas -> frontend -> processor -> integracao -> promocao
 ```
+
+Importador de planilha nao e o primeiro passo. Ele entra depois que o modulo real estiver desenhado.
