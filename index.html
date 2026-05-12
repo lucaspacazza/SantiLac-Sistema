@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SantiLac Core - Direcao Visual</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #000000;
+        --panel: #0a0a0c;
+        --panel-2: #101012;
+        --panel-3: #06060a;
+        --line: rgba(255, 255, 255, 0.06);
+        --line-strong: rgba(255, 255, 255, 0.14);
+        --divider: rgba(255, 255, 255, 0.04);
+        --text: #fcfdff;
+        --body: rgba(252, 253, 255, 0.86);
+        --muted: #a1a4a5;
+        --soft: rgba(252, 253, 255, 0.7);
+        --ash: #888e90;
+        --primary: #fcfdff;
+        --primary-on: #000000;
+        --primary-pressed: #f1f7fe;
+        --danger: #ff2047;
+        --success: #11ff99;
+        --warning: #ffc53d;
+        --info: #3b9eff;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Inter, "Segoe UI", Arial, sans-serif;
+      }
+
+      body {
+        min-height: 100vh;
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      .app {
+        display: grid;
+        grid-template-columns: 252px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        border-right: 1px solid var(--line);
+        background: var(--bg);
+        padding: 22px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      .brand {
+        display: grid;
+        gap: 6px;
+      }
+
+      .brand strong {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 27px;
+        font-weight: 400;
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .brand span {
+        color: var(--soft);
+        font-size: 13px;
+      }
+
+      .nav {
+        display: grid;
+        gap: 8px;
+      }
+
+      .nav button,
+      .ghost,
+      .solid,
+      .quiet {
+        border: 1px solid transparent;
+        border-radius: var(--radius-md);
+        color: var(--text);
+        cursor: pointer;
+        transition:
+          background 160ms ease,
+          border-color 160ms ease,
+          color 160ms ease,
+          transform 160ms ease;
+      }
+
+      .nav button {
+        background: transparent;
+        padding: 13px 14px;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--body);
+      }
+
+      .nav button:hover,
+      .nav button.active {
+        background: var(--panel-2);
+        border-color: var(--line-strong);
+        color: var(--text);
+      }
+
+      .nav small {
+        color: var(--muted);
+      }
+
+      .sidebar-block {
+        margin-top: auto;
+        border: 1px solid var(--line-strong);
+        background: var(--panel);
+        border-radius: var(--radius-lg);
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .sidebar-block strong {
+        font-size: 14px;
+      }
+
+      .sidebar-block p {
+        margin: 0;
+        color: var(--body);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .content {
+        padding: 24px;
+        display: grid;
+        gap: 20px;
+        background:
+          radial-gradient(circle at top right, rgba(0, 117, 255, 0.13), transparent 28%),
+          radial-gradient(circle at 72% 34%, rgba(34, 255, 153, 0.08), transparent 22%),
+          var(--bg);
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 18px;
+      }
+
+      .heading {
+        display: grid;
+        gap: 4px;
+      }
+
+      .heading h1 {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 40px;
+        font-weight: 400;
+        line-height: 1.05;
+      }
+
+      .heading p {
+        margin: 0;
+        color: var(--body);
+      }
+
+      .top-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: flex-end;
+      }
+
+      .solid,
+      .ghost,
+      .quiet {
+        min-height: 36px;
+        padding: 0 16px;
+      }
+
+      .solid {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: var(--primary-on);
+        font-weight: 500;
+      }
+
+      .ghost {
+        background: var(--panel-2);
+        border-color: var(--line-strong);
+      }
+
+      .quiet {
+        background: var(--bg);
+        border-color: var(--line-strong);
+        color: var(--body);
+      }
+
+      .solid:hover,
+      .ghost:hover,
+      .quiet:hover {
+        transform: translateY(-1px);
+      }
+
+      .overview {
+        display: grid;
+        grid-template-columns: 1.35fr 1fr;
+        gap: 20px;
+      }
+
+      .panel {
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-lg);
+        background: var(--panel);
+      }
+
+      .summary {
+        padding: 24px;
+        display: grid;
+        gap: 20px;
+      }
+
+      .summary-head,
+      .section-head,
+      .import-head,
+      .table-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .summary-head h2,
+      .section-head h2,
+      .table-head h2,
+      .import-head h2 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 500;
+      }
+
+      .eyebrow {
+        color: var(--ash);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .metric {
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0)), var(--panel-2);
+        border-radius: var(--radius-lg);
+        padding: 16px;
+        min-height: 104px;
+        display: grid;
+        align-content: space-between;
+      }
+
+      .metric span {
+        color: var(--soft);
+        font-size: 13px;
+      }
+
+      .metric strong {
+        font-size: 30px;
+        font-weight: 500;
+      }
+
+      .metric em {
+        font-style: normal;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .status-strip {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .status-card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        background: var(--panel-2);
+        padding: 16px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .pill {
+        display: inline-flex;
+        width: fit-content;
+        min-height: 24px;
+        align-items: center;
+        border-radius: 999px;
+        padding: 0 10px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .pill.success {
+        background: rgba(17, 255, 153, 0.08);
+        color: var(--success);
+      }
+
+      .pill.warning {
+        background: rgba(255, 197, 61, 0.08);
+        color: var(--warning);
+      }
+
+      .pill.info {
+        background: rgba(59, 158, 255, 0.08);
+        color: var(--info);
+      }
+
+      .status-card strong {
+        font-size: 15px;
+      }
+
+      .status-card p {
+        margin: 0;
+        color: var(--body);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .import-panel {
+        padding: 24px;
+        display: grid;
+        gap: 18px;
+        background:
+          radial-gradient(circle at top right, rgba(255, 128, 31, 0.11), transparent 38%),
+          var(--panel);
+      }
+
+      .dropzone {
+        border: 1px dashed var(--line-strong);
+        background: var(--panel-3);
+        border-radius: var(--radius-lg);
+        min-height: 190px;
+        display: grid;
+        place-items: center;
+        padding: 18px;
+        text-align: center;
+      }
+
+      .dropzone strong {
+        display: block;
+        font-size: 20px;
+        font-weight: 500;
+        margin-bottom: 6px;
+      }
+
+      .dropzone p {
+        margin: 0 auto 16px;
+        max-width: 360px;
+        color: var(--body);
+        line-height: 1.5;
+      }
+
+      .mini-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .mini-stats div {
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        border-radius: var(--radius-lg);
+        padding: 14px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .mini-stats span {
+        color: var(--soft);
+        font-size: 12px;
+      }
+
+      .mini-stats strong {
+        font-size: 22px;
+        font-weight: 500;
+      }
+
+      .lower-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.5fr) 360px;
+        gap: 20px;
+      }
+
+      .table-panel {
+        overflow: hidden;
+      }
+
+      .table-head {
+        padding: 22px 22px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .select,
+      .search {
+        min-height: 40px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-md);
+        background: var(--panel);
+        color: var(--text);
+        padding: 0 12px;
+      }
+
+      .search {
+        min-width: 220px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 15px 22px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        font-size: 14px;
+        white-space: nowrap;
+      }
+
+      th {
+        color: var(--soft);
+        font-weight: 500;
+        background: rgba(255, 255, 255, 0.015);
+      }
+
+      td strong {
+        display: block;
+        font-size: 14px;
+      }
+
+      td span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 4px;
+      }
+
+      .state {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        border-radius: 999px;
+        padding: 0 10px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .state.ok {
+        background: rgba(17, 255, 153, 0.08);
+        color: var(--success);
+      }
+
+      .state.warn {
+        background: rgba(255, 197, 61, 0.08);
+        color: var(--warning);
+      }
+
+      .state.err {
+        background: rgba(255, 32, 71, 0.08);
+        color: var(--danger);
+      }
+
+      .activity {
+        padding: 24px;
+        display: grid;
+        gap: 16px;
+        background:
+          radial-gradient(circle at top right, rgba(255, 32, 71, 0.08), transparent 34%),
+          var(--panel);
+      }
+
+      .activity-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .activity-item {
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        border-radius: var(--radius-lg);
+        padding: 16px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .activity-item strong {
+        font-size: 14px;
+      }
+
+      .activity-item p {
+        margin: 0;
+        color: var(--body);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .activity-item time {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      @media (max-width: 1180px) {
+        .overview,
+        .lower-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .metric-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 860px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .sidebar-block {
+          margin-top: 0;
+        }
+
+        .topbar,
+        .summary-head,
+        .section-head,
+        .import-head,
+        .table-head {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .status-strip,
+        .mini-stats {
+          grid-template-columns: 1fr;
+        }
+
+        .metric-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .filters {
+          width: 100%;
+        }
+
+        .select,
+        .search {
+          width: 100%;
+        }
+
+        .table-panel {
+          overflow-x: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <strong>SantiLac Core</strong>
+          <span>Sistema operacional do laticinio</span>
+        </div>
+
+        <nav class="nav" aria-label="Navegacao principal">
+          <button type="button">
+            <span>Visao geral</span>
+            <small>01</small>
+          </button>
+          <button type="button" class="active">
+            <span>Qualidade</span>
+            <small>02</small>
+          </button>
+          <button type="button">
+            <span>Produtores</span>
+            <small>03</small>
+          </button>
+          <button type="button">
+            <span>Importacoes</span>
+            <small>04</small>
+          </button>
+          <button type="button">
+            <span>Exportacoes</span>
+            <small>05</small>
+          </button>
+          <button type="button">
+            <span>Auditoria</span>
+            <small>06</small>
+          </button>
+        </nav>
+
+        <section class="sidebar-block">
+          <strong>Ambiente de homologacao</strong>
+          <p>Design inicial para travar navegacao, densidade e organizacao antes do backend.</p>
+          <button type="button" class="quiet">Alternar contexto</button>
+        </section>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div class="heading">
+            <h1>Qualidade / Analises laboratoriais</h1>
+            <p>Primeira tela proposta para o SantiLac Core.</p>
+          </div>
+
+          <div class="top-actions">
+            <button type="button" class="ghost">Ver historico</button>
+            <button type="button" class="ghost">Exportar Excel</button>
+            <button type="button" class="solid">Nova importacao</button>
+          </div>
+        </header>
+
+        <section class="overview">
+          <article class="panel summary">
+            <div class="summary-head">
+              <div>
+                <div class="eyebrow">Resumo do ciclo</div>
+                <h2>Estado operacional da qualidade</h2>
+              </div>
+              <button type="button" class="quiet">Filtrar periodo</button>
+            </div>
+
+            <div class="metric-grid">
+              <div class="metric">
+                <span>Analises no mes</span>
+                <strong>1.284</strong>
+                <em>+8,2% vs. ciclo anterior</em>
+              </div>
+              <div class="metric">
+                <span>Importacoes pendentes</span>
+                <strong>03</strong>
+                <em>1 exige revisao manual</em>
+              </div>
+              <div class="metric">
+                <span>Produtores com alerta</span>
+                <strong>17</strong>
+                <em>CCS, UFC ou antibiotico</em>
+              </div>
+              <div class="metric">
+                <span>Erros bloqueantes</span>
+                <strong>02</strong>
+                <em>Planilhas aguardando ajuste</em>
+              </div>
+            </div>
+
+            <div class="status-strip">
+              <div class="status-card">
+                <span class="pill success">Processado</span>
+                <strong>Laboratorio Maio - Lote 07</strong>
+                <p>842 linhas aceitas e 14 preenchimentos complementares.</p>
+              </div>
+              <div class="status-card">
+                <span class="pill warning">Revisar</span>
+                <strong>Planilha com cabecalho ambiguo</strong>
+                <p>Coluna de data reconhecida em duas variacoes.</p>
+              </div>
+              <div class="status-card">
+                <span class="pill info">Preview</span>
+                <strong>Confirmacao antes da gravacao</strong>
+                <p>Fluxo preparado para revisar dados antes de persistir.</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel import-panel">
+            <div class="import-head">
+              <div>
+                <div class="eyebrow">Entrada principal</div>
+                <h2>Importar planilha de analises</h2>
+              </div>
+              <span class="pill info">.xlsx .xls .csv</span>
+            </div>
+
+            <div class="dropzone">
+              <div>
+                <strong>Solte a planilha aqui</strong>
+                <p>Leitura por cabecalho, validacao de produtores, preview e auditoria da importacao.</p>
+                <button type="button" class="solid">Selecionar arquivo</button>
+              </div>
+            </div>
+
+            <div class="mini-stats">
+              <div>
+                <span>Ultimo hash repetido</span>
+                <strong>1</strong>
+              </div>
+              <div>
+                <span>Abas reconhecidas</span>
+                <strong>4</strong>
+              </div>
+              <div>
+                <span>Linhas com erro</span>
+                <strong>12</strong>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="lower-grid">
+          <article class="panel table-panel">
+            <div class="table-head">
+              <div>
+                <div class="eyebrow">Consulta</div>
+                <h2>Ultimas analises processadas</h2>
+              </div>
+
+              <div class="filters">
+                <input class="search" type="search" value="Buscar produtor ou codigo" aria-label="Buscar produtor" />
+                <select class="select" aria-label="Filtrar status">
+                  <option>Todos os status</option>
+                  <option>Validado</option>
+                  <option>Atencao</option>
+                  <option>Erro</option>
+                </select>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Produtor</th>
+                  <th>Data</th>
+                  <th>Gordura</th>
+                  <th>Proteina</th>
+                  <th>CCS</th>
+                  <th>UFC</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <strong>1024 - Joao Rodrigues</strong>
+                    <span>Origem: Lote 07</span>
+                  </td>
+                  <td>08/05/2026</td>
+                  <td>3,78</td>
+                  <td>3,22</td>
+                  <td>73.800</td>
+                  <td>18.000</td>
+                  <td><span class="state ok">Validado</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>0871 - Fazenda Boa Vista</strong>
+                    <span>Origem: Lote 07</span>
+                  </td>
+                  <td>08/05/2026</td>
+                  <td>4,01</td>
+                  <td>3,11</td>
+                  <td>188.000</td>
+                  <td>42.000</td>
+                  <td><span class="state warn">Atencao</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>1140 - Marcia Teixeira</strong>
+                    <span>Origem: Lote 06</span>
+                  </td>
+                  <td>07/05/2026</td>
+                  <td>3,55</td>
+                  <td>3,06</td>
+                  <td>91.000</td>
+                  <td>31.000</td>
+                  <td><span class="state ok">Validado</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>0312 - Codigo nao conferido</strong>
+                    <span>Origem: Preview pendente</span>
+                  </td>
+                  <td>07/05/2026</td>
+                  <td>-</td>
+                  <td>3,18</td>
+                  <td>-</td>
+                  <td>12.000</td>
+                  <td><span class="state err">Erro</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </article>
+
+          <aside class="panel activity">
+            <div class="section-head">
+              <div>
+                <div class="eyebrow">Auditoria</div>
+                <h2>Fila recente</h2>
+              </div>
+              <button type="button" class="quiet">Abrir tudo</button>
+            </div>
+
+            <div class="activity-list">
+              <div class="activity-item">
+                <strong>IMPORT_314</strong>
+                <p>Arquivo ja enviado anteriormente. Sistema prepara tentativa sem duplicar dados.</p>
+                <time>Hoje, 09:14</time>
+              </div>
+              <div class="activity-item">
+                <strong>PRODUCER_410</strong>
+                <p>Produtor 0312 nao encontrado na base atual para confirmar gravacao.</p>
+                <time>Hoje, 08:57</time>
+              </div>
+              <div class="activity-item">
+                <strong>Preview pronto</strong>
+                <p>Planilha do laboratorio lida com 4 abas reconhecidas e 12 inconsistencias.</p>
+                <time>Ontem, 17:42</time>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
