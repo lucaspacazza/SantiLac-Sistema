@@ -1,0 +1,153 @@
+let csrfToken: string | null = null
+
+type ApiResponse<T> = {
+  success: boolean
+  data: T
+  error?: {
+    code: string
+    message: string
+    details?: Record<string, unknown>
+  }
+}
+
+export async function ensureCsrfToken(): Promise<string> {
+  if (csrfToken) return csrfToken
+
+  const response = await fetch('/api/auth/csrf', {
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error('Não foi possível iniciar a sessão.')
+  }
+
+  const json = (await response.json()) as ApiResponse<{ token: string }>
+  csrfToken = json.data.token
+  return csrfToken
+}
+
+export async function apiGet<T>(path: string): Promise<T> {
+  const response = await fetch(path, {
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+
+  const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
+  if (!response.ok || !json?.success) {
+    throw new Error(json?.error?.message ?? `HTTP ${response.status}`)
+  }
+
+  return json.data
+}
+
+export async function apiPost<T>(path: string, payload: Record<string, unknown>): Promise<T> {
+  const token = await ensureCsrfToken()
+  const response = await fetch(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      'X-CSRF-TOKEN': token,
+    },
+    body: toFormBody(payload),
+  })
+
+  const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
+  if (!response.ok || !json?.success) {
+    throw new Error(json?.error?.message ?? 'Falha ao processar solicitação.')
+  }
+
+  return json.data
+}
+
+export async function apiPostFile<T>(path: string, field: string, file: File): Promise<T> {
+  const token = await ensureCsrfToken()
+  const formData = new FormData()
+  formData.append(field, file)
+
+  const response = await fetch(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    body: formData,
+    headers: {
+      Accept: 'application/json',
+      'X-CSRF-TOKEN': token,
+    },
+  })
+
+  const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
+  if (!response.ok || !json?.success) {
+    throw new Error(json?.error?.message ?? 'Falha ao enviar arquivo.')
+  }
+
+  return json.data
+}
+
+export async function apiDownload(
+  path: string,
+  payload: Record<string, unknown>,
+  options: { accept: string; fallback: string; errorMessage: string },
+): Promise<{ arquivo: string }> {
+  const token = await ensureCsrfToken()
+  const response = await fetch(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      Accept: options.accept,
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      'X-CSRF-TOKEN': token,
+    },
+    body: toFormBody(payload),
+  })
+
+  if (!response.ok) {
+    const json = (await response.json().catch(() => null)) as ApiResponse<unknown> | null
+    throw new Error(json?.error?.message ?? options.errorMessage)
+  }
+
+  const blob = await response.blob()
+  const arquivo = filenameFromDisposition(response.headers.get('Content-Disposition'), options.fallback)
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = arquivo
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000)
+
+  return { arquivo }
+}
+
+function filenameFromDisposition(disposition: string | null, fallback: string): string {
+  if (!disposition) return fallback
+
+  const utfMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utfMatch?.[1]) {
+    return decodeURIComponent(utfMatch[1].replace(/"/g, ''))
+  }
+
+  const match = disposition.match(/filename="?([^"]+)"?/i)
+  return match?.[1] ?? fallback
+}
+
+function toFormBody(payload: Record<string, unknown>): URLSearchParams {
+  const params = new URLSearchParams()
+
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value === undefined || value === null) return
+    if (typeof value === 'boolean') {
+      params.set(key, value ? '1' : '0')
+      return
+    }
+    params.set(key, String(value))
+  })
+
+  return params
+}

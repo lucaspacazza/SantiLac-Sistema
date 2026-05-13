@@ -4,12 +4,30 @@ namespace App\Services;
 
 use App\Models\ProdutorQualidade;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Process\Process;
 
 class QualidadeService
 {
     private const ANALISES_TABLE = 'resultadosanalises';
+    private const IMPORTACOES_TABLE = 'importacoes_analises';
+    private const ANALISE_FIELDS = [
+        'gordura',
+        'proteina',
+        'lactose',
+        'solidos_totais',
+        'ccs',
+        'ufc',
+        'caseina',
+        'sng',
+        'ureia',
+        'antibiotico',
+        'bacteria',
+        'temperatura',
+    ];
 
     public function overview(): array
     {
@@ -56,6 +74,7 @@ class QualidadeService
                 'data_cadastro',
                 'data_inativacao',
             ])
+            ->where('ativo', 1)
             ->orderBy('nome');
 
         $this->aplicarFiltrosProdutor($query, $request);
@@ -109,6 +128,98 @@ class QualidadeService
                 'per_page' => $page->perPage(),
                 'total' => $page->total(),
             ],
+        ];
+    }
+
+    public function importarAnalises(UploadedFile $arquivo): array
+    {
+        $extensao = strtolower((string) $arquivo->getClientOriginalExtension());
+        if (! in_array($extensao, ['xlsx', 'xls', 'csv'], true)) {
+            return $this->resultadoImportacaoVazio('IMPORT_311', 'Formato de arquivo nao suportado.');
+        }
+
+        $nomeOriginal = $arquivo->getClientOriginalName();
+        $nomeStorage = now()->format('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '_' . $nomeOriginal;
+        $caminhoRelativo = $arquivo->storeAs('importacoes/analises', $nomeStorage, 'local');
+        $caminhoCompleto = Storage::disk('local')->path($caminhoRelativo);
+        $hash = hash_file('sha256', $caminhoCompleto);
+        $jaImportado = $this->importacaoJaRegistrada($hash);
+
+        $processor = $this->executarProcessorAnalises($caminhoCompleto, $nomeOriginal, $hash);
+        $records = collect($processor['records'] ?? []);
+        $processorErrors = $processor['errors'] ?? [];
+        $processorWarnings = $processor['warnings'] ?? [];
+
+        $codigos = $records
+            ->map(fn (array $record): string => (string) data_get($record, 'data.produtor_codigo'))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $produtoresExistentes = ProdutorQualidade::query()
+            ->whereIn('codigo', $codigos->all())
+            ->pluck('codigo')
+            ->map(fn ($codigo): string => (string) $codigo)
+            ->flip();
+
+        $missingCodes = [];
+        $recordsValidos = [];
+        $producerErrors = [];
+
+        foreach ($records as $record) {
+            $codigo = (string) data_get($record, 'data.produtor_codigo');
+            if (! $produtoresExistentes->has($codigo)) {
+                $missingCodes[$codigo] = true;
+                $producerErrors[] = [
+                    'sheet' => data_get($record, 'source.sheet'),
+                    'line' => data_get($record, 'source.line'),
+                    'code' => 'PRODUCER_410',
+                    'message' => 'Produtor nao encontrado.',
+                    'details' => [
+                        'produtor_codigo' => $codigo,
+                    ],
+                ];
+                continue;
+            }
+
+            $recordsValidos[] = $record;
+        }
+
+        $merge = $this->gravarAnalisesValidas($recordsValidos);
+        $missingCodes = array_keys($missingCodes);
+        sort($missingCodes);
+
+        $warnings = $processorWarnings;
+        if ($missingCodes !== []) {
+            $warnings[] = [
+                'code' => 'PRODUCER_410',
+                'message' => 'Alguns produtores da planilha nao existem no banco e foram ignorados.',
+                'details' => [
+                    'produtor_codigos' => $missingCodes,
+                ],
+            ];
+        }
+
+        $errors = array_values(array_merge($processorErrors, $producerErrors));
+        $summary = [
+            'arquivo' => $nomeOriginal,
+            'arquivo_hash' => $hash,
+            'ja_importado' => $jaImportado,
+            'total_linhas' => (int) data_get($processor, 'summary.total', count($records) + count($errors)),
+            'linhas_validas_processor' => (int) data_get($processor, 'summary.valid', count($records)),
+            'linhas_com_erro' => count($errors),
+            'produtores_nao_encontrados' => count($missingCodes),
+            'registros_criados' => $merge['created'],
+            'registros_completados' => $merge['completed'],
+            'registros_sem_mudanca' => $merge['unchanged'],
+        ];
+
+        $this->registrarImportacaoAnalises($nomeOriginal, $caminhoRelativo, $hash, $summary, $processor, $errors);
+
+        return [
+            'summary' => $summary,
+            'warnings' => $warnings,
+            'errors' => $errors,
         ];
     }
 
@@ -167,87 +278,6 @@ class QualidadeService
         ];
     }
 
-    public function relatoriosResumo(): array
-    {
-        return [
-            'totais' => [
-                'ativos' => ProdutorQualidade::query()->where('ativo', 1)->count(),
-                'inativos' => ProdutorQualidade::query()->where('ativo', 0)->count(),
-                'novos' => ProdutorQualidade::query()->where('novo', 1)->count(),
-                'analises' => $this->analisesDisponiveis() ? $this->analisesBase()->count() : 0,
-            ],
-            'rotas' => ProdutorQualidade::query()
-                ->whereNotNull('rota')
-                ->where('rota', '<>', '')
-                ->distinct()
-                ->orderBy('rota')
-                ->pluck('rota')
-                ->values()
-                ->all(),
-            'ultima_analise' => $this->analisesDisponiveis() ? $this->analisesBase()->max('ra.data') : null,
-        ];
-    }
-
-    public function relatoriosProdutores(Request $request): array
-    {
-        $tipo = (string) $request->query('tipo', 'ativos');
-        if (! in_array($tipo, ['ativos', 'novos', 'inativos'], true)) {
-            $tipo = 'ativos';
-        }
-
-        $query = ProdutorQualidade::query()
-            ->select([
-                'codigo',
-                'nome',
-                'cidade',
-                'rota',
-                'cpf_cnpj',
-                'ativo',
-                'novo',
-                'data_cadastro',
-                'data_inativacao',
-            ]);
-
-        if ($tipo === 'ativos') {
-            $query->where('ativo', 1);
-        }
-
-        if ($tipo === 'novos') {
-            $query->where('novo', 1);
-        }
-
-        if ($tipo === 'inativos') {
-            $query->where('ativo', 0);
-        }
-
-        if ($request->filled('rota')) {
-            $query->where('rota', (string) $request->query('rota'));
-        }
-
-        return [
-            'tipo' => $tipo,
-            'totais' => [
-                'ativos' => ProdutorQualidade::query()->where('ativo', 1)->count(),
-                'inativos' => ProdutorQualidade::query()->where('ativo', 0)->count(),
-                'novos' => ProdutorQualidade::query()->where('novo', 1)->count(),
-            ],
-            'opcoes' => [
-                'rotas' => ProdutorQualidade::query()
-                    ->whereNotNull('rota')
-                    ->where('rota', '<>', '')
-                    ->distinct()
-                    ->orderBy('rota')
-                    ->pluck('rota')
-                    ->values()
-                    ->all(),
-            ],
-            'items' => $query->orderBy('nome')->get()
-                ->map(fn (ProdutorQualidade $produtor): array => $this->formatarProdutor($produtor))
-                ->values()
-                ->all(),
-        ];
-    }
-
     private function aplicarFiltrosProdutor($query, Request $request): void
     {
         if ($request->filled('q')) {
@@ -267,6 +297,176 @@ class QualidadeService
         if ($request->filled('rota')) {
             $query->where('rota', (string) $request->query('rota'));
         }
+    }
+
+    private function executarProcessorAnalises(string $caminhoCompleto, string $nomeOriginal, string $hash): array
+    {
+        $script = env(
+            'QUALIDADE_PROCESSOR_SCRIPT',
+            base_path('../processor/modules/qualidade/import_analyses.py')
+        );
+        $python = env('PYTHON_BINARY', 'python');
+        $pythonCommand = preg_split('/\s+/', trim($python)) ?: ['python'];
+
+        $process = new Process([
+            ...$pythonCommand,
+            $script,
+            '--input',
+            $caminhoCompleto,
+            '--filename',
+            $nomeOriginal,
+            '--hash',
+            $hash,
+        ]);
+        $process->setTimeout(120);
+        $process->run();
+
+        $output = trim($process->getOutput());
+        $decoded = $output !== '' ? json_decode($output, true) : null;
+
+        if (! is_array($decoded)) {
+            return [
+                'success' => false,
+                'summary' => [
+                    'total' => 0,
+                    'valid' => 0,
+                    'errors' => 1,
+                    'warnings' => 0,
+                ],
+                'records' => [],
+                'errors' => [[
+                    'code' => 'PROCESSOR_711',
+                    'message' => 'Retorno do processor invalido.',
+                    'details' => [
+                        'stderr' => $process->getErrorOutput(),
+                    ],
+                ]],
+                'warnings' => [],
+            ];
+        }
+
+        return $decoded;
+    }
+
+    private function gravarAnalisesValidas(array $records): array
+    {
+        $summary = [
+            'created' => 0,
+            'completed' => 0,
+            'unchanged' => 0,
+        ];
+
+        DB::connection('raw')->transaction(function () use ($records, &$summary): void {
+            foreach ($records as $record) {
+                $dados = data_get($record, 'data', []);
+                $existente = DB::connection('raw')
+                    ->table(self::ANALISES_TABLE)
+                    ->where('produtor_codigo', $dados['produtor_codigo'])
+                    ->whereDate('data', $dados['data'])
+                    ->first();
+
+                if ($existente === null) {
+                    $insert = [
+                        'produtor_codigo' => $dados['produtor_codigo'],
+                        'data' => $dados['data'],
+                        'created_at' => now(),
+                    ];
+                    foreach (self::ANALISE_FIELDS as $field) {
+                        if (array_key_exists($field, $dados) && $dados[$field] !== null) {
+                            $insert[$field] = $dados[$field];
+                        }
+                    }
+                    DB::connection('raw')->table(self::ANALISES_TABLE)->insert($insert);
+                    $summary['created']++;
+                    continue;
+                }
+
+                $update = [];
+                foreach (self::ANALISE_FIELDS as $field) {
+                    if (($dados[$field] ?? null) !== null && ($existente->{$field} ?? null) === null) {
+                        $update[$field] = $dados[$field];
+                    }
+                }
+
+                if ($update === []) {
+                    $summary['unchanged']++;
+                    continue;
+                }
+
+                $update['updated_at'] = now();
+                DB::connection('raw')
+                    ->table(self::ANALISES_TABLE)
+                    ->where('id', $existente->id)
+                    ->update($update);
+                $summary['completed']++;
+            }
+        });
+
+        return $summary;
+    }
+
+    private function importacaoJaRegistrada(string $hash): bool
+    {
+        return Schema::connection('raw')->hasTable(self::IMPORTACOES_TABLE)
+            && DB::connection('raw')->table(self::IMPORTACOES_TABLE)->where('arquivo_hash', $hash)->exists();
+    }
+
+    private function registrarImportacaoAnalises(string $nomeOriginal, string $caminhoRelativo, string $hash, array $summary, array $processor, array $errors): void
+    {
+        if (! Schema::connection('raw')->hasTable(self::IMPORTACOES_TABLE)) {
+            return;
+        }
+
+        $registrosProcessados = $summary['registros_criados']
+            + $summary['registros_completados']
+            + $summary['registros_sem_mudanca'];
+        $status = $registrosProcessados > 0
+            ? ($errors === [] ? 'processed' : 'processed_with_warnings')
+            : 'failed';
+
+        DB::connection('raw')->table(self::IMPORTACOES_TABLE)->insert([
+            'arquivo_nome_original' => $nomeOriginal,
+            'arquivo_caminho_storage' => $caminhoRelativo,
+            'arquivo_hash' => $hash,
+            'usuario_id' => auth()->id(),
+            'status' => $status,
+            'ja_importado' => $summary['ja_importado'] ? 1 : 0,
+            'total_linhas' => $summary['total_linhas'],
+            'linhas_validas' => $summary['linhas_validas_processor'],
+            'linhas_com_erro' => $summary['linhas_com_erro'],
+            'registros_criados' => $summary['registros_criados'],
+            'registros_completados' => $summary['registros_completados'],
+            'registros_sem_mudanca' => $summary['registros_sem_mudanca'],
+            'erro_codigo' => $errors[0]['code'] ?? null,
+            'erro_mensagem' => $errors[0]['message'] ?? null,
+            'processor_summary' => json_encode($processor['summary'] ?? [], JSON_UNESCAPED_UNICODE),
+            'processor_errors' => json_encode($errors, JSON_UNESCAPED_UNICODE),
+            'processed_at' => now(),
+        ]);
+    }
+
+    private function resultadoImportacaoVazio(string $code, string $message): array
+    {
+        return [
+            'summary' => [
+                'arquivo' => null,
+                'arquivo_hash' => null,
+                'ja_importado' => false,
+                'total_linhas' => 0,
+                'linhas_validas_processor' => 0,
+                'linhas_com_erro' => 1,
+                'produtores_nao_encontrados' => 0,
+                'registros_criados' => 0,
+                'registros_completados' => 0,
+                'registros_sem_mudanca' => 0,
+            ],
+            'warnings' => [],
+            'errors' => [[
+                'code' => $code,
+                'message' => $message,
+                'details' => [],
+            ]],
+        ];
     }
 
     private function aplicarFiltrosAnalise($query, Request $request): void

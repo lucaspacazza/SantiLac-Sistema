@@ -1,0 +1,49 @@
+:root {
+  color-scheme: dark;
+  --sl-bg: #000;
+  --sl-sidebar: #030303;
+  --sl-panel: #050506;
+  --sl-panel-2: #151518;
+  --sl-input: #1b1c1f;
+  --sl-line: rgba(255, 255, 255, 0.08);
+  --sl-line-strong: rgba(255, 255, 255, 0.14);
+  --sl-text: #f5f5f5;
+  --sl-body: #a8a8ad;
+  --sl-muted: #777a80;
+  --sl-primary: #fff;
+  --sl-primary-on: #000;
+  --sl-success: #21c37a;
+  --sl-danger: #ff4d65;
+  --sl-warning: #f5bd41;
+  --sl-good: #68ddb4;
+  --sl-bad-soft: #ff8792;
+  --sl-radius: 8px;
+  --sl-sidebar-width: 250px;
+  --sl-topbar-height: 58px;
+  --sl-page-margin: 34px 32px;
+  --sl-font: Inter, "Segoe UI", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  background: var(--sl-bg);
+  color: var(--sl-text);
+  font-family: var(--sl-font);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}

@@ -457,8 +457,28 @@ analise so entra se produtor_codigo existir na base de produtores
 No Core:
 
 - Python nao consulta banco
-- Laravel deve enviar ao processor uma lista/mapa de produtores validos ou validar antes/depois do processor
-- decisao recomendada: Laravel valida produtor antes de gravar a tabela validada de analises, mas Python pode marcar codigo ausente/invalido estruturalmente
+- `IDPROD` e a identidade da linha de analise
+- se houver `IDPROD` na planilha, ele tem prioridade sobre qualquer outra coluna parecida com codigo
+- Laravel valida cada `IDPROD` depois que o processor normaliza a planilha
+- se um `IDPROD` nao existir em `produtores`, somente aquela linha falha
+- as linhas com `IDPROD` existente continuam e devem ser gravadas normalmente
+- a resposta precisa trazer aviso com a lista dos codigos de produtores que falharam
+
+Exemplo esperado:
+
+```json
+{
+  "warnings": [
+    {
+      "code": "PRODUCER_410",
+      "message": "Alguns produtores da planilha nao existem no banco e foram ignorados.",
+      "details": {
+        "produtor_codigos": ["999", "1000"]
+      }
+    }
+  ]
+}
+```
 
 ## Conversao De Codigo Do Produtor
 
@@ -903,6 +923,96 @@ Criar testes para:
 - reimportacao da mesma planilha nao duplica
 - nova importacao preenche campo nulo sem sobrescrever campo ja preenchido
 - erro de coluna obrigatoria ausente
+
+## Planilha Real De Referencia
+
+Arquivo colocado como referencia real:
+
+```text
+referencias/planilhas/importacao/SantiLac Laticinios LTDA_145136.xlsx
+```
+
+Resumo inspecionado:
+
+```text
+aba: Plan1
+dimensao: A1:X64
+linhas XML: 64
+linhas de dados depois do cabecalho: 63
+produtores unicos por IDPROD: 63
+data de coleta encontrada: 19/03/2026
+```
+
+Cabecalho real:
+
+```text
+CODBARRAS
+IDENTIFICACAO
+DOCUMENTO
+ROTA
+COLETA
+ANALISE
+IDPROD
+GORD
+PROT
+LACT
+SOL
+CCS
+UFC
+CASE
+SNG
+UREI
+ATB
+BCL
+NRO_RELATORIO
+TEMPERATURA
+BLC %
+NRO LACTACAO
+CIDASC
+```
+
+Observacoes importantes:
+
+- `IDPROD` existe e esta preenchido em todas as 63 linhas.
+- `COLETA` esta preenchido em todas as 63 linhas e deve ser usado como data da analise quando `ANALISE` vier vazio.
+- `ANALISE` veio vazio em todas as linhas dessa planilha.
+- `IDENTIFICACAO`, `DOCUMENTO` e `ROTA` vieram preenchidos, mas no primeiro ciclo sao dados auxiliares/referencia da linha, nao chave da analise.
+- `CODBARRAS`, `NRO_RELATORIO`, `BLC %`, `NRO LACTACAO` e `CIDASC` vieram vazios nessa amostra.
+- `CASE`, `ATB` e `BCL` vieram com `--` nessa amostra, entao devem virar `null` conforme regra atual.
+- valores decimais vieram com virgula brasileira, exemplo `3,61`.
+- `CCS` e `UFC` vieram como inteiros sem separador de milhar nessa amostra.
+- `TEMPERATURA` veio preenchida como decimal com virgula, exemplo `3,4`.
+
+Exemplo real de linha:
+
+```text
+IDENTIFICACAO: Valdecir Pedro Cella
+DOCUMENTO: 65685040920
+ROTA: Linha 01
+COLETA: 19/03/2026
+IDPROD: 1098
+GORD: 3,61
+PROT: 3,19
+LACT: 4,68
+SOL: 12,41
+CCS: 1034
+UFC: 67
+CASE: --
+SNG: 8,8
+UREI: 13,09
+ATB: --
+BCL: --
+TEMPERATURA: 3,4
+```
+
+Regra ajustada a partir da planilha real:
+
+```text
+campo de data preferencial: ANALISE quando preenchido
+fallback de data: COLETA quando ANALISE estiver vazio
+```
+
+O teste do processor deve usar essa planilha real como fixture inicial.
 
 ## Pontos Para Decidir Antes De Implementar
 

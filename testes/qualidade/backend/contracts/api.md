@@ -164,6 +164,68 @@ Resposta:
 
 ## GET /api/qualidade/relatorios/resumo
 
+## POST /api/qualidade/analises/importacoes
+
+Importa planilha de analises laboratoriais.
+
+Body:
+
+- `multipart/form-data`
+- campo `arquivo`
+- formatos aceitos: `.xlsx`, `.xls`, `.csv`
+
+Regra:
+
+- `IDPROD` identifica o produtor.
+- O processor Python nao consulta banco.
+- Laravel valida se cada `IDPROD` existe em `produtores`.
+- Linhas com `IDPROD` inexistente falham individualmente.
+- Linhas com `IDPROD` existente seguem e podem ser gravadas.
+- A resposta deve avisar quais codigos de produtores nao foram encontrados.
+- Reimportacao nao duplica nem sobrescreve; apenas completa campos vazios.
+
+Resposta com sucesso parcial:
+
+```json
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "arquivo": "SantiLac Laticinios LTDA_145136.xlsx",
+      "arquivo_hash": "sha256...",
+      "ja_importado": false,
+      "total_linhas": 63,
+      "linhas_validas_processor": 63,
+      "linhas_com_erro": 2,
+      "produtores_nao_encontrados": 2,
+      "registros_criados": 61,
+      "registros_completados": 0,
+      "registros_sem_mudanca": 0
+    },
+    "warnings": [
+      {
+        "code": "PRODUCER_410",
+        "message": "Alguns produtores da planilha nao existem no banco e foram ignorados.",
+        "details": {
+          "produtor_codigos": ["999", "1000"]
+        }
+      }
+    ],
+    "errors": [
+      {
+        "sheet": "Plan1",
+        "line": 12,
+        "code": "PRODUCER_410",
+        "message": "Produtor nao encontrado.",
+        "details": {
+          "produtor_codigo": "999"
+        }
+      }
+    ]
+  }
+}
+```
+
 Resumo para tela de relatorios.
 
 ## GET /api/qualidade/relatorios/produtores

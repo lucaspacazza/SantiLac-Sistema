@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'processor' => [
+        'url' => env('PROCESSOR_HTTP_URL'),
+        'token' => env('PROCESSOR_TOKEN'),
+    ],
+
 ];

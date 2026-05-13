@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS resultadosanalises (
   created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
+  UNIQUE KEY idx_produtor_data (produtor_codigo, data),
   KEY idx_resultadosanalises_produtor (produtor_codigo),
   KEY idx_resultadosanalises_data (data)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

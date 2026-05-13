@@ -55,15 +55,38 @@ export type AnalisesResponse = {
   }
 }
 
-export type ReportsResumo = {
-  totais: {
-    ativos: number
-    inativos: number
-    novos: number
-    analises: number
+export type ImportWarning = {
+  code: string
+  message: string
+  details?: {
+    produtor_codigos?: string[]
+    [key: string]: unknown
   }
-  rotas: string[]
-  ultima_analise?: string | null
+}
+
+export type ImportError = {
+  sheet?: string
+  line?: number
+  code: string
+  message: string
+  details?: Record<string, unknown>
+}
+
+export type ImportAnalisesResponse = {
+  summary: {
+    arquivo: string | null
+    arquivo_hash: string | null
+    ja_importado: boolean
+    total_linhas: number
+    linhas_validas_processor: number
+    linhas_com_erro: number
+    produtores_nao_encontrados: number
+    registros_criados: number
+    registros_completados: number
+    registros_sem_mudanca: number
+  }
+  warnings: ImportWarning[]
+  errors: ImportError[]
 }
 
 type ApiResponse<T> = {
@@ -97,9 +120,29 @@ async function getJson<T>(path: string): Promise<T> {
   return json.data
 }
 
+async function postFile<T>(path: string, file: File): Promise<T> {
+  const formData = new FormData()
+  formData.append('arquivo', file)
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+
+  const json = (await response.json()) as ApiResponse<T>
+  if (!response.ok || !json.success) {
+    throw new Error(json.error?.message ?? 'Falha ao enviar arquivo')
+  }
+
+  return json.data
+}
+
 export const qualidadeApi = {
   produtores: () => getJson<ProducersResponse>('/produtores?per_page=100'),
   analises: () => getJson<AnalisesResponse>('/analises?per_page=100'),
+  importarAnalises: (file: File) => postFile<ImportAnalisesResponse>('/analises/importacoes', file),
   overview: () => getJson<Overview>('/overview'),
-  relatoriosResumo: () => getJson<ReportsResumo>('/relatorios/resumo'),
 }
