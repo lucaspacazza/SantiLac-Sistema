@@ -1,0 +1,245 @@
+.nav-item svg,
+.nav-subitem svg {
+  flex: 0 0 auto;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.nav-item:hover svg:not(.animated-home-svg),
+.nav-subitem:hover svg:not(.animated-home-svg) {
+  animation: sidebar-roll-default 680ms cubic-bezier(0.19, 0.9, 0.24, 1) both;
+}
+
+.nav-motion-home:hover svg,
+.nav-motion-start:hover svg {
+  animation-name: sidebar-roll-forward;
+}
+
+.nav-motion-quality:hover svg,
+.nav-motion-analyses:hover svg {
+  animation-name: sidebar-roll-orbital;
+}
+
+.nav-motion-stock:hover svg,
+.nav-motion-items:hover svg {
+  animation-name: sidebar-roll-cube;
+}
+
+.nav-motion-dashboard:hover svg,
+.nav-motion-reports:hover svg {
+  animation-name: sidebar-roll-panel;
+}
+
+.nav-motion-admin:hover svg {
+  animation-name: sidebar-roll-gear;
+}
+
+.nav-motion-access:hover svg {
+  animation-name: sidebar-roll-shield;
+}
+
+.nav-motion-producers:hover svg {
+  animation-name: sidebar-roll-group;
+}
+
+.nav-motion-movements:hover svg {
+  animation-name: sidebar-roll-switch;
+}
+
+.nav-item.is-disabled:hover svg,
+.nav-item:disabled:hover svg,
+.nav-subitem:disabled:hover svg {
+  animation: none;
+  transform: none;
+}
+
+.animated-home-icon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: currentColor;
+}
+
+.animated-home-svg {
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.animated-home-smoke {
+  position: absolute;
+  z-index: 2;
+  left: 9px;
+  top: 1px;
+  width: 4px;
+  height: 4px;
+  border: 1.4px solid currentColor;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(0, 0) scale(0.45);
+  will-change: opacity, transform;
+}
+
+.animated-home-smoke.is-two {
+  left: 11px;
+  top: 0;
+  width: 3px;
+  height: 3px;
+  border-width: 1.2px;
+}
+
+@keyframes sidebar-roll-default {
+  0% {
+    transform: perspective(92px) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+
+  45% {
+    transform: perspective(92px) rotateX(94deg) rotateY(18deg) rotateZ(-6deg);
+  }
+
+  100% {
+    transform: perspective(92px) rotateX(180deg) rotateY(0deg) rotateZ(0deg);
+  }
+}
+
+@keyframes sidebar-roll-forward {
+  0% {
+    transform: perspective(96px) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+
+  42% {
+    transform: perspective(96px) rotateX(88deg) rotateY(-12deg) rotateZ(4deg);
+  }
+
+  76% {
+    transform: perspective(96px) rotateX(164deg) rotateY(8deg) rotateZ(-3deg);
+  }
+
+  100% {
+    transform: perspective(96px) rotateX(180deg) rotateY(0deg) rotateZ(0deg);
+  }
+}
+
+@keyframes sidebar-roll-orbital {
+  0% {
+    transform: perspective(100px) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+
+  34% {
+    transform: perspective(100px) rotateX(68deg) rotateY(118deg) rotateZ(-10deg);
+  }
+
+  68% {
+    transform: perspective(100px) rotateX(138deg) rotateY(246deg) rotateZ(8deg);
+  }
+
+  100% {
+    transform: perspective(100px) rotateX(180deg) rotateY(360deg) rotateZ(0deg);
+  }
+}
+
+@keyframes sidebar-roll-cube {
+  0% {
+    transform: perspective(98px) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+
+  38% {
+    transform: perspective(98px) rotateX(-78deg) rotateY(46deg) rotateZ(6deg);
+  }
+
+  72% {
+    transform: perspective(98px) rotateX(-154deg) rotateY(92deg) rotateZ(-4deg);
+  }
+
+  100% {
+    transform: perspective(98px) rotateX(-180deg) rotateY(90deg) rotateZ(0deg);
+  }
+}
+
+@keyframes sidebar-roll-panel {
+  0% {
+    transform: perspective(88px) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+
+  45% {
+    transform: perspective(88px) rotateX(0deg) rotateY(92deg) rotateZ(4deg);
+  }
+
+  100% {
+    transform: perspective(88px) rotateX(0deg) rotateY(180deg) rotateZ(0deg);
+  }
+}
+
+@keyframes sidebar-roll-gear {
+  0% {
+    transform: perspective(96px) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+
+  36% {
+    transform: perspective(96px) rotateX(48deg) rotateY(58deg) rotateZ(96deg);
+  }
+
+  72% {
+    transform: perspective(96px) rotateX(102deg) rotateY(112deg) rotateZ(198deg);
+  }
+
+  100% {
+    transform: perspective(96px) rotateX(180deg) rotateY(180deg) rotateZ(270deg);
+  }
+}
+
+@keyframes sidebar-roll-shield {
+  0% {
+    transform: perspective(92px) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+
+  44% {
+    transform: perspective(92px) rotateX(-88deg) rotateY(-16deg) rotateZ(-5deg);
+  }
+
+  100% {
+    transform: perspective(92px) rotateX(-180deg) rotateY(0deg) rotateZ(0deg);
+  }
+}
+
+@keyframes sidebar-roll-group {
+  0% {
+    transform: perspective(92px) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+
+  40% {
+    transform: perspective(92px) rotateX(34deg) rotateY(-96deg) rotateZ(7deg);
+  }
+
+  72% {
+    transform: perspective(92px) rotateX(-18deg) rotateY(-166deg) rotateZ(-5deg);
+  }
+
+  100% {
+    transform: perspective(92px) rotateX(0deg) rotateY(-180deg) rotateZ(0deg);
+  }
+}
+
+@keyframes sidebar-roll-switch {
+  0% {
+    transform: perspective(92px) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+
+  32% {
+    transform: perspective(92px) rotateX(0deg) rotateY(72deg) rotateZ(22deg);
+  }
+
+  68% {
+    transform: perspective(92px) rotateX(0deg) rotateY(138deg) rotateZ(-18deg);
+  }
+
+  100% {
+    transform: perspective(92px) rotateX(0deg) rotateY(180deg) rotateZ(0deg);
+  }
+}

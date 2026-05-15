@@ -25,35 +25,6 @@ export type ProdutorRelatorio = {
   pendencias: PendenciaQualidade[]
 }
 
-export type GrupoForaPadrao = {
-  codigo: string
-  label: string
-  total: number
-  media: number | null
-  pior: {
-    codigo: string
-    nome: string
-    cidade: string
-    rota: string
-    data: string | null
-    valor: number | null
-    referencia: string
-    unidade: string | null
-    gravidade: number
-  } | null
-  items: Array<{
-    codigo: string
-    nome: string
-    cidade: string
-    rota: string
-    data: string | null
-    valor: number | null
-    referencia: string
-    unidade: string | null
-    gravidade: number
-  }>
-}
-
 export type ImportacaoRelatorio = {
   id: number
   arquivo_nome_original: string
@@ -112,14 +83,45 @@ export type RelatoriosResumo = {
   produtores: ProdutorRelatorio[]
   sem_analise: ProdutorRelatorio[]
   ranking_atencao: ProdutorRelatorio[]
-  fora_padrao: GrupoForaPadrao[]
+  fora_padrao: Array<{
+    codigo: string
+    label: string
+    total: number
+    media: number | null
+    pior: {
+      codigo: string
+      nome: string
+      cidade: string
+      rota: string
+      data: string | null
+      valor: number | null
+      referencia: string
+      unidade: string | null
+      gravidade: number
+    } | null
+    items: Array<{
+      codigo: string
+      nome: string
+      cidade: string
+      rota: string
+      data: string | null
+      valor: number | null
+      referencia: string
+      unidade: string | null
+      gravidade: number
+    }>
+  }>
   importacoes: ImportacaoRelatorio[]
   evolucao_mensal: EvolucaoMensal[]
 }
 
+export type GrupoForaPadrao = RelatoriosResumo['fora_padrao'][number]
+
 export type ExportacaoDownload = {
   arquivo: string
 }
+
+const API_BASE = '/api/qualidade/relatorios'
 
 type ApiResponse<T> = {
   success: boolean
@@ -130,8 +132,6 @@ type ApiResponse<T> = {
     details?: Record<string, unknown>
   }
 }
-
-const API_BASE = '/api/qualidade/relatorios'
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -152,39 +152,15 @@ async function getJson<T>(path: string): Promise<T> {
   return json.data
 }
 
-async function postJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  })
-
-  const json = (await response.json()) as ApiResponse<T>
-  if (!response.ok || !json.success) {
-    throw new Error(json.error?.message ?? 'Falha ao processar solicitação')
-  }
-
-  return json.data
-}
-
 function filenameFromDisposition(disposition: string | null, fallback: string): string {
   if (!disposition) return fallback
-
-  const utfMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i)
-  if (utfMatch?.[1]) {
-    return decodeURIComponent(utfMatch[1].replace(/"/g, ''))
-  }
-
   const match = disposition.match(/filename="?([^"]+)"?/i)
   return match?.[1] ?? fallback
 }
 
 async function postDownload(
   path: string,
-  payload: Record<string, unknown>,
+  body: Record<string, unknown>,
   options: { accept: string; fallback: string; errorMessage: string },
 ): Promise<ExportacaoDownload> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -193,11 +169,12 @@ async function postDownload(
       Accept: options.accept,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   })
 
-  if (!response.ok) {
-    const json = (await response.json().catch(() => null)) as ApiResponse<unknown> | null
+  const contentType = response.headers.get('Content-Type') ?? ''
+  if (!response.ok || contentType.includes('application/json')) {
+    const json = contentType.includes('application/json') ? await response.json().catch(() => null) : null
     throw new Error(json?.error?.message ?? options.errorMessage)
   }
 
@@ -226,5 +203,35 @@ export const relatoriosApi = {
     accept: 'application/pdf, application/json',
     fallback: 'qualidade_produtores_analises.pdf',
     errorMessage: 'Falha ao gerar PDF',
+  }),
+  exportarProdutorAnalises: (codigo: string, mes: string) => postDownload(`/exportacoes/produtores/${encodeURIComponent(codigo)}/analises`, { mes }, {
+    accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+    fallback: `qualidade_produtor_${codigo}_analises.xlsx`,
+    errorMessage: 'Falha ao gerar planilha individual do produtor',
+  }),
+  exportarProdutorAnalisesPdf: (codigo: string, mes: string) => postDownload(`/exportacoes/produtores/${encodeURIComponent(codigo)}/analises/pdf`, { mes }, {
+    accept: 'application/pdf, application/json',
+    fallback: `qualidade_produtor_${codigo}_analises.pdf`,
+    errorMessage: 'Falha ao gerar PDF individual do produtor',
+  }),
+  exportarForaPadrao: (mes: string) => postDownload('/exportacoes/fora-padrao', { mes }, {
+    accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+    fallback: 'qualidade_fora_padrao.xlsx',
+    errorMessage: 'Falha ao gerar planilha de fora do padrão',
+  }),
+  exportarForaPadraoPdf: (mes: string) => postDownload('/exportacoes/fora-padrao/pdf', { mes }, {
+    accept: 'application/pdf, application/json',
+    fallback: 'qualidade_fora_padrao.pdf',
+    errorMessage: 'Falha ao gerar PDF de fora do padrão',
+  }),
+  exportarIndicadorForaPadrao: (codigo: string, mes: string) => postDownload(`/exportacoes/fora-padrao/${encodeURIComponent(codigo)}`, { mes }, {
+    accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+    fallback: `qualidade_fora_padrao_${codigo}.xlsx`,
+    errorMessage: 'Falha ao gerar planilha do indicador',
+  }),
+  exportarIndicadorForaPadraoPdf: (codigo: string, mes: string) => postDownload(`/exportacoes/fora-padrao/${encodeURIComponent(codigo)}/pdf`, { mes }, {
+    accept: 'application/pdf, application/json',
+    fallback: `qualidade_fora_padrao_${codigo}.pdf`,
+    errorMessage: 'Falha ao gerar PDF do indicador',
   }),
 }

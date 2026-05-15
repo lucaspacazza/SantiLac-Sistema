@@ -15,7 +15,52 @@
   --success: #21c37a;
   --danger: #ff4d65;
   --warning: #f5bd41;
+  --good: #68ddb4;
+  --bad-soft: #ff8792;
+  --nav-active: #1b1c20;
+  --avatar: #4d38a8;
+  --avatar-soft: #202126;
+  --topbar-pill: #1a1b1f;
+  --table-head: #050506;
+  --hover-soft: rgba(255, 255, 255, 0.035);
+  --surface-soft: rgba(255, 255, 255, 0.025);
+  --surface-hover: rgba(255, 255, 255, 0.045);
+  --surface-active: rgba(255, 255, 255, 0.065);
+  --modal-backdrop: rgba(0, 0, 0, 0.72);
+  --panel-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
   --radius: 8px;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #edf4fb;
+  --sidebar: #e6eef8;
+  --panel: #f8fbff;
+  --panel-2: #eaf1fa;
+  --input: #f3f7fc;
+  --line: rgba(42, 63, 92, 0.12);
+  --line-strong: rgba(42, 63, 92, 0.22);
+  --text: #102033;
+  --body: #516173;
+  --muted: #7a8aa0;
+  --primary: #162438;
+  --primary-on: #f8fbff;
+  --success: #12815d;
+  --danger: #c9364e;
+  --warning: #9a6a12;
+  --good: #0d7a58;
+  --bad-soft: #c9364e;
+  --nav-active: #d9e6f5;
+  --avatar: #4c65a8;
+  --avatar-soft: #d3dfef;
+  --topbar-pill: #e1eaf5;
+  --table-head: #f1f6fc;
+  --hover-soft: rgba(50, 73, 105, 0.06);
+  --surface-soft: rgba(50, 73, 105, 0.045);
+  --surface-hover: rgba(50, 73, 105, 0.075);
+  --surface-active: rgba(50, 73, 105, 0.1);
+  --modal-backdrop: rgba(9, 22, 39, 0.36);
+  --panel-shadow: 0 16px 34px rgba(38, 59, 89, 0.15);
 }
 
 * {
@@ -82,7 +127,7 @@ button {
   border-radius: 8px;
   display: inline-grid;
   place-items: center;
-  background: #4d38a8;
+  background: var(--avatar);
   color: #fff;
   font-size: 13px;
 }
@@ -90,7 +135,8 @@ button {
 .avatar.small {
   width: 22px;
   height: 22px;
-  background: #202126;
+  background: var(--avatar-soft);
+  color: var(--text);
 }
 
 .nav {
@@ -127,7 +173,7 @@ button {
 
 .nav-item:hover,
 .nav-item.is-active {
-  background: #1b1c20;
+  background: var(--nav-active);
   color: var(--text);
 }
 
@@ -175,7 +221,7 @@ button {
 
 .nav-subitem:hover,
 .nav-subitem.is-active {
-  background: #1b1c20;
+  background: var(--nav-active);
   color: var(--text);
 }
 
@@ -200,6 +246,39 @@ button {
   gap: 10px;
   color: var(--body);
   font-size: 14px;
+}
+
+.sidebar-user {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.sidebar-user span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-toggle {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--body);
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.theme-toggle:hover {
+  background: var(--nav-active);
+  color: var(--text);
 }
 
 .content {
@@ -236,7 +315,7 @@ button {
   padding: 0 14px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  background: #1a1b1f;
+  background: var(--topbar-pill);
   font-weight: 600;
 }
 
@@ -311,6 +390,34 @@ button {
   display: inline-flex;
 }
 
+.export-format-button {
+  min-height: 38px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--primary-on);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.export-format-button:hover:not(:disabled) {
+  background: var(--primary);
+  border-color: var(--primary);
+  opacity: 0.9;
+}
+
+.export-format-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 .export-menu {
   position: absolute;
   right: 0;
@@ -320,7 +427,7 @@ button {
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--panel);
-  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
+  box-shadow: var(--panel-shadow);
   padding: 4px;
 }
 
@@ -559,7 +666,7 @@ button {
   z-index: 2;
   color: var(--body);
   font-weight: 600;
-  background: #050506;
+  background: var(--table-head);
   box-shadow: 0 1px 0 var(--line);
 }
 
@@ -574,7 +681,7 @@ button {
 }
 
 .analysis-value.is-good {
-  color: #68ddb4;
+  color: var(--good);
 }
 
 .analysis-value.is-warn {
@@ -582,7 +689,7 @@ button {
 }
 
 .analysis-value.is-bad {
-  color: #ff8792;
+  color: var(--bad-soft);
 }
 
 .analysis-value.is-neutral {
@@ -604,16 +711,16 @@ button {
 
 .analysis-flag.is-good {
   background: rgba(104, 221, 180, 0.12);
-  color: #68ddb4;
+  color: var(--good);
 }
 
 .analysis-flag.is-bad {
   background: rgba(255, 135, 146, 0.12);
-  color: #ff8792;
+  color: var(--bad-soft);
 }
 
 .data-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--hover-soft);
 }
 
 .producer-name,
@@ -659,6 +766,14 @@ button {
 
 .detail-page > .btn {
   width: fit-content;
+}
+
+.detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .detail-header,
@@ -764,7 +879,7 @@ button {
   min-height: 156px;
   border: 1px dashed var(--line-strong);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--surface-soft);
   display: grid;
   place-items: center;
   align-content: center;
@@ -776,14 +891,14 @@ button {
 }
 
 .upload-box:hover {
-  border-color: rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.045);
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
   color: var(--text);
 }
 
 .upload-box.is-dragging {
   border-color: var(--primary);
-  background: rgba(255, 255, 255, 0.065);
+  background: var(--surface-active);
   color: var(--text);
 }
 
@@ -1290,8 +1405,30 @@ button {
   min-height: 72px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   padding: 14px;
+}
+
+.deviation-title,
+.deviation-detail-actions,
+.report-export-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.deviation-title {
+  min-width: 0;
+}
+
+.deviation-detail-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.report-export-actions {
+  flex-wrap: wrap;
 }
 
 .deviation-menu-head h2,
@@ -1347,7 +1484,7 @@ button {
 }
 
 .deviation-option em,
-.deviation-detail-head > span {
+.deviation-detail-actions > span {
   min-width: 34px;
   min-height: 28px;
   border-radius: var(--radius);
@@ -1492,6 +1629,14 @@ button {
   display: grid;
   gap: 16px;
   align-items: start;
+}
+
+.producer-issues-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .producer-issues-page > .btn {

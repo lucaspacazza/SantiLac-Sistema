@@ -215,7 +215,8 @@ def build_workbook(payload: dict[str, Any], output_path: Path, logo_path: Path |
     wb = Workbook()
     ws = wb.active
     ws.title = "Produtores e análises"
-    apply_standard_header(ws, deps, payload, "Relatório de produtores e análises", logo_path)
+    title = payload.get("titulo") or "Relatório de produtores e análises"
+    apply_standard_header(ws, deps, payload, title, logo_path)
 
     produtores = payload.get("produtores", [])
     rows = [producer_row(produtor) for produtor in produtores]

@@ -1,10 +1,26 @@
 import { useEffect, useState } from 'react'
 import { authApi, type AuthUser } from './api/authApi'
+import { EstoqueModule } from './modules/estoque/EstoqueModule'
 import { QualidadeModule } from './modules/qualidade/QualidadeModule'
 import { LoginPage } from './pages/LoginPage'
 import { SystemHome, type SystemModule } from './pages/SystemHome'
+import type { ThemeMode } from './shared/ThemeToggle'
 
 type AppState = 'booting' | 'guest' | 'authenticated'
+
+function moduleFromHash(): SystemModule | null {
+  const firstPart = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean)[0]
+
+  if (firstPart === 'estoque') {
+    return 'estoque'
+  }
+
+  if (['inicio', 'produtores', 'pendencias', 'analises', 'relatorios'].includes(firstPart)) {
+    return 'qualidade'
+  }
+
+  return null
+}
 
 export function App() {
   const [state, setState] = useState<AppState>('booting')
@@ -12,6 +28,15 @@ export function App() {
   const [activeModule, setActiveModule] = useState<SystemModule | null>(null)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    const savedTheme = window.localStorage.getItem('santilac-theme')
+    return savedTheme === 'light' ? 'light' : 'dark'
+  })
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('santilac-theme', theme)
+  }, [theme])
 
   useEffect(() => {
     async function boot() {
@@ -20,6 +45,7 @@ export function App() {
         const session = await authApi.me()
         if (session.user) {
           setUser(session.user)
+          setActiveModule(moduleFromHash())
           setState('authenticated')
           return
         }
@@ -40,6 +66,7 @@ export function App() {
     try {
       const result = await authApi.login(email, password, remember)
       setUser(result.user)
+      setActiveModule(moduleFromHash())
       setState('authenticated')
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : 'Não foi possível entrar no sistema.')
@@ -55,6 +82,33 @@ export function App() {
     setState('guest')
   }
 
+  function handleOpenModule(module: SystemModule) {
+    window.location.hash = module === 'estoque' ? '#/estoque/inicio' : '#/inicio'
+    setActiveModule(module)
+  }
+
+  function handleBackToSystem() {
+    window.location.hash = '#/sistema'
+    setActiveModule(null)
+  }
+
+  function handleToggleTheme() {
+    setTheme((current) => current === 'dark' ? 'light' : 'dark')
+  }
+
+  useEffect(() => {
+    if (state !== 'authenticated' || !user) {
+      return
+    }
+
+    const handleHashChange = () => {
+      setActiveModule(moduleFromHash())
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [state, user])
+
   if (state === 'booting') {
     return (
       <main className="core-loading">
@@ -69,13 +123,19 @@ export function App() {
   }
 
   if (activeModule === 'qualidade') {
-    return <QualidadeModule user={user} onBackToSystem={() => setActiveModule(null)} onLogout={handleLogout} />
+    return <QualidadeModule user={user} theme={theme} onToggleTheme={handleToggleTheme} onBackToSystem={handleBackToSystem} onOpenModule={handleOpenModule} onLogout={handleLogout} />
+  }
+
+  if (activeModule === 'estoque') {
+    return <EstoqueModule user={user} theme={theme} onToggleTheme={handleToggleTheme} onBackToSystem={handleBackToSystem} onOpenModule={handleOpenModule} onLogout={handleLogout} />
   }
 
   return (
     <SystemHome
       user={user}
-      onOpenModule={setActiveModule}
+      theme={theme}
+      onToggleTheme={handleToggleTheme}
+      onOpenModule={handleOpenModule}
       onLogout={handleLogout}
     />
   )

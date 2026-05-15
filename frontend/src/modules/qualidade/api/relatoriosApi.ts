@@ -136,4 +136,34 @@ export const relatoriosApi = {
     fallback: 'qualidade_produtores_analises.pdf',
     errorMessage: 'Falha ao gerar PDF',
   }),
+  exportarProdutorAnalises: (codigo: string, mes: string) => apiDownload(`${API_BASE}/exportacoes/produtores/${encodeURIComponent(codigo)}/analises`, { mes }, {
+    accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+    fallback: `qualidade_produtor_${codigo}_analises.xlsx`,
+    errorMessage: 'Falha ao gerar planilha individual do produtor',
+  }),
+  exportarProdutorAnalisesPdf: (codigo: string, mes: string) => apiDownload(`${API_BASE}/exportacoes/produtores/${encodeURIComponent(codigo)}/analises/pdf`, { mes }, {
+    accept: 'application/pdf, application/json',
+    fallback: `qualidade_produtor_${codigo}_analises.pdf`,
+    errorMessage: 'Falha ao gerar PDF individual do produtor',
+  }),
+  exportarForaPadrao: (mes: string) => apiDownload(`${API_BASE}/exportacoes/fora-padrao`, { mes }, {
+    accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+    fallback: 'qualidade_fora_padrao.xlsx',
+    errorMessage: 'Falha ao gerar planilha de fora do padrão',
+  }),
+  exportarForaPadraoPdf: (mes: string) => apiDownload(`${API_BASE}/exportacoes/fora-padrao/pdf`, { mes }, {
+    accept: 'application/pdf, application/json',
+    fallback: 'qualidade_fora_padrao.pdf',
+    errorMessage: 'Falha ao gerar PDF de fora do padrão',
+  }),
+  exportarIndicadorForaPadrao: (codigo: string, mes: string) => apiDownload(`${API_BASE}/exportacoes/fora-padrao/${encodeURIComponent(codigo)}`, { mes }, {
+    accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+    fallback: `qualidade_fora_padrao_${codigo}.xlsx`,
+    errorMessage: 'Falha ao gerar planilha do indicador',
+  }),
+  exportarIndicadorForaPadraoPdf: (codigo: string, mes: string) => apiDownload(`${API_BASE}/exportacoes/fora-padrao/${encodeURIComponent(codigo)}/pdf`, { mes }, {
+    accept: 'application/pdf, application/json',
+    fallback: `qualidade_fora_padrao_${codigo}.pdf`,
+    errorMessage: 'Falha ao gerar PDF do indicador',
+  }),
 }

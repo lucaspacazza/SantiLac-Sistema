@@ -1,14 +1,20 @@
 import { ArrowLeft } from 'lucide-react'
 import type { GrupoForaPadrao } from '../../api/relatoriosApi'
+import { ExportFormatMenu, type ExportFormat } from '../../shared/ExportFormatMenu'
 import { formatDecimal, formatNumber } from '../../shared/formatters'
 
 type DetalheDesvioReportProps = {
   grupo: GrupoForaPadrao
+  exportingTarget: string | null
   onBack: () => void
+  onExport: (format: ExportFormat) => void
   onOpenProdutor: (codigo: string) => void
 }
 
-export function DetalheDesvioReport({ grupo, onBack, onOpenProdutor }: DetalheDesvioReportProps) {
+export function DetalheDesvioReport({ grupo, exportingTarget, onBack, onExport, onOpenProdutor }: DetalheDesvioReportProps) {
+  const excelTarget = `indicador-${grupo.codigo}-excel`
+  const pdfTarget = `indicador-${grupo.codigo}-pdf`
+
   return (
     <section className="deviation-detail-page">
       <button className="btn secondary compact-action" type="button" onClick={onBack}>
@@ -21,7 +27,15 @@ export function DetalheDesvioReport({ grupo, onBack, onOpenProdutor }: DetalheDe
           <span className="eyebrow">Indicador</span>
           <h2>{grupo.label}</h2>
         </div>
-        <span>{formatNumber(grupo.total)} produtor(es)</span>
+
+        <div className="deviation-detail-actions">
+          <span>{formatNumber(grupo.total)} produtor(es)</span>
+          <ExportFormatMenu
+            isExporting={exportingTarget === excelTarget || exportingTarget === pdfTarget}
+            disabled={exportingTarget !== null}
+            onExport={onExport}
+          />
+        </div>
       </section>
 
       <section className="deviation-detail-table">

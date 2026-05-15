@@ -1,8 +1,8 @@
 .core-loading,
 .core-login {
   min-height: 100vh;
-  background: #000;
-  color: #f5f5f5;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .core-loading {
@@ -10,7 +10,7 @@
   place-items: center;
   align-content: center;
   gap: 14px;
-  color: #a8a8ad;
+  color: var(--body);
 }
 
 .core-loading img {
@@ -25,7 +25,7 @@
 .login-brand-stage {
   display: grid;
   place-items: center;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid var(--line);
 }
 
 .login-brand-stage img {
@@ -37,7 +37,7 @@
   display: grid;
   align-content: center;
   padding: 32px;
-  background: #030303;
+  background: var(--sidebar);
 }
 
 .login-panel {
@@ -55,13 +55,13 @@
 
 .login-panel p {
   margin: 8px 0 0;
-  color: #a8a8ad;
+  color: var(--body);
   font-size: 14px;
   line-height: 1.5;
 }
 
 .eyebrow {
-  color: #777a80;
+  color: var(--muted);
   display: block;
   font-size: 12px;
   font-weight: 600;
@@ -76,20 +76,20 @@
 .login-form label {
   display: grid;
   gap: 8px;
-  color: #a8a8ad;
+  color: var(--body);
   font-size: 13px;
 }
 
 .input-with-icon {
   min-height: 38px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--line-strong);
   border-radius: 8px;
-  background: #1b1c1f;
+  background: var(--input);
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 0 12px;
-  color: #777a80;
+  color: var(--muted);
 }
 
 .input-with-icon input {
@@ -97,7 +97,7 @@
   border: 0;
   outline: 0;
   background: transparent;
-  color: #f5f5f5;
+  color: var(--text);
 }
 
 .check-line {
@@ -107,16 +107,16 @@
 }
 
 .form-error {
-  color: #ff4d65;
+  color: var(--danger);
   font-size: 13px;
 }
 
 .primary-action {
   min-height: 34px;
-  border: 1px solid #fff;
+  border: 1px solid var(--primary);
   border-radius: 8px;
-  background: #fff;
-  color: #000;
+  background: var(--primary);
+  color: var(--primary-on);
   display: inline-flex;
   align-items: center;
   justify-content: center;

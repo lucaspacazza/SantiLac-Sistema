@@ -6,6 +6,7 @@ use App\Models\ProdutorQualidade;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\Process\Process;
 
@@ -13,6 +14,7 @@ class RelatoriosService
 {
     private const ANALISES_TABLE = 'resultadosanalises';
     private const IMPORTACOES_TABLE = 'importacoes_analises';
+    private const TIMEZONE_BRASILIA = 'America/Sao_Paulo';
 
     public function resumo(Request $request): array
     {
@@ -158,6 +160,34 @@ class RelatoriosService
         ];
     }
 
+    public function exportarProdutorAnalises(Request $request, string $codigo): array
+    {
+        $payload = $this->payloadProdutoresAnalises($request, $codigo);
+        $periodo = $payload['periodo'];
+        $slug = preg_replace('/[^a-z0-9_]+/', '_', strtolower($codigo)) ?: 'produtor';
+        $fileName = 'qualidade_produtor_' . $slug . '_analises_' . str_replace('-', '_', $periodo['mes']) . '.xlsx';
+        $outputPath = $this->temporaryOutputPath($fileName, 'xlsx');
+        $inputPath = $this->temporaryPayload($payload, 'santilac_produtor_export_');
+
+        $result = $this->executarExportadorGenerico(
+            env('QUALIDADE_EXPORT_PRODUTOR_ANALISES_SCRIPT', base_path('../processor/modules/qualidade/produtores/individual/excel/export_producer_analysis.py')),
+            $inputPath,
+            $outputPath,
+            'EXPORT_831',
+            'Falha ao executar exportador individual do produtor.',
+            '/qualidade/export-produtor-analises/excel'
+        );
+        @unlink($inputPath);
+
+        return [
+            'arquivo' => $fileName,
+            'caminho' => $outputPath,
+            'periodo' => $periodo,
+            'totais' => $payload['totais'],
+            'processor' => $result,
+        ];
+    }
+
     public function exportarProdutoresAnalisesPdf(Request $request): array
     {
         $payload = $this->payloadProdutoresAnalises($request);
@@ -184,7 +214,249 @@ class RelatoriosService
         ];
     }
 
-    private function payloadProdutoresAnalises(Request $request): array
+    public function exportarProdutorAnalisesPdf(Request $request, string $codigo): array
+    {
+        $payload = $this->payloadProdutoresAnalises($request, $codigo);
+        $periodo = $payload['periodo'];
+        $slug = preg_replace('/[^a-z0-9_]+/', '_', strtolower($codigo)) ?: 'produtor';
+        $fileName = 'qualidade_produtor_' . $slug . '_analises_' . str_replace('-', '_', $periodo['mes']) . '.pdf';
+        $outputPath = $this->temporaryOutputPath($fileName, 'pdf');
+        $inputPath = $this->temporaryPayload($payload, 'santilac_produtor_pdf_export_');
+
+        $result = $this->executarExportadorGenerico(
+            env('QUALIDADE_EXPORT_PRODUTOR_ANALISES_PDF_SCRIPT', base_path('../processor/modules/qualidade/produtores/individual/pdf/export_producer_analysis_pdf.py')),
+            $inputPath,
+            $outputPath,
+            'EXPORT_841',
+            'Falha ao executar exportador PDF individual do produtor.',
+            '/qualidade/export-produtor-analises/pdf'
+        );
+        @unlink($inputPath);
+
+        return [
+            'arquivo' => $fileName,
+            'caminho' => $outputPath,
+            'periodo' => $periodo,
+            'totais' => $payload['totais'],
+            'processor' => $result,
+        ];
+    }
+
+    public function exportarProdutorPendencias(Request $request, string $codigo): array
+    {
+        $payload = $this->payloadProdutorPendencias($request, $codigo);
+        $periodo = $payload['periodo'];
+        $slug = preg_replace('/[^a-z0-9_]+/', '_', strtolower($codigo)) ?: 'produtor';
+        $fileName = 'qualidade_produtor_' . $slug . '_inconsistencias_' . str_replace('-', '_', $periodo['mes']) . '.xlsx';
+        $outputPath = $this->temporaryOutputPath($fileName, 'xlsx');
+        $inputPath = $this->temporaryPayload($payload, 'santilac_produtor_pendencias_');
+
+        $result = $this->executarExportadorGenerico(
+            env('QUALIDADE_EXPORT_PRODUTOR_PENDENCIAS_SCRIPT', base_path('../processor/modules/qualidade/produtores/pendencias/excel/export_producer_issues.py')),
+            $inputPath,
+            $outputPath,
+            'EXPORT_851',
+            'Falha ao executar exportador de inconsistências do produtor.',
+            '/qualidade/export-produtor-pendencias/excel'
+        );
+        @unlink($inputPath);
+
+        return [
+            'arquivo' => $fileName,
+            'caminho' => $outputPath,
+            'periodo' => $periodo,
+            'totais' => $payload['totais'],
+            'processor' => $result,
+        ];
+    }
+
+    public function exportarProdutorPendenciasPdf(Request $request, string $codigo): array
+    {
+        $payload = $this->payloadProdutorPendencias($request, $codigo);
+        $periodo = $payload['periodo'];
+        $slug = preg_replace('/[^a-z0-9_]+/', '_', strtolower($codigo)) ?: 'produtor';
+        $fileName = 'qualidade_produtor_' . $slug . '_inconsistencias_' . str_replace('-', '_', $periodo['mes']) . '.pdf';
+        $outputPath = $this->temporaryOutputPath($fileName, 'pdf');
+        $inputPath = $this->temporaryPayload($payload, 'santilac_produtor_pendencias_pdf_');
+
+        $result = $this->executarExportadorGenerico(
+            env('QUALIDADE_EXPORT_PRODUTOR_PENDENCIAS_PDF_SCRIPT', base_path('../processor/modules/qualidade/produtores/pendencias/pdf/export_producer_issues_pdf.py')),
+            $inputPath,
+            $outputPath,
+            'EXPORT_861',
+            'Falha ao executar exportador PDF de inconsistências do produtor.',
+            '/qualidade/export-produtor-pendencias/pdf'
+        );
+        @unlink($inputPath);
+
+        return [
+            'arquivo' => $fileName,
+            'caminho' => $outputPath,
+            'periodo' => $periodo,
+            'totais' => $payload['totais'],
+            'processor' => $result,
+        ];
+    }
+
+    public function exportarForaPadrao(Request $request): array
+    {
+        $payload = $this->payloadForaPadrao($request);
+        $periodo = $payload['periodo'];
+        $fileName = 'qualidade_fora_padrao_' . str_replace('-', '_', $periodo['mes']) . '.xlsx';
+        $outputPath = $this->temporaryOutputPath($fileName, 'xlsx');
+        $inputPath = $this->temporaryPayload($payload, 'santilac_fora_padrao_');
+
+        $result = $this->executarExportadorGenerico(
+            env('QUALIDADE_EXPORT_FORA_PADRAO_SCRIPT', base_path('../processor/modules/qualidade/relatorios/fora_padrao/geral/excel/export_fora_padrao.py')),
+            $inputPath,
+            $outputPath,
+            'EXPORT_911',
+            'Falha ao executar exportador de fora do padrao.',
+            '/qualidade/export-relatorios/fora-padrao/excel'
+        );
+        @unlink($inputPath);
+
+        return [
+            'arquivo' => $fileName,
+            'caminho' => $outputPath,
+            'periodo' => $periodo,
+            'totais' => $payload['totais'],
+            'processor' => $result,
+        ];
+    }
+
+    public function exportarForaPadraoPdf(Request $request): array
+    {
+        $payload = $this->payloadForaPadrao($request);
+        $periodo = $payload['periodo'];
+        $fileName = 'qualidade_fora_padrao_' . str_replace('-', '_', $periodo['mes']) . '.pdf';
+        $outputPath = $this->temporaryOutputPath($fileName, 'pdf');
+        $inputPath = $this->temporaryPayload($payload, 'santilac_fora_padrao_pdf_');
+
+        $result = $this->executarExportadorGenerico(
+            env('QUALIDADE_EXPORT_FORA_PADRAO_PDF_SCRIPT', base_path('../processor/modules/qualidade/relatorios/fora_padrao/geral/pdf/export_fora_padrao_pdf.py')),
+            $inputPath,
+            $outputPath,
+            'EXPORT_931',
+            'Falha ao executar exportador PDF de fora do padrao.',
+            '/qualidade/export-relatorios/fora-padrao/pdf'
+        );
+        @unlink($inputPath);
+
+        return [
+            'arquivo' => $fileName,
+            'caminho' => $outputPath,
+            'periodo' => $periodo,
+            'totais' => $payload['totais'],
+            'processor' => $result,
+        ];
+    }
+
+    public function exportarIndicadorForaPadrao(Request $request, string $codigo): array
+    {
+        $payload = $this->payloadForaPadrao($request, $codigo);
+        $periodo = $payload['periodo'];
+        $slug = preg_replace('/[^a-z0-9_]+/', '_', strtolower($codigo)) ?: 'indicador';
+        $fileName = 'qualidade_fora_padrao_' . $slug . '_' . str_replace('-', '_', $periodo['mes']) . '.xlsx';
+        $outputPath = $this->temporaryOutputPath($fileName, 'xlsx');
+        $inputPath = $this->temporaryPayload($payload, 'santilac_indicador_fora_padrao_');
+
+        $result = $this->executarExportadorGenerico(
+            env('QUALIDADE_EXPORT_INDICADOR_FORA_PADRAO_SCRIPT', base_path('../processor/modules/qualidade/relatorios/fora_padrao/indicador/excel/export_indicador_fora_padrao.py')),
+            $inputPath,
+            $outputPath,
+            'EXPORT_921',
+            'Falha ao executar exportador de indicador fora do padrao.',
+            '/qualidade/export-relatorios/fora-padrao/indicador/excel'
+        );
+        @unlink($inputPath);
+
+        return [
+            'arquivo' => $fileName,
+            'caminho' => $outputPath,
+            'periodo' => $periodo,
+            'totais' => $payload['totais'],
+            'processor' => $result,
+        ];
+    }
+
+    public function exportarIndicadorForaPadraoPdf(Request $request, string $codigo): array
+    {
+        $payload = $this->payloadForaPadrao($request, $codigo);
+        $periodo = $payload['periodo'];
+        $slug = preg_replace('/[^a-z0-9_]+/', '_', strtolower($codigo)) ?: 'indicador';
+        $fileName = 'qualidade_fora_padrao_' . $slug . '_' . str_replace('-', '_', $periodo['mes']) . '.pdf';
+        $outputPath = $this->temporaryOutputPath($fileName, 'pdf');
+        $inputPath = $this->temporaryPayload($payload, 'santilac_indicador_fora_padrao_pdf_');
+
+        $result = $this->executarExportadorGenerico(
+            env('QUALIDADE_EXPORT_INDICADOR_FORA_PADRAO_PDF_SCRIPT', base_path('../processor/modules/qualidade/relatorios/fora_padrao/indicador/pdf/export_indicador_fora_padrao_pdf.py')),
+            $inputPath,
+            $outputPath,
+            'EXPORT_941',
+            'Falha ao executar exportador PDF de indicador fora do padrao.',
+            '/qualidade/export-relatorios/fora-padrao/indicador/pdf'
+        );
+        @unlink($inputPath);
+
+        return [
+            'arquivo' => $fileName,
+            'caminho' => $outputPath,
+            'periodo' => $periodo,
+            'totais' => $payload['totais'],
+            'processor' => $result,
+        ];
+    }
+
+    private function payloadProdutoresAnalises(Request $request, ?string $codigo = null): array
+    {
+        $periodo = $this->resolverPeriodoExportacao($request);
+        $query = ProdutorQualidade::query()
+            ->select([
+                'codigo',
+                'nome',
+                'cidade',
+                'rota',
+                'cpf_cnpj',
+                'ativo',
+                'novo',
+                'data_cadastro',
+                'data_inativacao',
+            ])
+            ->where('ativo', 1)
+            ->orderBy('nome');
+
+        if ($codigo !== null) {
+            $query->where('codigo', $codigo);
+        }
+
+        $produtores = $query->get();
+
+        $codigos = $produtores->pluck('codigo')->map(fn ($codigo): string => (string) $codigo)->all();
+        $analises = $this->ultimasAnalisesPorProdutorNoPeriodo($codigos, $periodo['inicio'], $periodo['fim']);
+        $items = $produtores
+            ->map(fn (ProdutorQualidade $produtor): array => [
+                ...$this->formatarProdutor($produtor),
+                'ultima_analise' => $analises[(string) $produtor->codigo] ?? null,
+            ])
+            ->values()
+            ->all();
+
+        $comAnalise = collect($items)->filter(fn (array $produtor): bool => $produtor['ultima_analise'] !== null)->count();
+        return [
+            'titulo' => $codigo === null ? null : 'Relatório individual do produtor',
+            'periodo' => $periodo,
+            ...$this->carimboGeracao(),
+            'totais' => [
+                'produtores' => count($items),
+                'com_analise' => $comAnalise,
+                'sem_analise' => count($items) - $comAnalise,
+            ],
+            'produtores' => $items,
+        ];
+    }
+
+    private function payloadForaPadrao(Request $request, ?string $indicadorCodigo = null): array
     {
         $periodo = $this->resolverPeriodoExportacao($request);
         $produtores = ProdutorQualidade::query()
@@ -205,26 +477,146 @@ class RelatoriosService
 
         $codigos = $produtores->pluck('codigo')->map(fn ($codigo): string => (string) $codigo)->all();
         $analises = $this->ultimasAnalisesPorProdutorNoPeriodo($codigos, $periodo['inicio'], $periodo['fim']);
-        $items = $produtores
-            ->map(fn (ProdutorQualidade $produtor): array => [
-                ...$this->formatarProdutor($produtor),
-                'ultima_analise' => $analises[(string) $produtor->codigo] ?? null,
-            ])
-            ->values()
-            ->all();
+        $items = [];
+        $indicador = null;
 
-        $comAnalise = collect($items)->filter(fn (array $produtor): bool => $produtor['ultima_analise'] !== null)->count();
+        foreach ($produtores as $produtor) {
+            $analise = $analises[(string) $produtor->codigo] ?? null;
+            if ($analise === null) {
+                continue;
+            }
+
+            foreach ($this->avaliarIndicadores($analise) as $pendencia) {
+                if ($indicadorCodigo !== null && $pendencia['codigo'] !== $indicadorCodigo) {
+                    continue;
+                }
+
+                $indicador ??= [
+                    'codigo' => $pendencia['codigo'],
+                    'label' => $pendencia['label'],
+                ];
+
+                $items[] = [
+                    'indicador_codigo' => $pendencia['codigo'],
+                    'indicador_label' => $pendencia['label'],
+                    'codigo' => (string) $produtor->codigo,
+                    'nome' => $this->limparTexto($produtor->nome),
+                    'cidade' => $this->limparTexto($produtor->cidade),
+                    'rota' => $this->limparTexto($produtor->rota),
+                    'data' => $analise['data'] ?? null,
+                    'valor' => $pendencia['valor'],
+                    'referencia' => $pendencia['referencia'],
+                    'unidade' => $pendencia['unidade'],
+                    'gravidade' => $pendencia['gravidade'],
+                ];
+            }
+        }
+
+        usort($items, fn (array $left, array $right): int => [
+            $left['indicador_label'],
+            -$left['gravidade'],
+            $left['nome'],
+        ] <=> [
+            $right['indicador_label'],
+            -$right['gravidade'],
+            $right['nome'],
+        ]);
+
+        $produtoresAfetados = collect($items)->pluck('codigo')->unique()->count();
+
         return [
             'periodo' => $periodo,
-            'gerado_em' => now()->toDateString(),
-            'gerado_hora' => now()->format('H:i:s'),
+            ...$this->carimboGeracao(),
+            'indicador' => $indicador,
             'totais' => [
-                'produtores' => count($items),
-                'com_analise' => $comAnalise,
-                'sem_analise' => count($items) - $comAnalise,
+                'produtores' => $produtoresAfetados,
+                'ocorrencias' => count($items),
             ],
-            'produtores' => $items,
+            'items' => $items,
         ];
+    }
+
+    private function payloadProdutorPendencias(Request $request, string $codigo): array
+    {
+        $periodo = $this->resolverPeriodoExportacao($request);
+        $produtor = ProdutorQualidade::query()
+            ->select([
+                'codigo',
+                'nome',
+                'cidade',
+                'rota',
+                'cpf_cnpj',
+                'ativo',
+                'novo',
+                'data_cadastro',
+                'data_inativacao',
+            ])
+            ->where('ativo', 1)
+            ->where('codigo', $codigo)
+            ->first();
+
+        $items = [];
+        if ($produtor !== null) {
+            $analises = $this->ultimasAnalisesPorProdutorNoPeriodo([(string) $produtor->codigo], $periodo['inicio'], $periodo['fim']);
+            $analise = $analises[(string) $produtor->codigo] ?? null;
+
+            if ($analise !== null) {
+                foreach ($this->avaliarIndicadores($analise) as $pendencia) {
+                    $items[] = [
+                        'indicador_codigo' => $pendencia['codigo'],
+                        'indicador_label' => $pendencia['label'],
+                        'codigo' => (string) $produtor->codigo,
+                        'nome' => $this->limparTexto($produtor->nome),
+                        'cidade' => $this->limparTexto($produtor->cidade),
+                        'rota' => $this->limparTexto($produtor->rota),
+                        'data' => $analise['data'] ?? null,
+                        'valor' => $pendencia['valor'],
+                        'referencia' => $pendencia['referencia'],
+                        'unidade' => $pendencia['unidade'],
+                        'gravidade' => $pendencia['gravidade'],
+                    ];
+                }
+            }
+        }
+
+        usort($items, fn (array $left, array $right): int => [
+            -$left['gravidade'],
+            $left['indicador_label'],
+        ] <=> [
+            -$right['gravidade'],
+            $right['indicador_label'],
+        ]);
+
+        return [
+            'titulo' => 'Inconsistências do produtor',
+            'periodo' => $periodo,
+            ...$this->carimboGeracao(),
+            'indicador' => null,
+            'totais' => [
+                'produtores' => $items === [] ? 0 : 1,
+                'ocorrencias' => count($items),
+            ],
+            'items' => $items,
+        ];
+    }
+
+    private function temporaryOutputPath(string $fileName, string $extension): string
+    {
+        return rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+            . DIRECTORY_SEPARATOR
+            . pathinfo($fileName, PATHINFO_FILENAME)
+            . '_'
+            . bin2hex(random_bytes(4))
+            . '.'
+            . $extension;
+    }
+
+    private function temporaryPayload(array $payload, string $prefix): string
+    {
+        $inputPath = tempnam(sys_get_temp_dir(), $prefix);
+        file_put_contents($inputPath, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return $inputPath;
     }
 
     private function resolverPeriodo(Request $request, ?string $ultimaAnalise): array
@@ -266,8 +658,29 @@ class RelatoriosService
         ];
     }
 
+    private function carimboGeracao(): array
+    {
+        $agora = now(self::TIMEZONE_BRASILIA);
+
+        return [
+            'gerado_em' => $agora->toDateString(),
+            'gerado_hora' => $agora->format('H:i:s'),
+        ];
+    }
+
     private function executarExportadorProdutoresAnalises(string $inputPath, string $outputPath): array
     {
+        $processorUrl = rtrim((string) config('services.processor.url', ''), '/');
+        if ($processorUrl !== '') {
+            return $this->executarExportadorHttp(
+                $processorUrl . '/qualidade/export-produtores-analises/excel',
+                $inputPath,
+                $outputPath,
+                'EXPORT_811',
+                'Falha ao executar exportador.'
+            );
+        }
+
         $script = env(
             'QUALIDADE_EXPORT_PRODUTORES_ANALISES_SCRIPT',
             base_path('../processor/modules/qualidade/produtores/excel/export_producer_analyses.py')
@@ -309,6 +722,17 @@ class RelatoriosService
 
     private function executarExportadorProdutoresAnalisesPdf(string $inputPath, string $outputPath): array
     {
+        $processorUrl = rtrim((string) config('services.processor.url', ''), '/');
+        if ($processorUrl !== '') {
+            return $this->executarExportadorHttp(
+                $processorUrl . '/qualidade/export-produtores-analises/pdf',
+                $inputPath,
+                $outputPath,
+                'EXPORT_821',
+                'Falha ao executar exportador PDF.'
+            );
+        }
+
         $script = env(
             'QUALIDADE_EXPORT_PRODUTORES_ANALISES_PDF_SCRIPT',
             base_path('../processor/modules/qualidade/produtores/pdf/export_producer_analyses_pdf.py')
@@ -346,6 +770,115 @@ class RelatoriosService
         }
 
         return $decoded;
+    }
+
+    private function executarExportadorGenerico(
+        string $script,
+        string $inputPath,
+        string $outputPath,
+        string $errorCode,
+        string $errorMessage,
+        ?string $processorEndpoint = null
+    ): array {
+        $processorUrl = rtrim((string) config('services.processor.url', ''), '/');
+        if ($processorUrl !== '' && $processorEndpoint !== null) {
+            return $this->executarExportadorHttp(
+                $processorUrl . $processorEndpoint,
+                $inputPath,
+                $outputPath,
+                $errorCode,
+                $errorMessage
+            );
+        }
+
+        $logo = env('SANTILAC_LOGO_PATH', base_path('../processor/assets/logo.png'));
+        $python = env('QUALIDADE_EXPORT_PYTHON', 'python3');
+        $pythonCommand = preg_split('/\s+/', trim($python)) ?: ['python'];
+
+        $process = new Process([
+            ...$pythonCommand,
+            $script,
+            '--input',
+            $inputPath,
+            '--output',
+            $outputPath,
+            '--logo',
+            $logo,
+        ]);
+        $process->setTimeout(120);
+        $process->run();
+
+        $decoded = json_decode(trim($process->getOutput()), true);
+        if (! is_array($decoded) || ! ($decoded['success'] ?? false)) {
+            return [
+                'success' => false,
+                'errors' => [[
+                    'code' => $errorCode,
+                    'message' => $errorMessage,
+                    'details' => [
+                        'stdout' => $process->getOutput(),
+                        'stderr' => $process->getErrorOutput(),
+                    ],
+                ]],
+            ];
+        }
+
+        return $decoded;
+    }
+
+    private function executarExportadorHttp(string $url, string $inputPath, string $outputPath, string $errorCode, string $errorMessage): array
+    {
+        try {
+            $request = Http::timeout(120);
+            $token = (string) config('services.processor.token', '');
+            if ($token !== '') {
+                $request = $request->withHeaders(['X-Processor-Token' => $token]);
+            }
+
+            $response = $request->post($url, [
+                'payload' => json_decode((string) file_get_contents($inputPath), true),
+            ]);
+        } catch (\Throwable $exc) {
+            return [
+                'success' => false,
+                'errors' => [[
+                    'code' => $errorCode,
+                    'message' => 'Falha ao conectar ao processor.',
+                    'details' => ['error' => $exc->getMessage()],
+                ]],
+            ];
+        }
+
+        $decoded = $response->json();
+        if (! $response->successful() || ! is_array($decoded) || ! ($decoded['success'] ?? false)) {
+            return [
+                'success' => false,
+                'errors' => [[
+                    'code' => $errorCode,
+                    'message' => $errorMessage,
+                    'details' => [
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                    ],
+                ]],
+            ];
+        }
+
+        $content = base64_decode((string) ($decoded['file_base64'] ?? ''), true);
+        if ($content === false || $content === '') {
+            return [
+                'success' => false,
+                'errors' => [[
+                    'code' => $errorCode,
+                    'message' => 'Processor nao retornou arquivo valido.',
+                    'details' => [],
+                ]],
+            ];
+        }
+
+        file_put_contents($outputPath, $content);
+
+        return $decoded['processor'] ?? ['success' => true];
     }
 
     private function ultimasAnalisesPorProdutorNoPeriodo(array $codigos, string $inicio, string $fim): array

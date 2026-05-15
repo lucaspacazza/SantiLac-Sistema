@@ -1,13 +1,16 @@
 import { AlertTriangle } from 'lucide-react'
 import type { GrupoForaPadrao } from '../../api/relatoriosApi'
+import { ExportFormatMenu, type ExportFormat } from '../../shared/ExportFormatMenu'
 import { formatDecimal, formatNumber } from '../../shared/formatters'
 
 type ForaPadraoReportProps = {
   grupos: GrupoForaPadrao[]
+  exportingTarget: string | null
+  onExport: (format: ExportFormat) => void
   onOpenGrupo: (codigo: string) => void
 }
 
-export function ForaPadraoReport({ grupos, onOpenGrupo }: ForaPadraoReportProps) {
+export function ForaPadraoReport({ grupos, exportingTarget, onExport, onOpenGrupo }: ForaPadraoReportProps) {
   if (grupos.length === 0) {
     return <section className="empty-state">Nenhum produtor fora do padrão neste período.</section>
   }
@@ -15,11 +18,19 @@ export function ForaPadraoReport({ grupos, onOpenGrupo }: ForaPadraoReportProps)
   return (
     <section className="deviation-menu">
       <div className="deviation-menu-head">
-        <span className="panel-icon"><AlertTriangle size={17} /></span>
-        <div>
-          <span className="eyebrow">Fora do padrão</span>
-          <h2>Escolha o indicador</h2>
+        <div className="deviation-title">
+          <span className="panel-icon"><AlertTriangle size={17} /></span>
+          <div>
+            <span className="eyebrow">Fora do padrão</span>
+            <h2>Escolha o indicador</h2>
+          </div>
         </div>
+
+        <ExportFormatMenu
+          isExporting={exportingTarget === 'fora-geral-excel' || exportingTarget === 'fora-geral-pdf'}
+          disabled={exportingTarget !== null}
+          onExport={onExport}
+        />
       </div>
 
       <div className="deviation-options">

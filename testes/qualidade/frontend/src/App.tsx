@@ -1,9 +1,5 @@
 import {
   BarChart3,
-  ChevronDown,
-  Download,
-  FileSpreadsheet,
-  FileText,
   FlaskConical,
   Home,
   RefreshCcw,
@@ -12,6 +8,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { qualidadeApi, type Produtor } from './api/qualidadeApi'
 import { relatoriosApi } from './api/relatoriosApi'
+import { ExportFormatMenu, type ExportFormat } from './shared/ExportFormatMenu'
 import { Analises } from './views/Analises/Analises'
 import { DetalheProdutor } from './views/DetalheProdutor/DetalheProdutor'
 import { GestaoProdutores } from './views/GestaoProdutores/GestaoProdutores'
@@ -21,7 +18,6 @@ import { Relatorios } from './views/Relatorios/Relatorios'
 
 type LoadStatus = 'loading' | 'live' | 'error'
 type View = 'inicio' | 'produtores' | 'analises' | 'relatorios'
-type ExportFormat = 'excel' | 'pdf'
 
 type RouteState = {
   view: View
@@ -122,7 +118,6 @@ export function App() {
   const [analisesReloadKey, setAnalisesReloadKey] = useState(0)
   const [relatoriosReloadKey, setRelatoriosReloadKey] = useState(0)
   const [exportingProducersFormat, setExportingProducersFormat] = useState<ExportFormat | null>(null)
-  const [isProducersExportMenuOpen, setIsProducersExportMenuOpen] = useState(false)
 
   async function loadData() {
     setStatus('loading')
@@ -180,7 +175,6 @@ export function App() {
     const month = window.prompt('Mês de referência para exportação (MM/AAAA)', toMonthYear(defaultExportMonth))
     if (month === null) return
 
-    setIsProducersExportMenuOpen(false)
     const normalizedMonth = monthYearToApi(month)
     if (!normalizedMonth) {
       setStatus('error')
@@ -270,10 +264,10 @@ export function App() {
         </div>
 
         <nav className="nav" aria-label="Módulo qualidade">
-          <button className={`nav-item ${route.view === 'inicio' && !route.producerCode ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'inicio', producerCode: null, issuesCode: null })}><Home size={16} />Início</button>
-          <button className={`nav-item ${route.view === 'produtores' || route.producerCode ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'produtores', producerCode: null, issuesCode: null })}><Users size={16} />Produtores</button>
-          <button className={`nav-item ${route.view === 'analises' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'analises', producerCode: null, issuesCode: null })}><FlaskConical size={16} />Análises</button>
-          <button className={`nav-item ${route.view === 'relatorios' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'relatorios', producerCode: null, issuesCode: null })}><BarChart3 size={16} />Relatórios</button>
+          <button className={`nav-item nav-motion-start ${route.view === 'inicio' && !route.producerCode ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'inicio', producerCode: null, issuesCode: null })}><Home size={16} />Início</button>
+          <button className={`nav-item nav-motion-producers ${route.view === 'produtores' || route.producerCode ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'produtores', producerCode: null, issuesCode: null })}><Users size={16} />Produtores</button>
+          <button className={`nav-item nav-motion-analyses ${route.view === 'analises' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'analises', producerCode: null, issuesCode: null })}><FlaskConical size={16} />Análises</button>
+          <button className={`nav-item nav-motion-reports ${route.view === 'relatorios' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'relatorios', producerCode: null, issuesCode: null })}><BarChart3 size={16} />Relatórios</button>
         </nav>
 
         <div className="sidebar-footer">
@@ -312,31 +306,10 @@ export function App() {
                 Atualizar
               </button>
               {route.view === 'produtores' && !route.producerCode && !route.issuesCode && (
-                <div className="export-menu-wrap">
-                  <button
-                    className="btn primary"
-                    type="button"
-                    aria-expanded={isProducersExportMenuOpen}
-                    disabled={exportingProducersFormat !== null}
-                    onClick={() => setIsProducersExportMenuOpen((current) => !current)}
-                  >
-                    <Download size={16} />
-                    {exportingProducersFormat ? 'Gerando...' : 'Exportar'}
-                    <ChevronDown size={15} />
-                  </button>
-                  {isProducersExportMenuOpen && (
-                    <div className="export-menu" role="menu">
-                      <button type="button" role="menuitem" onClick={() => handleExportProducers('excel')}>
-                        <FileSpreadsheet size={16} />
-                        Excel
-                      </button>
-                      <button type="button" role="menuitem" onClick={() => handleExportProducers('pdf')}>
-                        <FileText size={16} />
-                        PDF
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <ExportFormatMenu
+                  isExporting={exportingProducersFormat !== null}
+                  onExport={handleExportProducers}
+                />
               )}
             </div>
           </header>

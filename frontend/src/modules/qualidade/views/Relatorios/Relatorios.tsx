@@ -1,12 +1,9 @@
 import {
   AlertTriangle,
   BarChart3,
-  ChevronDown,
   CheckCircle2,
   Database,
-  Download,
   FileSpreadsheet,
-  FileText,
   Users,
 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -24,6 +21,7 @@ type RelatoriosProps = {
 type LoadStatus = 'loading' | 'live' | 'error'
 type Tab = 'resumo' | 'fora'
 type ExportFormat = 'excel' | 'pdf'
+type ExportTarget = 'fora-geral-excel' | 'fora-geral-pdf' | `indicador-${string}-${ExportFormat}`
 
 export function Relatorios({ reloadKey, onOpenProdutor, onOpenPendencias }: RelatoriosProps) {
   const [report, setReport] = useState<RelatoriosResumo | null>(null)
@@ -31,8 +29,7 @@ export function Relatorios({ reloadKey, onOpenProdutor, onOpenPendencias }: Rela
   const [statusText, setStatusText] = useState('Carregando relatórios...')
   const [activeTab, setActiveTab] = useState<Tab>('resumo')
   const [exportMonth, setExportMonth] = useState('')
-  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null)
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false)
+  const [exportingTarget, setExportingTarget] = useState<ExportTarget | null>(null)
   const [exportResult, setExportResult] = useState<ExportacaoDownload | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
   const [selectedDeviationCode, setSelectedDeviationCode] = useState<string | null>(null)
@@ -62,28 +59,57 @@ export function Relatorios({ reloadKey, onOpenProdutor, onOpenPendencias }: Rela
     ? report?.fora_padrao.find((grupo) => grupo.codigo === selectedDeviationCode) ?? null
     : null
 
-  async function handleExport(format: ExportFormat) {
-    if (!exportMonth) return
+  function resolveExportMonth(): string | null {
+    if (!exportMonth) return null
+
     const normalizedMonth = monthYearToApi(exportMonth)
     if (!normalizedMonth) {
       setExportError('Informe o mês no formato MM/AAAA.')
-      return
+      return null
     }
 
-    setIsExportMenuOpen(false)
-    setExportingFormat(format)
+    return normalizedMonth
+  }
+
+  async function handleExportForaPadrao(format: ExportFormat) {
+    const normalizedMonth = resolveExportMonth()
+    if (!normalizedMonth) return
+
+    const target: ExportTarget = format === 'pdf' ? 'fora-geral-pdf' : 'fora-geral-excel'
+    setExportingTarget(target)
     setExportResult(null)
     setExportError(null)
 
     try {
       const result = format === 'pdf'
-        ? await relatoriosApi.exportarProdutoresAnalisesPdf(normalizedMonth)
-        : await relatoriosApi.exportarProdutoresAnalises(normalizedMonth)
+        ? await relatoriosApi.exportarForaPadraoPdf(normalizedMonth)
+        : await relatoriosApi.exportarForaPadrao(normalizedMonth)
       setExportResult(result)
     } catch (error) {
       setExportError(error instanceof Error ? error.message : 'Falha ao gerar exportação.')
     } finally {
-      setExportingFormat(null)
+      setExportingTarget(null)
+    }
+  }
+
+  async function handleExportIndicador(codigo: string, format: ExportFormat) {
+    const normalizedMonth = resolveExportMonth()
+    if (!normalizedMonth) return
+
+    const target: ExportTarget = `indicador-${codigo}-${format}`
+    setExportingTarget(target)
+    setExportResult(null)
+    setExportError(null)
+
+    try {
+      const result = format === 'pdf'
+        ? await relatoriosApi.exportarIndicadorForaPadraoPdf(codigo, normalizedMonth)
+        : await relatoriosApi.exportarIndicadorForaPadrao(codigo, normalizedMonth)
+      setExportResult(result)
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Falha ao gerar exportação.')
+    } finally {
+      setExportingTarget(null)
     }
   }
 
@@ -117,31 +143,6 @@ export function Relatorios({ reloadKey, onOpenProdutor, onOpenPendencias }: Rela
                 value={exportMonth}
                 onChange={(event) => setExportMonth(event.target.value)}
               />
-              <div className="export-menu-wrap">
-                <button
-                  className="btn secondary"
-                  type="button"
-                  aria-expanded={isExportMenuOpen}
-                  disabled={!exportMonth || exportingFormat !== null}
-                  onClick={() => setIsExportMenuOpen((current) => !current)}
-                >
-                  <Download size={16} />
-                  {exportingFormat ? 'Gerando...' : 'Exportar'}
-                  <ChevronDown size={15} />
-                </button>
-                {isExportMenuOpen && (
-                  <div className="export-menu" role="menu">
-                    <button type="button" role="menuitem" onClick={() => handleExport('excel')}>
-                      <FileSpreadsheet size={16} />
-                      Excel
-                    </button>
-                    <button type="button" role="menuitem" onClick={() => handleExport('pdf')}>
-                      <FileText size={16} />
-                      PDF
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
           </section>
 
@@ -162,9 +163,20 @@ export function Relatorios({ reloadKey, onOpenProdutor, onOpenPendencias }: Rela
 
           {activeTab === 'fora' && (
             selectedDeviation ? (
-              <DetalheDesvioReport grupo={selectedDeviation} onBack={() => setSelectedDeviationCode(null)} onOpenProdutor={onOpenProdutor} />
+              <DetalheDesvioReport
+                grupo={selectedDeviation}
+                exportingTarget={exportingTarget}
+                onBack={() => setSelectedDeviationCode(null)}
+                onExport={(format) => handleExportIndicador(selectedDeviation.codigo, format)}
+                onOpenProdutor={onOpenProdutor}
+              />
             ) : (
-              <ForaPadraoReport grupos={report.fora_padrao} onOpenGrupo={setSelectedDeviationCode} />
+              <ForaPadraoReport
+                grupos={report.fora_padrao}
+                exportingTarget={exportingTarget}
+                onExport={handleExportForaPadrao}
+                onOpenGrupo={setSelectedDeviationCode}
+              />
             )
           )}
 
@@ -264,4 +276,3 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
     </button>
   )
 }
-

@@ -1,9 +1,5 @@
 import {
   BarChart3,
-  ChevronDown,
-  Download,
-  FileSpreadsheet,
-  FileText,
   FlaskConical,
   Home,
   LogOut,
@@ -14,8 +10,10 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { AuthUser } from '../../api/authApi'
+import { ThemeToggle, type ThemeMode } from '../../shared/ThemeToggle'
 import { qualidadeApi, type Produtor } from './api/qualidadeApi'
 import { relatoriosApi } from './api/relatoriosApi'
+import { ExportFormatMenu, type ExportFormat } from './shared/ExportFormatMenu'
 import { Analises } from './views/Analises/Analises'
 import { DetalheProdutor } from './views/DetalheProdutor/DetalheProdutor'
 import { GestaoProdutores } from './views/GestaoProdutores/GestaoProdutores'
@@ -25,7 +23,6 @@ import { Relatorios } from './views/Relatorios/Relatorios'
 
 type LoadStatus = 'loading' | 'live' | 'error'
 type View = 'inicio' | 'produtores' | 'analises' | 'relatorios'
-type ExportFormat = 'excel' | 'pdf'
 
 type RouteState = {
   view: View
@@ -119,11 +116,17 @@ function monthYearToApi(value: string): string | null {
 
 export function QualidadeModule({
   user,
+  theme,
+  onToggleTheme,
   onBackToSystem,
+  onOpenModule,
   onLogout,
 }: {
   user: AuthUser
+  theme: ThemeMode
+  onToggleTheme: () => void
   onBackToSystem: () => void
+  onOpenModule: (module: 'qualidade' | 'estoque') => void
   onLogout: () => void
 }) {
   const [produtores, setProdutores] = useState<Produtor[]>([])
@@ -134,7 +137,6 @@ export function QualidadeModule({
   const [analisesReloadKey, setAnalisesReloadKey] = useState(0)
   const [relatoriosReloadKey, setRelatoriosReloadKey] = useState(0)
   const [exportingProducersFormat, setExportingProducersFormat] = useState<ExportFormat | null>(null)
-  const [isProducersExportMenuOpen, setIsProducersExportMenuOpen] = useState(false)
 
   async function loadData() {
     setStatus('loading')
@@ -192,7 +194,6 @@ export function QualidadeModule({
     const month = window.prompt('Mês de referência para exportação (MM/AAAA)', toMonthYear(defaultExportMonth))
     if (month === null) return
 
-    setIsProducersExportMenuOpen(false)
     const normalizedMonth = monthYearToApi(month)
     if (!normalizedMonth) {
       setStatus('error')
@@ -280,33 +281,40 @@ export function QualidadeModule({
 
         <nav className="nav" aria-label="Navegação principal">
           <span className="nav-section-title">Sistema</span>
-          <button className="nav-item" type="button" onClick={onBackToSystem}>
-            <Package size={16} />
+          <button className="nav-item nav-motion-home" type="button" onClick={onBackToSystem}>
+            <Home size={16} />
             Início do sistema
           </button>
-          <button className="nav-item is-active" type="button" onClick={() => pushRoute({ view: 'inicio', producerCode: null, issuesCode: null })}>
+          <button className="nav-item nav-motion-quality is-active" type="button" onClick={() => pushRoute({ view: 'inicio', producerCode: null, issuesCode: null })}>
             <FlaskConical size={16} />
             Qualidade
           </button>
           <div className="nav-subtree" aria-label="Submódulos de qualidade">
-            <button className={`nav-subitem ${route.view === 'inicio' && !route.producerCode ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'inicio', producerCode: null, issuesCode: null })}><Home size={15} />Início</button>
-            <button className={`nav-subitem ${route.view === 'produtores' || route.producerCode ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'produtores', producerCode: null, issuesCode: null })}><Users size={15} />Produtores</button>
-            <button className={`nav-subitem ${route.view === 'analises' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'analises', producerCode: null, issuesCode: null })}><FlaskConical size={15} />Análises</button>
-            <button className={`nav-subitem ${route.view === 'relatorios' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'relatorios', producerCode: null, issuesCode: null })}><BarChart3 size={15} />Relatórios</button>
+            <button className={`nav-subitem nav-motion-start ${route.view === 'inicio' && !route.producerCode ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'inicio', producerCode: null, issuesCode: null })}><Home size={15} />Início</button>
+            <button className={`nav-subitem nav-motion-producers ${route.view === 'produtores' || route.producerCode ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'produtores', producerCode: null, issuesCode: null })}><Users size={15} />Produtores</button>
+            <button className={`nav-subitem nav-motion-analyses ${route.view === 'analises' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'analises', producerCode: null, issuesCode: null })}><FlaskConical size={15} />Análises</button>
+            <button className={`nav-subitem nav-motion-reports ${route.view === 'relatorios' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'relatorios', producerCode: null, issuesCode: null })}><BarChart3 size={15} />Relatórios</button>
           </div>
-          <button className="nav-item is-disabled" type="button" disabled>
+          <button className="nav-item nav-motion-stock" type="button" onClick={() => onOpenModule('estoque')}>
+            <Package size={16} />
+            Estoque
+          </button>
+          <button className="nav-item nav-motion-dashboard is-disabled" type="button" disabled>
             <BarChart3 size={16} />
             Dashboard
           </button>
-          <button className="nav-item is-disabled" type="button" disabled>
+          <button className="nav-item nav-motion-admin is-disabled" type="button" disabled>
             <Settings size={16} />
             Administração
           </button>
         </nav>
 
         <div className="sidebar-footer">
-          <span className="avatar small">{user.nome.slice(0, 1).toUpperCase()}</span>
-          <span>{user.nome}</span>
+          <div className="sidebar-user">
+            <span className="avatar small">{user.nome.slice(0, 1).toUpperCase()}</span>
+            <span>{user.nome}</span>
+          </div>
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
       </aside>
 
@@ -341,31 +349,10 @@ export function QualidadeModule({
                 Atualizar
               </button>
               {route.view === 'produtores' && !route.producerCode && !route.issuesCode && (
-                <div className="export-menu-wrap">
-                  <button
-                    className="btn primary"
-                    type="button"
-                    aria-expanded={isProducersExportMenuOpen}
-                    disabled={exportingProducersFormat !== null}
-                    onClick={() => setIsProducersExportMenuOpen((current) => !current)}
-                  >
-                    <Download size={16} />
-                    {exportingProducersFormat ? 'Gerando...' : 'Exportar'}
-                    <ChevronDown size={15} />
-                  </button>
-                  {isProducersExportMenuOpen && (
-                    <div className="export-menu" role="menu">
-                      <button type="button" role="menuitem" onClick={() => handleExportProducers('excel')}>
-                        <FileSpreadsheet size={16} />
-                        Excel
-                      </button>
-                      <button type="button" role="menuitem" onClick={() => handleExportProducers('pdf')}>
-                        <FileText size={16} />
-                        PDF
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <ExportFormatMenu
+                  isExporting={exportingProducersFormat !== null}
+                  onExport={handleExportProducers}
+                />
               )}
             </div>
           </header>

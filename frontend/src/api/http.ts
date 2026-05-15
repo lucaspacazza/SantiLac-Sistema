@@ -66,6 +66,27 @@ export async function apiPost<T>(path: string, payload: Record<string, unknown>)
   return json.data
 }
 
+export async function apiPatch<T>(path: string, payload: Record<string, unknown>): Promise<T> {
+  const token = await ensureCsrfToken()
+  const response = await fetch(path, {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      'X-CSRF-TOKEN': token,
+    },
+    body: toFormBody(payload),
+  })
+
+  const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
+  if (!response.ok || !json?.success) {
+    throw new Error(json?.error?.message ?? 'Falha ao processar solicitação.')
+  }
+
+  return json.data
+}
+
 export async function apiPostFile<T>(path: string, field: string, file: File): Promise<T> {
   const token = await ensureCsrfToken()
   const formData = new FormData()

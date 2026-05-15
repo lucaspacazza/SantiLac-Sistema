@@ -1,6 +1,9 @@
 import { ArrowLeft } from 'lucide-react'
+import { useState } from 'react'
+import { relatoriosApi } from '../../api/relatoriosApi'
 import type { Produtor } from '../../api/qualidadeApi'
 import { formatAnalysisMetric, resolveMetricStatus, type AnalysisMetricField } from '../../shared/analysisMetrics'
+import { ExportFormatMenu, type ExportFormat } from '../../shared/ExportFormatMenu'
 import { formatDate } from '../../shared/formatters'
 
 type DetalheProdutorProps = {
@@ -10,6 +13,9 @@ type DetalheProdutorProps = {
 
 export function DetalheProdutor({ produtor, onBack }: DetalheProdutorProps) {
   const analysis = produtor?.ultima_analise ?? null
+  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null)
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   if (!produtor) {
     return (
@@ -23,12 +29,55 @@ export function DetalheProdutor({ produtor, onBack }: DetalheProdutorProps) {
     )
   }
 
+  async function handleExport(format: ExportFormat) {
+    if (!produtor) return
+
+    const defaultMonth = analysis?.data ? toMonthYear(analysis.data.slice(0, 7)) : toMonthYear(new Date().toISOString().slice(0, 7))
+    const month = window.prompt('Mês de referência para exportação (MM/AAAA)', defaultMonth)
+    if (month === null) return
+
+    const normalizedMonth = monthYearToApi(month)
+    if (!normalizedMonth) {
+      setExportMessage(null)
+      setExportError('Informe o mês no formato MM/AAAA.')
+      return
+    }
+
+    setExportingFormat(format)
+    setExportMessage(null)
+    setExportError(null)
+
+    try {
+      const result = format === 'pdf'
+        ? await relatoriosApi.exportarProdutorAnalisesPdf(produtor.codigo, normalizedMonth)
+        : await relatoriosApi.exportarProdutorAnalises(produtor.codigo, normalizedMonth)
+      setExportMessage(`Download iniciado: ${result.arquivo}`)
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Falha ao gerar exportação individual.')
+    } finally {
+      setExportingFormat(null)
+    }
+  }
+
   return (
     <section className="detail-page">
-      <button className="btn secondary" type="button" onClick={onBack}>
-        <ArrowLeft size={16} />
-        Voltar para produtores
-      </button>
+      <div className="detail-actions">
+        <button className="btn secondary" type="button" onClick={onBack}>
+          <ArrowLeft size={16} />
+          Voltar para produtores
+        </button>
+        <ExportFormatMenu
+          isExporting={exportingFormat !== null}
+          onExport={handleExport}
+        />
+      </div>
+
+      {(exportMessage || exportError) && (
+        <section className={`status-line ${exportError ? 'is-error' : 'is-live'}`}>
+          <span className="status-dot" />
+          <span>{exportError ?? exportMessage}</span>
+        </section>
+      )}
 
       <article className="detail-header">
         <span className="eyebrow">Produtor</span>
@@ -54,6 +103,21 @@ export function DetalheProdutor({ produtor, onBack }: DetalheProdutorProps) {
       </section>
     </section>
   )
+}
+
+function toMonthYear(value: string): string {
+  const [year, month] = value.split('-')
+  return year && month ? `${month}/${year}` : value
+}
+
+function monthYearToApi(value: string): string | null {
+  const match = value.trim().match(/^(\d{2})\/(\d{4})$/)
+  if (!match) return null
+
+  const month = Number(match[1])
+  if (month < 1 || month > 12) return null
+
+  return `${match[2]}-${match[1]}`
 }
 
 function InfoCard({ label, value }: { label: string; value: string }) {

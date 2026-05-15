@@ -150,6 +150,16 @@ critical  falha grave de sistema, dados ou infraestrutura
 | ANALYSIS_511 | Analise ja existente. | Ja existe registro para produtor + data. | Nao duplicar; completar apenas campos faltantes. |
 | ANALYSIS_512 | Valor de analise invalido. | Numero, flag ou campo fora do formato esperado. | Conferir campo indicado em `details`. |
 
+### Estoque
+
+| Codigo | Mensagem | Causa provavel | Acao recomendada |
+| --- | --- | --- | --- |
+| STOCK_810 | Item de estoque nao encontrado. | Item inexistente ou removido da base operacional. | Conferir item selecionado. |
+| STOCK_811 | Local de estoque nao encontrado. | Local inexistente ou inativo. | Conferir local selecionado. |
+| STOCK_812 | Saldo insuficiente. | Saida ou transferencia maior que o saldo disponivel. | Conferir saldo antes de movimentar. |
+| STOCK_813 | Item de estoque inativo. | Item existe, mas nao pode receber movimentacao. | Reativar item ou escolher outro. |
+| STOCK_814 | Tipo de movimentacao invalido. | Tipo fora das opcoes aceitas. | Usar entrada, saida, ajuste ou transferencia. |
+
 ### Exportacoes
 
 | Codigo | Mensagem | Causa provavel | Acao recomendada |
@@ -217,4 +227,3 @@ frontend/src/shared/errors.ts
 Esses arquivos devem refletir este catalogo.
 
 O documento `docs/CATALOGO_DE_ERROS.md` continua sendo a fonte humana de consulta.
-
