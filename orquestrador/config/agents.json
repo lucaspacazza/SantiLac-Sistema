@@ -1,0 +1,44 @@
+{
+  "architect": {
+    "label": "Codex Arquiteto",
+    "tmux_session": "codex-architect",
+    "command": "codex --cd {project_dir} \"$(cat {prompt_file})\"",
+    "output_file": "01_architect_brief.md"
+  },
+  "engineer": {
+    "label": "Codex Engenheiro",
+    "tmux_session": "codex-engineer",
+    "command": "codex --cd {project_dir} \"$(cat {prompt_file})\"",
+    "output_file": "02_engineer_plan.md"
+  },
+  "backend": {
+    "label": "Codex Backend/Banco",
+    "tmux_session": "codex-backend",
+    "command": "codex --cd {project_dir} \"$(cat {prompt_file})\"",
+    "output_file": "06_backend_result.md"
+  },
+  "frontend": {
+    "label": "Claude Frontend",
+    "tmux_session": "claude-frontend",
+    "command": "claude \"$(cat {prompt_file})\"",
+    "output_file": "07_frontend_result.md"
+  },
+  "architect_review": {
+    "label": "Codex Arquiteto - Revisao Dos Devs",
+    "tmux_session": "codex-architect",
+    "command": "codex --cd {project_dir} \"$(cat {prompt_file})\"",
+    "output_file": "08_architect_dev_review.md"
+  },
+  "qa": {
+    "label": "Gemini QA",
+    "tmux_session": "gemini-qa",
+    "command": "gemini -i \"$(cat {prompt_file})\"",
+    "output_file": "09_qa_result.md"
+  },
+  "review": {
+    "label": "Codex Revisor",
+    "tmux_session": "codex-engineer",
+    "command": "codex --cd {project_dir} \"$(cat {prompt_file})\"",
+    "output_file": "10_final_review.md"
+  }
+}
