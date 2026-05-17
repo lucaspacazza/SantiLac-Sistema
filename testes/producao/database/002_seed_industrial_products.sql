@@ -1,0 +1,30 @@
+INSERT INTO industrial_products (code, name, category, unit, active)
+VALUES
+  ('MUSSARELA-F4', 'Mussarela F4', 'mussarela', 'kg', 1),
+  ('MUSSARELA-F1', 'Mussarela F1', 'mussarela', 'kg', 1),
+  ('MUSSARELA-F6', 'Mussarela F6', 'mussarela', 'kg', 1),
+  ('MUSSARELA-FATIADA-F6', 'Mussarela fatiada F6', 'mussarela', 'kg', 1),
+  ('MUSSARELA-EMBALADA-F4', 'Mussarela embalada F4', 'mussarela', 'kg', 1),
+  ('PONTAS-MUSSARELA', 'Pontas de mussarela', 'mussarela', 'kg', 1),
+  ('RETORNOS', 'Retornos', 'mussarela', 'kg', 1),
+  ('PROVOLONE-PECA', 'Provolone peca', 'queijos_especiais', 'kg', 1),
+  ('PROVOLONE-FRACIONADO', 'Provolone fracionado', 'queijos_especiais', 'kg', 1),
+  ('COALHO-PECA', 'Coalho peca', 'queijos_especiais', 'kg', 1),
+  ('COALHO-PALITO', 'Coalho palito', 'queijos_especiais', 'kg', 1),
+  ('COLONIAL-PECA', 'Colonial peca', 'queijos_especiais', 'kg', 1),
+  ('PRATO-PECA', 'Prato peca', 'queijos_especiais', 'kg', 1),
+  ('PRATO-FATIADO', 'Prato fatiado', 'queijos_especiais', 'kg', 1),
+  ('PONTAS-PRATO', 'Pontas de prato', 'queijos_especiais', 'kg', 1),
+  ('GOUDA-PECA', 'Gouda peca', 'queijos_especiais', 'kg', 1),
+  ('GOUDA-FRACIONADO', 'Gouda fracionado', 'queijos_especiais', 'kg', 1),
+  ('GRUYERE-PECA', 'Gruyere peca', 'queijos_especiais', 'kg', 1),
+  ('GRUYERE-FRACIONADO', 'Gruyere fracionado', 'queijos_especiais', 'kg', 1),
+  ('CREME-DE-LEITE', 'Creme de leite', 'subproduto', 'kg', 1),
+  ('CREME-DE-SORO', 'Creme de soro', 'subproduto', 'kg', 1),
+  ('SORO', 'Soro', 'subproduto', 'kg', 1)
+ON CONFLICT(code) DO UPDATE SET
+  name = excluded.name,
+  category = excluded.category,
+  unit = excluded.unit,
+  active = excluded.active,
+  updated_at = CURRENT_TIMESTAMP;
