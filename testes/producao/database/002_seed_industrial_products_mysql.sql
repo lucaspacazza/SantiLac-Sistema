@@ -22,9 +22,9 @@ VALUES
   ('CREME-DE-LEITE', 'Creme de leite', 'subproduto', 'kg', 1),
   ('CREME-DE-SORO', 'Creme de soro', 'subproduto', 'kg', 1),
   ('SORO', 'Soro', 'subproduto', 'kg', 1)
-ON CONFLICT(code) DO UPDATE SET
-  name = excluded.name,
-  category = excluded.category,
-  unit = excluded.unit,
-  active = excluded.active,
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  category = VALUES(category),
+  unit = VALUES(unit),
+  active = VALUES(active),
   updated_at = CURRENT_TIMESTAMP;

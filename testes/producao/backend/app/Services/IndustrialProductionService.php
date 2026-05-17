@@ -19,7 +19,6 @@ final class IndustrialProductionService
     ) {
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-        $this->pdo->exec('PRAGMA foreign_keys = ON');
     }
 
     public function products(array $query = []): array
@@ -273,13 +272,13 @@ final class IndustrialProductionService
               average_piece_weight, result_payload, calculated_at, updated_at)
              VALUES (:batch_id, :liters_processed, :total_produced_kg, :yield_liters_per_kg, :yield_kg_per_liter,
               :average_piece_weight, :result_payload, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-             ON CONFLICT(batch_id) DO UPDATE SET
-              liters_processed = excluded.liters_processed,
-              total_produced_kg = excluded.total_produced_kg,
-              yield_liters_per_kg = excluded.yield_liters_per_kg,
-              yield_kg_per_liter = excluded.yield_kg_per_liter,
-              average_piece_weight = excluded.average_piece_weight,
-              result_payload = excluded.result_payload,
+             ON DUPLICATE KEY UPDATE
+              liters_processed = VALUES(liters_processed),
+              total_produced_kg = VALUES(total_produced_kg),
+              yield_liters_per_kg = VALUES(yield_liters_per_kg),
+              yield_kg_per_liter = VALUES(yield_kg_per_liter),
+              average_piece_weight = VALUES(average_piece_weight),
+              result_payload = VALUES(result_payload),
               calculated_at = CURRENT_TIMESTAMP,
               updated_at = CURRENT_TIMESTAMP'
         );

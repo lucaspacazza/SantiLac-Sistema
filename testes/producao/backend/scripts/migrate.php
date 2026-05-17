@@ -3,19 +3,23 @@
 declare(strict_types=1);
 
 $baseDir = dirname(__DIR__, 2);
-$dbPath = getenv('PRODUCAO_DB_PATH') ?: $baseDir . '/database/producao_lab.sqlite';
-$sqlFiles = [
-    $baseDir . '/database/001_create_industrial_core.sql',
-    $baseDir . '/database/002_seed_industrial_products.sql',
-];
+$dbDriver = getenv('PRODUCAO_DB_DRIVER') ?: 'mysql';
 
-if (! is_dir(dirname($dbPath))) {
-    mkdir(dirname($dbPath), 0775, true);
+if ($dbDriver !== 'mysql') {
+    throw new RuntimeException('SQLite nao e permitido. Use MySQL.');
 }
 
-$pdo = new PDO('sqlite:' . $dbPath);
+$database = getenv('PRODUCAO_DB_DATABASE') ?: 'santilac_producao_lab';
+$dsn = getenv('PRODUCAO_DB_DSN') ?: 'mysql:host=127.0.0.1;port=3306;dbname=' . $database . ';charset=utf8mb4';
+$user = getenv('PRODUCAO_DB_USER') ?: 'santilac_producao';
+$password = getenv('PRODUCAO_DB_PASSWORD') ?: 'santilac_producao';
+$sqlFiles = [
+    $baseDir . '/database/001_create_industrial_core_mysql.sql',
+    $baseDir . '/database/002_seed_industrial_products_mysql.sql',
+];
+
+$pdo = new PDO($dsn, $user, $password);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$pdo->exec('PRAGMA foreign_keys = ON');
 
 foreach ($sqlFiles as $file) {
     $sql = file_get_contents($file);
@@ -23,19 +27,12 @@ foreach ($sqlFiles as $file) {
         throw new RuntimeException("Nao foi possivel ler {$file}");
     }
 
-    $pdo->beginTransaction();
-    try {
-        $pdo->exec($sql);
-        $pdo->commit();
-    } catch (Throwable $exception) {
-        $pdo->rollBack();
-        throw $exception;
-    }
+    $pdo->exec($sql);
 }
 
 $count = (int) $pdo->query('SELECT COUNT(*) FROM industrial_products')->fetchColumn();
 echo json_encode([
     'success' => true,
-    'database' => $dbPath,
+    'database' => $database,
     'industrial_products' => $count,
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;

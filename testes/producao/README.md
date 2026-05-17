@@ -1,71 +1,49 @@
-# Producao Industrial
+# Laboratorio Producao Industrial
 
-Laboratorio do modulo Producao Industrial do SantiLac.
+Modulo de laboratorio para validacao humana do fluxo de Producao Industrial do SantiLac.
 
-Este corte entrega backend, banco e processor de laboratorio para:
+## Banco obrigatorio
 
-- cadastro de produtos industriais;
-- recebimento diario de leite;
-- lotes de producao diaria;
-- itens dinamicos por produto;
-- recalculo de rendimento;
-- fechamento de lote com entrada em estoque teorico;
-- relatorio diario simples.
+Este laboratorio usa **MySQL**. SQLite nao e permitido.
 
-## Fronteira
-
-Todo codigo deste modulo fica em `testes/producao/`. Nada deste laboratorio foi promovido para `backend/`, `frontend/`, `processor/` ou `database/` reais.
-
-## Banco
-
-O backend de laboratorio usa SQLite por padrao em:
+Banco padrao:
 
 ```text
-testes/producao/database/producao_lab.sqlite
+santilac_producao_lab
 ```
 
-Aplicar schema e seed:
+Variaveis suportadas:
+
+```bash
+PRODUCAO_DB_DRIVER=mysql
+PRODUCAO_DB_DATABASE=santilac_producao_lab
+PRODUCAO_DB_DSN='mysql:host=127.0.0.1;port=3306;dbname=santilac_producao_lab;charset=utf8mb4'
+PRODUCAO_DB_USER=santilac_producao
+PRODUCAO_DB_PASSWORD=santilac_producao
+```
+
+## Migracao
 
 ```bash
 php testes/producao/backend/scripts/migrate.php
 ```
 
-Para usar outro arquivo SQLite:
+O script aplica:
 
-```bash
-PRODUCAO_DB_PATH=/caminho/producao.sqlite php testes/producao/backend/scripts/migrate.php
-```
+- `database/001_create_industrial_core_mysql.sql`
+- `database/002_seed_industrial_products_mysql.sql`
 
-## Backend
+## Escopo
 
-Iniciar API de laboratorio:
+- Recebimento de leite;
+- Lotes de producao;
+- Itens de lote;
+- Recalculo;
+- Fechamento;
+- Reabertura;
+- Estoque teorico;
+- Relatorio diario.
 
-```bash
-php -S 127.0.0.1:8097 -t testes/producao/backend/public
-```
+## Regra
 
-Base da API:
-
-```text
-http://127.0.0.1:8097/api/industrial
-```
-
-Contrato completo: `backend/contracts/api.md`.
-
-## Processor
-
-Rodar testes:
-
-```bash
-python3 -m pytest testes/producao/processor/tests
-```
-
-Executar calculo por CLI:
-
-```bash
-python3 testes/producao/processor/modules/producao/calculations.py --function daily-production --input payload.json
-```
-
-## Fonte Unica
-
-Fluxos funcionais devem ler e gravar no banco do laboratorio. Este modulo nao usa dados mockados, arrays em memoria, fixtures visuais ou simulacao para validar tela, API, relatorio ou estoque.
+Nao usar mock, dados ficticios ou SQLite. A fonte de verdade para testes e o MySQL.

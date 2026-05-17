@@ -7,14 +7,17 @@ use App\Services\IndustrialProductionService;
 require_once __DIR__ . '/../app/Services/IndustrialProductionService.php';
 
 $baseDir = dirname(__DIR__, 2);
-$dbPath = getenv('PRODUCAO_DB_PATH') ?: $baseDir . '/database/producao_lab.sqlite';
+$dbDriver = getenv('PRODUCAO_DB_DRIVER') ?: 'mysql';
 $processorScript = getenv('PRODUCAO_PROCESSOR_SCRIPT') ?: $baseDir . '/processor/modules/producao/calculations.py';
 
-if (! file_exists($dbPath)) {
-    respond(503, errorPayload('INDUSTRIAL_503', 'Banco de laboratorio nao inicializado. Rode php testes/producao/backend/scripts/migrate.php.'));
+if ($dbDriver !== 'mysql') {
+    respond(503, errorPayload('INDUSTRIAL_503', 'SQLite nao e permitido neste laboratorio. Configure MySQL.'));
 }
 
-$pdo = new PDO('sqlite:' . $dbPath);
+$dsn = getenv('PRODUCAO_DB_DSN') ?: 'mysql:host=127.0.0.1;port=3306;dbname=santilac_producao_lab;charset=utf8mb4';
+$user = getenv('PRODUCAO_DB_USER') ?: 'santilac_producao';
+$password = getenv('PRODUCAO_DB_PASSWORD') ?: 'santilac_producao';
+$pdo = new PDO($dsn, $user, $password);
 $service = new IndustrialProductionService($pdo, $processorScript);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';

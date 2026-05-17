@@ -1,24 +1,28 @@
-# Backend De Laboratorio
+# Backend Laboratorio Producao
 
-API executavel isolada do modulo Producao Industrial.
+Backend PHP simples para testar o contrato do modulo de Producao Industrial.
 
-## Instalar Banco
+## Banco
 
-```bash
-php testes/producao/backend/scripts/migrate.php
-```
+Obrigatorio usar MySQL. SQLite esta bloqueado no codigo.
 
-## Iniciar API
+Variaveis:
 
 ```bash
-php -S 127.0.0.1:8097 -t testes/producao/backend/public
+PRODUCAO_DB_DRIVER=mysql
+PRODUCAO_DB_DSN='mysql:host=127.0.0.1;port=3306;dbname=santilac_producao_lab;charset=utf8mb4'
+PRODUCAO_DB_USER=santilac_producao
+PRODUCAO_DB_PASSWORD=santilac_producao
 ```
 
-## Variaveis
+## Migrar
 
-- `PRODUCAO_DB_PATH`: caminho do SQLite de laboratorio.
-- `PRODUCAO_PROCESSOR_SCRIPT`: caminho do script Python de calculos.
+```bash
+php backend/scripts/migrate.php
+```
 
-## Contrato
+## Rodar local
 
-Ver `contracts/api.md`.
+```bash
+php -S 127.0.0.1:8097 -t backend/public
+```
