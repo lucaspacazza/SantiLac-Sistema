@@ -27,7 +27,7 @@ def export_file(input_path: Path, output_path: Path, logo_path: Path | None) -> 
             "operation": OPERATION,
             "errors": [{
                 "code": "EXPORT_830",
-                "message": "Falha ao exportar analises do produtor.",
+                "message": "Falha ao exportar análises do produtor.",
                 "details": {"error": str(exc)},
             }],
         }
