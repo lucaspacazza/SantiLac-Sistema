@@ -11,6 +11,7 @@ Route::prefix('estoque')->group(function (): void {
     Route::post('/itens', [EstoqueController::class, 'criarItem']);
     Route::get('/itens/{id}', [EstoqueController::class, 'item']);
     Route::patch('/itens/{id}', [EstoqueController::class, 'atualizarItem']);
+    Route::post('/itens/{id}/foto', [EstoqueController::class, 'importarFotoItem']);
 
     Route::get('/movimentos', [EstoqueController::class, 'movimentos']);
     Route::post('/movimentos', [EstoqueController::class, 'registrarMovimento']);

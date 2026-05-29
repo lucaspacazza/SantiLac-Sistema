@@ -39,6 +39,7 @@ function ItensTable({ itens, onOpenItem }: { itens: EstoqueItem[]; onOpenItem: (
         <table className="data-table">
           <thead>
             <tr>
+              <th>Foto</th>
               <th>Código</th>
               <th>Item</th>
               <th>Categoria</th>
@@ -49,9 +50,14 @@ function ItensTable({ itens, onOpenItem }: { itens: EstoqueItem[]; onOpenItem: (
           </thead>
           <tbody>
             {itens.length === 0 ? (
-              <tr><td colSpan={6}>Nenhum item cadastrado.</td></tr>
+              <tr><td colSpan={7}>Nenhum item cadastrado.</td></tr>
             ) : itens.map((item) => (
               <tr key={item.id}>
+                <td>
+                  <button className="photo-button" type="button" onClick={() => onOpenItem(item.id)} title={item.nome}>
+                    {item.foto_url ? <img src={item.foto_url} alt={item.nome} /> : <span />}
+                  </button>
+                </td>
                 <td>{item.codigo ?? '--'}</td>
                 <td>
                   <button className="table-link" type="button" onClick={() => onOpenItem(item.id)}>

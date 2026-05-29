@@ -95,6 +95,24 @@ class EstoqueController extends Controller
         ]);
     }
 
+    public function importarFotoItem(Request $request, int $id): JsonResponse
+    {
+        $payload = $request->validate([
+            'foto' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ]);
+
+        $item = $this->estoque->importarFotoItem($id, $payload['foto']);
+
+        if ($item === null) {
+            return response()->json($this->erro('STOCK_810', 'Item de estoque não encontrado.', ['id' => $id]), 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $item,
+        ]);
+    }
+
     public function movimentos(Request $request): JsonResponse
     {
         return response()->json([

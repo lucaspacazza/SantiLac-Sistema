@@ -59,6 +59,10 @@ export function EditarItem({ item, categorias, loading, onBack, onSubmit }: Edit
           </datalist>
           <input name="unidade" placeholder="Unidade" defaultValue={item.unidade} required />
           <input name="estoque_minimo" placeholder="Estoque mínimo" type="number" step="0.001" min="0" defaultValue={item.estoque_minimo} />
+          <label className="file-field">
+            Foto do produto
+            <input name="foto" type="file" accept="image/png,image/jpeg,image/webp" />
+          </label>
           <label className="check-line">
             <input name="ativo" type="checkbox" defaultChecked={item.ativo} />
             Item ativo

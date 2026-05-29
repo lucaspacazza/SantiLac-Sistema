@@ -4,6 +4,8 @@ export type EstoqueItem = {
   nome: string
   categoria: string
   descricao: string | null
+  foto_path: string | null
+  foto_url: string | null
   unidade: string
   estoque_minimo: number
   saldo_atual: number
@@ -53,11 +55,12 @@ export type Paginated<T> = {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData = init?.body instanceof FormData
   const response = await fetch(path, {
     ...init,
     headers: {
       Accept: 'application/json',
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(init?.headers ?? {}),
     },
   })
@@ -103,6 +106,15 @@ export const estoqueApi = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
+  importarFotoItem: (id: number, foto: File) => {
+    const form = new FormData()
+    form.append('foto', foto)
+
+    return request<EstoqueItemDetalhe>(`/api/estoque/itens/${id}/foto`, {
+      method: 'POST',
+      body: form,
+    })
+  },
   registrarMovimento: (payload: {
     tipo: 'entrada' | 'saida' | 'ajuste'
     item_id: number

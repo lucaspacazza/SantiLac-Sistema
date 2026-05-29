@@ -187,10 +187,14 @@ export function App() {
       saldo_atual: Number(form.get('saldo_atual') || 0),
       estoque_minimo: Number(form.get('estoque_minimo') || 0),
     })
+    const foto = form.get('foto')
+    const itemComFoto = foto instanceof File && foto.size > 0
+      ? await estoqueApi.importarFotoItem(item.id, foto)
+      : item
 
     setItemFormOpen(false)
     await loadData()
-    await openItem(item.id)
+    await openItem(itemComFoto.id)
   }
 
   async function handleUpdateItem(event: FormEvent<HTMLFormElement>) {
@@ -210,9 +214,13 @@ export function App() {
       estoque_minimo: Number(form.get('estoque_minimo') || 0),
       ativo: form.get('ativo') === 'on',
     })
+    const foto = form.get('foto')
+    const itemAtualizado = foto instanceof File && foto.size > 0
+      ? await estoqueApi.importarFotoItem(updated.id, foto)
+      : updated
 
-    setSelectedItem(updated)
-    navigate({ view: 'detalhe-item', itemId: updated.id })
+    setSelectedItem(itemAtualizado)
+    navigate({ view: 'detalhe-item', itemId: itemAtualizado.id })
     setStatus('live')
     setStatusText('Item atualizado.')
     await loadData()
@@ -293,7 +301,7 @@ export function App() {
         <header className="global-topbar">
           <span />
           <nav>
-            <span>Laboratório</span>
+            <span>Estoque</span>
           </nav>
         </header>
 
@@ -373,6 +381,10 @@ export function App() {
             <input name="unidade" placeholder="Unidade" required />
             <input name="saldo_atual" placeholder="Saldo atual" type="number" step="0.001" min="0" />
             <input name="estoque_minimo" placeholder="Estoque mínimo" type="number" step="0.001" min="0" />
+            <label className="file-field">
+              Foto do produto
+              <input name="foto" type="file" accept="image/png,image/jpeg,image/webp" />
+            </label>
             <textarea name="descricao" placeholder="Descrição" />
             <div className="modal-actions">
               <button className="btn secondary" type="button" onClick={() => setItemFormOpen(false)}>Cancelar</button>

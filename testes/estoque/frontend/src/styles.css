@@ -150,11 +150,11 @@ button {
 
 .page {
   width: auto;
-  margin: 34px 32px;
+  margin: 24px 28px;
   display: grid;
   align-content: start;
   grid-auto-rows: max-content;
-  gap: 16px;
+  gap: 12px;
 }
 
 .page-head {
@@ -251,12 +251,12 @@ button {
 .module-grid {
   display: grid;
   align-content: start;
-  gap: 16px;
+  gap: 12px;
 }
 
 .kpi-row {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -264,13 +264,13 @@ button {
 .panel,
 .table-card {
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--panel);
 }
 
 .kpi-card {
-  min-height: 96px;
-  padding: 14px;
+  min-height: 78px;
+  padding: 12px 14px;
   display: grid;
   align-content: space-between;
 }
@@ -284,22 +284,22 @@ button {
 }
 
 .kpi-card strong {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 650;
 }
 
 .split-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
 }
 
 .panel {
-  min-height: 280px;
-  padding: 16px;
+  min-height: 190px;
+  padding: 14px 16px;
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 10px;
 }
 
 .panel-title {
@@ -384,14 +384,14 @@ button {
 }
 
 .table-card {
-  min-height: calc(100vh - 230px);
+  min-height: calc(100vh - 210px);
   overflow: hidden;
 }
 
 .table-wrap {
   width: 100%;
   overflow: auto;
-  max-height: calc(100vh - 230px);
+  max-height: calc(100vh - 210px);
 }
 
 .data-table {
@@ -428,6 +428,60 @@ button {
 .data-table td strong {
   color: var(--text);
   font-weight: 550;
+}
+
+.data-table th:first-child,
+.data-table td:first-child {
+  width: 56px;
+}
+
+.photo-button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: #101113;
+  color: var(--muted);
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+}
+
+.photo-button img,
+.product-photo img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.photo-button span {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--line-strong);
+}
+
+.product-photo {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: #101113;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 4px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.product-photo.is-large {
+  width: 78px;
+  height: 78px;
 }
 
 .table-link {
@@ -526,13 +580,31 @@ button {
 
 .form-grid input,
 .form-grid select,
-.form-grid textarea {
+.form-grid textarea,
+.file-field {
   min-height: 38px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--input);
   color: var(--text);
   padding: 0 10px;
+}
+
+.file-field {
+  color: var(--body);
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.file-field input {
+  min-height: auto;
+  border: 0;
+  background: transparent;
+  color: var(--body);
+  padding: 0;
 }
 
 .form-grid textarea {
@@ -607,7 +679,7 @@ button {
 
 .readonly-card {
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--panel);
   min-height: 82px;
   padding: 14px;

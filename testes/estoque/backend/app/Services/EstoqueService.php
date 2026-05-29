@@ -4,8 +4,11 @@ namespace App\Services;
 
 use App\Models\EstoqueItem;
 use App\Models\EstoqueLog;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class EstoqueService
@@ -192,6 +195,29 @@ class EstoqueService
         return $this->item((int) $item->id);
     }
 
+    public function importarFotoItem(int $id, UploadedFile $foto): ?array
+    {
+        $item = EstoqueItem::query()->where('id', $id)->first();
+
+        if ($item === null) {
+            return null;
+        }
+
+        $extension = strtolower($foto->getClientOriginalExtension() ?: $foto->extension() ?: 'jpg');
+        $baseName = Str::slug($item->nome);
+        $fileName = "{$baseName}-{$item->id}.{$extension}";
+        $path = "estoque/itens/{$fileName}";
+
+        if ($item->foto_path !== null && $item->foto_path !== $path) {
+            Storage::disk('public')->delete($item->foto_path);
+        }
+
+        Storage::disk('public')->putFileAs('estoque/itens', $foto, $fileName);
+        $item->update(['foto_path' => $path]);
+
+        return $this->item((int) $item->id);
+    }
+
     public function registrarMovimento(array $payload, ?int $usuarioId = null): array
     {
         $movimentoId = DB::connection('raw')->transaction(function () use ($payload, $usuarioId): int {
@@ -307,6 +333,8 @@ class EstoqueService
             'nome' => (string) $item->nome,
             'categoria' => (string) $item->categoria,
             'descricao' => $item->descricao,
+            'foto_path' => $item->foto_path,
+            'foto_url' => $item->foto_path ? "/storage/{$item->foto_path}" : null,
             'unidade' => (string) $item->unidade,
             'estoque_minimo' => (float) $item->estoque_minimo,
             'saldo_atual' => (float) $item->saldo_atual,

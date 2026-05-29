@@ -37,6 +37,9 @@ export function DetalheItem({ item, loading, onBack, onEdit }: DetalheItemProps)
           <ArrowLeft size={16} />
           Voltar
         </button>
+        <div className="product-photo is-large">
+          {item.foto_url ? <img src={item.foto_url} alt={item.nome} /> : <span>Sem foto</span>}
+        </div>
         <div>
           <span>{item.codigo ?? 'Sem código'}</span>
           <h2>{item.nome}</h2>

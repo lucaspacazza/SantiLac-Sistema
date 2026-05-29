@@ -15,6 +15,7 @@ class EstoqueItem extends Model
         'nome',
         'categoria',
         'descricao',
+        'foto_path',
         'unidade',
         'saldo_atual',
         'estoque_minimo',

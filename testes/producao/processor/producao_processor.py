@@ -1,0 +1,691 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from xml.etree import ElementTree as ET
+from zipfile import ZIP_DEFLATED, ZipFile
+
+NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+ET.register_namespace("w", NS["w"])
+
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATE_DIR = BASE_DIR / "templates"
+LOGO_PATH = BASE_DIR / "assets" / "logo.png"
+LOGO_TARGET = "word/media/santilac_logo.png"
+
+FORM_CONFIG = {
+    "formulacao_queijo": {
+        "template": "plan_6_3_formulacao_queijo.docx",
+        "documento": "PLAN_6.3",
+        "slug": "formulacao-queijo",
+    },
+    "soro_refrigerado": {
+        "template": "plan_6_7_soro_refrigerado.docx",
+        "documento": "PLAN_6.7",
+        "slug": "soro-refrigerado",
+    },
+    "formulacao_creme": {
+        "template": "plan_6_9_formulacao_creme.docx",
+        "documento": "PLAN_6.9",
+        "slug": "formulacao-creme",
+    },
+    "producao_creme": {
+        "template": "plan_6_10_producao_creme.docx",
+        "documento": "PLAN_6.10",
+        "slug": "producao-creme",
+    },
+}
+
+
+def w_tag(name):
+    return f"{{{NS['w']}}}{name}"
+
+
+def text_of(element):
+    return "".join(node.text or "" for node in element.findall(".//w:t", NS)).strip()
+
+
+def cells(row):
+    return row.findall("./w:tc", NS)
+
+
+def rows(table):
+    return table.findall("./w:tr", NS)
+
+
+def first_paragraph(cell):
+    paragraph = cell.find("./w:p", NS)
+    if paragraph is None:
+        paragraph = ET.SubElement(cell, w_tag("p"))
+    return paragraph
+
+
+def clear_paragraph_text(paragraph):
+    for child in list(paragraph):
+        if child.tag != w_tag("pPr"):
+            paragraph.remove(child)
+
+
+def set_cell_text(cell, value):
+    paragraph = first_paragraph(cell)
+    for child in list(cell):
+        if child.tag == w_tag("p") and child is not paragraph:
+            cell.remove(child)
+    clear_paragraph_text(paragraph)
+    run = ET.SubElement(paragraph, w_tag("r"))
+    text = ET.SubElement(run, w_tag("t"))
+    text.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+    text.text = value if value is not None else ""
+
+
+def append_to_label(cell, value):
+    label = text_of(cell)
+    suffix = value if value is not None else ""
+    set_cell_text(cell, f"{label} {suffix}".strip())
+
+
+def clone_row(row):
+    return ET.fromstring(ET.tostring(row, encoding="utf-8"))
+
+
+def find_table(root, index):
+    return root.findall(".//w:tbl", NS)[index]
+
+
+def find_row_by_label(table, label):
+    wanted = normalize(label)
+    for row in rows(table):
+        row_cells = cells(row)
+        if row_cells and normalize(text_of(row_cells[0])).startswith(wanted):
+            return row
+    return None
+
+
+def normalize(value):
+    return re.sub(r"\s+", " ", value or "").strip().lower()
+
+
+def value(data, key, suffix=""):
+    raw = data.get(key)
+    if raw is None or raw == "":
+        return ""
+    if isinstance(raw, float):
+        text = f"{raw:.3f}".rstrip("0").rstrip(".")
+    else:
+        text = str(raw)
+    return f"{text}{suffix}"
+
+
+def date_br(value):
+    if not value:
+        return ""
+    parts = str(value).split("-")
+    if len(parts) == 3:
+        return f"{parts[2]}/{parts[1]}/{parts[0]}"
+    return str(value)
+
+
+def status_label(raw):
+    labels = {
+        "negativo": "Negativo",
+        "positivo": "Positivo",
+        "nao_aplicavel": "Não aplicável",
+    }
+    return labels.get(raw or "", raw or "")
+
+
+def month_label(value):
+    months = {
+        1: "Janeiro",
+        2: "Fevereiro",
+        3: "Março",
+        4: "Abril",
+        5: "Maio",
+        6: "Junho",
+        7: "Julho",
+        8: "Agosto",
+        9: "Setembro",
+        10: "Outubro",
+        11: "Novembro",
+        12: "Dezembro",
+    }
+    if value is None or value == "":
+        return ""
+    try:
+        return months.get(int(value), str(value))
+    except ValueError:
+        return str(value)
+
+
+def grouped_insumos(data):
+    grouped = {}
+    for item in data.get("insumos") or []:
+        kind = item.get("tipo_insumo") or "outro"
+        quantity = item.get("quantidade")
+        unit = item.get("unidade") or ""
+        lot = item.get("lote_insumo") or ""
+        quantity_text = "" if quantity in (None, "") else f"{quantity:g} {unit}".strip()
+        grouped.setdefault(kind, {"quantidades": [], "lotes": []})
+        if quantity_text:
+            grouped[kind]["quantidades"].append(quantity_text)
+        if lot:
+            grouped[kind]["lotes"].append(str(lot))
+    return grouped
+
+
+def fill_label_value_row(table, label, filled_value, cell_index=1):
+    row = find_row_by_label(table, label)
+    if row is None:
+        return
+    row_cells = cells(row)
+    if len(row_cells) > cell_index:
+        set_cell_text(row_cells[cell_index], filled_value)
+
+
+def fill_formulacao_queijo(root, data):
+    table = find_table(root, 0)
+    table_rows = rows(table)
+    if table_rows:
+        first_cells = cells(table_rows[0])
+        if first_cells:
+            set_cell_text(first_cells[0], "Tipo de Queijo")
+        if len(first_cells) > 1:
+            set_cell_text(first_cells[1], data.get("tipo_queijo") or "")
+        if len(first_cells) > 3:
+            set_cell_text(first_cells[3], "Data:")
+        if len(first_cells) > 4:
+            set_cell_text(first_cells[4], date_br(data.get("data_formulacao")))
+
+    fill_label_value_row(table, "Silo", data.get("silo") or "")
+    fill_label_value_row(table, "Lote do Leite", data.get("lote_leite") or "")
+    fill_label_value_row(table, "Lote do Queijo", data.get("lote_queijo") or "")
+    fill_label_value_row(table, "N° Queijomatic", data.get("numero_queijomatic") or "")
+    fill_label_value_row(table, "Início Enchimento", data.get("inicio_enchimento") or "")
+    fill_label_value_row(table, "Quantidade Leite", value(data, "quantidade_leite", " L"))
+    fill_label_value_row(table, "Temperatura. De Pasteurização", value(data, "temperatura_pasteurizacao", " °C"))
+    fill_label_value_row(table, "Fosfatase", status_label(data.get("fosfatase")))
+    fill_label_value_row(table, "Peroxidase", status_label(data.get("peroxidase")))
+
+    insumos = grouped_insumos(data)
+    mapping = {
+        "fermento_mvd": ("Quantidade de Fermento (MVD)", "Lote do Fermento"),
+        "fermento_fast": ("Quantidade de Fermento (FAST)", "Lote do Fermento"),
+        "fermento": ("Quantidade de Fermento", "Lote do Fermento"),
+        "cloreto": ("Quantidade de Cloreto", "Lote do Cloreto"),
+        "corante": ("Quantidade de Corante", "Lote do Corante"),
+        "coalho": ("Quantidade de Coalho", "Lote do Coalho"),
+    }
+    used_lote_rows = {}
+    for kind, (quantity_label, lot_label) in mapping.items():
+        item = insumos.get(kind, {})
+        fill_label_value_row(table, quantity_label, "; ".join(item.get("quantidades", [])))
+        lote_rows = [row for row in rows(table) if cells(row) and normalize(text_of(cells(row)[0])).startswith(normalize(lot_label))]
+        target_index = used_lote_rows.get(lot_label, 0)
+        if target_index < len(lote_rows):
+            target_cells = cells(lote_rows[target_index])
+            if len(target_cells) > 1:
+                set_cell_text(target_cells[1], "; ".join(item.get("lotes", [])))
+        used_lote_rows[lot_label] = target_index + 1
+
+    gordura_final_row = find_row_by_label(table, "Gordura Final")
+    gordura_inicial_row = find_row_by_label(table, "Gordura Inicial")
+    if gordura_inicial_row is None and gordura_final_row is not None:
+        initial_row = clone_row(gordura_final_row)
+        initial_cells = cells(initial_row)
+        if initial_cells:
+            set_cell_text(initial_cells[0], "Gordura Inicial")
+        if len(initial_cells) > 1:
+            set_cell_text(initial_cells[1], value(data, "gordura_inicial", " %"))
+        table.insert(list(table).index(gordura_final_row), initial_row)
+    else:
+        fill_label_value_row(table, "Gordura Inicial", value(data, "gordura_inicial", " %"))
+
+    fill_label_value_row(table, "Gordura Final", value(data, "gordura_final", " %"))
+    fill_label_value_row(table, "Acidez", value(data, "acidez", " °D"))
+    fill_label_value_row(table, "Temperatura da Coagulação", value(data, "temperatura_coagulacao", " °C"))
+    fill_label_value_row(table, "Hora da Coagulação", data.get("hora_coagulacao") or "")
+    fill_label_value_row(table, "Hora do Corte", data.get("hora_corte") or "")
+    fill_label_value_row(table, "Temperatura de Cozimento", value(data, "temperatura_cozimento", " °C"))
+    fill_label_value_row(table, "Responsável pela Produção", data.get("responsavel") or "")
+
+
+def fill_soro_refrigerado(root, data):
+    table = find_table(root, 0)
+    table_rows = rows(table)
+    if len(table_rows) > 1:
+        row_cells = cells(table_rows[1])
+        values = [
+            date_br(data.get("data_registro")),
+            value(data, "entrada_diaria_estoque", " L"),
+            value(data, "estoque_total", " L"),
+            value(data, "litragem_vendida", " L"),
+            value(data, "sobra_estoque", " L"),
+            data.get("silo_armazenado") or "",
+            data.get("responsavel") or "",
+        ]
+        for index, cell_value in enumerate(values):
+            if index < len(row_cells):
+                set_cell_text(row_cells[index], cell_value)
+
+    if data.get("observacoes"):
+        observations_table = find_table(root, 1)
+        row_cells = cells(rows(observations_table)[0])
+        if row_cells:
+            append_to_label(row_cells[0], data.get("observacoes"))
+
+
+def fill_formulacao_creme(root, data):
+    header_table = find_table(root, 0)
+    header_cells = cells(rows(header_table)[2])
+    header_values = [
+        data.get("responsavel_monitoramento") or "",
+        month_label(data.get("mes")),
+        value(data, "ano"),
+        data.get("tipo_creme") or "",
+    ]
+    for index, cell_value in enumerate(header_values):
+        if index < len(header_cells):
+            append_to_label(header_cells[index], cell_value)
+
+    data_table = find_table(root, 1)
+    row_cells = cells(rows(data_table)[1])
+    values = [
+        date_br(data.get("data_fabricacao")),
+        data.get("lote_creme_produzido") or "",
+        value(data, "gordura_inicial", " %"),
+        value(data, "gordura_final", " %"),
+        value(data, "acidez", " °D"),
+        data.get("responsavel") or "",
+    ]
+    for index, cell_value in enumerate(values):
+        if index < len(row_cells):
+            set_cell_text(row_cells[index], cell_value)
+
+
+def fill_producao_creme(root, data):
+    header_table = find_table(root, 0)
+    header_cells = cells(rows(header_table)[2])
+    header_values = [
+        data.get("responsavel_monitoramento") or "",
+        month_label(data.get("mes")),
+        value(data, "ano"),
+        data.get("tipo_creme") or "",
+    ]
+    for index, cell_value in enumerate(header_values):
+        if index < len(header_cells):
+            append_to_label(header_cells[index], cell_value)
+
+    data_table = find_table(root, 1)
+    row_cells = cells(rows(data_table)[1])
+    values = [
+        date_br(data.get("data_fabricacao")),
+        data.get("lote_creme_produzido") or "",
+        value(data, "quantidade_produzida_kg", " kg"),
+        data.get("responsavel") or "",
+    ]
+    for index, cell_value in enumerate(values):
+        if index < len(row_cells):
+            set_cell_text(row_cells[index], cell_value)
+
+
+FILLERS = {
+    "formulacao_queijo": fill_formulacao_queijo,
+    "soro_refrigerado": fill_soro_refrigerado,
+    "formulacao_creme": fill_formulacao_creme,
+    "producao_creme": fill_producao_creme,
+}
+
+
+def slug(value):
+    text = re.sub(r"[^a-zA-Z0-9_-]+", "-", value or "").strip("-").lower()
+    return text or "documento"
+
+
+def output_name(tipo, data, formato):
+    config = FORM_CONFIG[tipo]
+    key = data.get("lote_queijo") or data.get("lote_creme_produzido") or data.get("data_registro") or data.get("id")
+    return f"{config['documento'].lower().replace('.', '_')}_{config['slug']}_{slug(str(key))}.{formato}"
+
+
+def fill_docx(tipo, data, out_dir):
+    config = FORM_CONFIG[tipo]
+    template = TEMPLATE_DIR / config["template"]
+    if not template.exists():
+        raise FileNotFoundError(f"Modelo não encontrado: {template}")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    docx_path = out_dir / output_name(tipo, data, "docx")
+
+    with ZipFile(template, "r") as source:
+        document_xml = source.read("word/document.xml")
+        root = ET.fromstring(document_xml)
+        FILLERS[tipo](root, data)
+        updated_xml = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+        logo_bytes = LOGO_PATH.read_bytes() if LOGO_PATH.exists() else None
+
+        with ZipFile(docx_path, "w", ZIP_DEFLATED) as target:
+            for item in source.infolist():
+                if item.filename == LOGO_TARGET and logo_bytes:
+                    continue
+                content = source.read(item.filename)
+                if item.filename == "word/document.xml":
+                    content = updated_xml
+                elif item.filename == "word/_rels/header1.xml.rels" and logo_bytes:
+                    content = replace_header_logo_relationships(content)
+                elif item.filename == "[Content_Types].xml" and logo_bytes:
+                    content = ensure_png_content_type(content)
+                target.writestr(item, content)
+
+            if logo_bytes:
+                target.writestr(LOGO_TARGET, logo_bytes)
+
+    return docx_path
+
+
+def replace_header_logo_relationships(content):
+    namespace = "http://schemas.openxmlformats.org/package/2006/relationships"
+    root = ET.fromstring(content)
+    for rel in root.findall(f"{{{namespace}}}Relationship"):
+        rel_type = rel.attrib.get("Type", "")
+        target = rel.attrib.get("Target", "")
+        if rel_type.endswith("/image") and target.startswith("media/"):
+            rel.set("Target", "media/santilac_logo.png")
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def ensure_png_content_type(content):
+    namespace = "http://schemas.openxmlformats.org/package/2006/content-types"
+    root = ET.fromstring(content)
+    has_png = any(
+        child.tag == f"{{{namespace}}}Default" and child.attrib.get("Extension") == "png"
+        for child in root
+    )
+    if not has_png:
+        default = ET.Element(f"{{{namespace}}}Default")
+        default.set("Extension", "png")
+        default.set("ContentType", "image/png")
+        root.insert(0, default)
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def office_binary():
+    return shutil.which("libreoffice") or shutil.which("soffice")
+
+
+def convert_to_pdf(docx_path, out_dir):
+    binary = office_binary()
+    if binary is None:
+        raise RuntimeError("LibreOffice/soffice não encontrado para gerar PDF.")
+
+    with tempfile.TemporaryDirectory(prefix="santilac-lo-") as profile:
+        command = [
+            binary,
+            "--headless",
+            "--nologo",
+            "--nofirststartwizard",
+            f"-env:UserInstallation=file://{profile}",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(out_dir),
+            str(docx_path),
+        ]
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=90)
+
+    if completed.returncode != 0:
+        raise RuntimeError((completed.stderr or completed.stdout or "Falha ao converter PDF.").strip())
+
+    pdf_path = out_dir / f"{docx_path.stem}.pdf"
+    if not pdf_path.exists():
+        generated = sorted(out_dir.glob("*.pdf"), key=lambda path: path.stat().st_mtime, reverse=True)
+        if generated:
+            generated[0].replace(pdf_path)
+
+    if not pdf_path.exists():
+        raise RuntimeError("PDF não foi criado pelo conversor.")
+
+    docx_path.unlink(missing_ok=True)
+    return pdf_path
+
+
+def run(args):
+    with open(args.payload, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+
+    tipo = args.tipo
+    formato = args.formato
+    out_dir = Path(args.out_dir).resolve()
+
+    final_path = build_pdf(tipo, data, out_dir) if formato == "pdf" else fill_docx(tipo, data, out_dir)
+
+    return {
+        "success": True,
+        "arquivo": final_path.name,
+        "caminho": str(final_path),
+        "formato": formato,
+        "errors": [],
+    }
+
+
+def build_pdf(tipo, data, out_dir):
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table
+    from reportlab.platypus.tables import TableStyle
+
+    config = FORM_CONFIG[tipo]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = out_dir / output_name(tipo, data, "pdf")
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=landscape(A4),
+        leftMargin=12 * mm,
+        rightMargin=12 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+    )
+    styles = getSampleStyleSheet()
+    normal = ParagraphStyle("NormalSantiLac", parent=styles["Normal"], fontName="Helvetica", fontSize=8, leading=10)
+    title = ParagraphStyle("TitleSantiLac", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=13, leading=15, alignment=1)
+    section_title = ParagraphStyle("SectionSantiLac", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=9, leading=11, textColor=colors.HexColor("#111111"))
+
+    story = []
+    logo = Image(str(LOGO_PATH), width=42 * mm, height=16 * mm) if LOGO_PATH.exists() else Paragraph("SantiLac", title)
+    header = Table(
+        [[logo, Paragraph(title_for_pdf(tipo), title), Paragraph(f"{config['documento']}<br/>Registro {data.get('id', '')}", normal)]],
+        colWidths=[52 * mm, 160 * mm, 48 * mm],
+    )
+    header.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.7, colors.black),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.black),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (0, 0), "CENTER"),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    story.extend([header, Spacer(1, 5 * mm)])
+
+    for section, fields in pdf_sections(tipo, data):
+        story.append(Paragraph(section, section_title))
+        table_data = []
+        row = []
+        for label, field_value in fields:
+            row.append(Paragraph(f"<b>{escape(label)}</b><br/>{escape(field_value or '-')}", normal))
+            if len(row) == 4:
+                table_data.append(row)
+                row = []
+        if row:
+            while len(row) < 4:
+                row.append(Paragraph("", normal))
+            table_data.append(row)
+        table = Table(table_data, colWidths=[65 * mm] * 4)
+        table.setStyle(form_table_style(colors))
+        story.extend([table, Spacer(1, 4 * mm)])
+
+    if tipo == "formulacao_queijo":
+        story.append(Paragraph("Insumos", section_title))
+        insumos = [["Tipo", "Quantidade", "Unidade", "Lote"]]
+        for item in data.get("insumos") or []:
+            insumos.append([
+                insumo_label(item.get("tipo_insumo")),
+                value({"v": item.get("quantidade")}, "v"),
+                item.get("unidade") or "-",
+                item.get("lote_insumo") or "-",
+            ])
+        if len(insumos) == 1:
+            insumos.append(["-", "-", "-", "-"])
+        insumos_table = Table(insumos, colWidths=[65 * mm] * 4)
+        insumos_table.setStyle(form_table_style(colors, header=True))
+        story.extend([insumos_table, Spacer(1, 4 * mm)])
+
+    observations = data.get("observacoes") or "Sem observações."
+    story.append(Paragraph("Observações", section_title))
+    obs_table = Table([[Paragraph(escape(observations), normal)]], colWidths=[260 * mm])
+    obs_table.setStyle(form_table_style(colors))
+    story.append(obs_table)
+
+    doc.build(story)
+    return pdf_path
+
+
+def title_for_pdf(tipo):
+    return {
+        "formulacao_queijo": "Controle de Formulação do Queijo",
+        "soro_refrigerado": "Controle de Produção de Soro Refrigerado",
+        "formulacao_creme": "Controle de Formulação Creme",
+        "producao_creme": "Controle de Produção Creme",
+    }[tipo]
+
+
+def pdf_sections(tipo, data):
+    if tipo == "formulacao_queijo":
+        return [
+            ("Identificação", [
+                ("Tipo de Queijo", data.get("tipo_queijo")),
+                ("Data", date_br(data.get("data_formulacao"))),
+                ("Silo", data.get("silo")),
+                ("Lote do Leite", data.get("lote_leite")),
+                ("Lote do Queijo", data.get("lote_queijo")),
+                ("Nº Queijomatic", data.get("numero_queijomatic")),
+                ("Início Enchimento", data.get("inicio_enchimento")),
+                ("Quantidade Leite", value(data, "quantidade_leite", " L")),
+                ("Temperatura de Pasteurização", value(data, "temperatura_pasteurizacao", " °C")),
+                ("Fosfatase", status_label(data.get("fosfatase"))),
+                ("Peroxidase", status_label(data.get("peroxidase"))),
+            ]),
+            ("Parâmetros de Fabricação", [
+                ("Gordura Inicial", value(data, "gordura_inicial", " %")),
+                ("Gordura Final", value(data, "gordura_final", " %")),
+                ("Acidez", value(data, "acidez", " °D")),
+                ("Temperatura da Coagulação", value(data, "temperatura_coagulacao", " °C")),
+                ("Hora da Coagulação", data.get("hora_coagulacao")),
+                ("Hora do Corte", data.get("hora_corte")),
+                ("Temperatura de Cozimento", value(data, "temperatura_cozimento", " °C")),
+            ]),
+        ]
+    if tipo == "soro_refrigerado":
+        return [("Registro", [
+            ("Data", date_br(data.get("data_registro"))),
+            ("Entrada Diária no Estoque", value(data, "entrada_diaria_estoque", " L")),
+            ("Estoque Total", value(data, "estoque_total", " L")),
+            ("Litragem Vendida", value(data, "litragem_vendida", " L")),
+            ("Sobra no Estoque", value(data, "sobra_estoque", " L")),
+            ("Silo Armazenado", data.get("silo_armazenado")),
+            ("Responsável", data.get("responsavel")),
+        ])]
+    if tipo == "formulacao_creme":
+        return [("Registro", [
+            ("Responsável pelo Monitoramento", data.get("responsavel_monitoramento")),
+            ("Mês", month_label(data.get("mes"))),
+            ("Ano", value(data, "ano")),
+            ("Tipo de Creme", data.get("tipo_creme")),
+            ("Fabricação", date_br(data.get("data_fabricacao"))),
+            ("Lote do Creme Produzido", data.get("lote_creme_produzido")),
+            ("Gordura Inicial", value(data, "gordura_inicial", " %")),
+            ("Gordura Final", value(data, "gordura_final", " %")),
+            ("Acidez", value(data, "acidez", " °D")),
+            ("Responsável", data.get("responsavel")),
+        ])]
+    return [("Registro", [
+        ("Responsável pelo Monitoramento", data.get("responsavel_monitoramento")),
+        ("Mês", month_label(data.get("mes"))),
+        ("Ano", value(data, "ano")),
+        ("Tipo de Creme", data.get("tipo_creme")),
+        ("Fabricação", date_br(data.get("data_fabricacao"))),
+        ("Lote do Creme Produzido", data.get("lote_creme_produzido")),
+        ("Quantidade Produzida", value(data, "quantidade_produzida_kg", " kg")),
+        ("Responsável", data.get("responsavel")),
+    ])]
+
+
+def form_table_style(colors, header=False):
+    from reportlab.platypus.tables import TableStyle
+
+    commands = [
+        ("BOX", (0, 0), (-1, -1), 0.6, colors.black),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#555555")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]
+    if header:
+        commands.extend([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eeeeee")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ])
+    return TableStyle(commands)
+
+
+def insumo_label(kind):
+    return {
+        "fermento_mvd": "Fermento MVD",
+        "fermento_fast": "Fermento FAST",
+        "fermento": "Fermento",
+        "cloreto": "Cloreto",
+        "corante": "Corante",
+        "coalho": "Coalho",
+        "outro": "Outro",
+    }.get(kind or "outro", kind or "Outro")
+
+
+def escape(raw):
+    return str(raw or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Processador de formulários de produção SantiLac.")
+    parser.add_argument("--tipo", required=True, choices=sorted(FORM_CONFIG.keys()))
+    parser.add_argument("--payload", required=True)
+    parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--format", dest="formato", required=True, choices=["docx", "pdf"])
+    args = parser.parse_args()
+
+    try:
+        result = run(args)
+    except Exception as exc:
+        result = {
+            "success": False,
+            "arquivo": None,
+            "caminho": None,
+            "formato": args.formato,
+            "errors": [str(exc)],
+        }
+
+    print(json.dumps(result, ensure_ascii=False))
+    return 0 if result["success"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
