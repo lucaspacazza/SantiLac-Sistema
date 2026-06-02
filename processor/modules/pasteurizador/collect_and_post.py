@@ -1,0 +1,222 @@
+#!/usr/bin/env python3
+import argparse
+import hashlib
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, time as datetime_time, timedelta
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from fieldlogger_core import DEFAULT_HOST, DEFAULT_PORT, DEFAULT_UNIT_ID, download_history_file, extract_history_samples
+
+APP_NAME = "santilac-pasteurizador"
+DEFAULT_ENV_FILE = "/etc/santilac-pasteurizador/processor.env"
+
+
+def load_env(path):
+    env = {}
+    file_path = Path(path)
+    if not file_path.exists():
+        return env
+    for line in file_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        env[key.strip()] = value.strip().strip('"').strip("'")
+    return env
+
+
+def parse_local_datetime(value):
+    normalized = value.strip().replace("T", " ")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(normalized, fmt)
+        except ValueError:
+            pass
+    raise ValueError(f"Data/hora invalida: {value!r}. Use YYYY-MM-DD HH:MM:SS.")
+
+
+def previous_day_range(timezone_name):
+    today = datetime.now(ZoneInfo(timezone_name)).date()
+    target = today - timedelta(days=1)
+    return (
+        datetime.combine(target, datetime_time(0, 0, 0)),
+        datetime.combine(target, datetime_time(23, 59, 59)),
+    )
+
+
+def previous_production_day_range(timezone_name):
+    today = datetime.now(ZoneInfo(timezone_name)).date()
+    days_back = 2 if today.weekday() == 0 else 1
+    target = today - timedelta(days=days_back)
+    return (
+        datetime.combine(target, datetime_time(0, 0, 0)),
+        datetime.combine(target, datetime_time(23, 59, 59)),
+    )
+
+
+def filter_samples_by_period(samples, period_start, period_end):
+    if period_start is None and period_end is None:
+        return samples
+
+    filtered = []
+    for sample in samples:
+        if period_start is not None and sample.timestamp < period_start:
+            continue
+        if period_end is not None and sample.timestamp > period_end:
+            continue
+        filtered.append(sample)
+    return filtered
+
+
+def build_payload(result, samples, channels, equipment, raw_path):
+    units = {channel.name: channel.unit for channel in channels}
+    payload_samples = []
+    for sample in samples:
+        for channel in channels:
+            value = sample.values.get(channel.name)
+            if value is None:
+                continue
+            payload_samples.append(
+                {
+                    "channel": channel.name,
+                    "unit": units.get(channel.name) or None,
+                    "sample_index": sample.sample_index,
+                    "raw_offset": sample.raw_offset,
+                    "timestamp_record": sample.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                    "value": round(float(value), 6),
+                    "quality": None,
+                }
+            )
+
+    return {
+        "source": "fieldlogger_modbus",
+        "equipment": equipment,
+        "remote_file": result["remote_file"],
+        "raw_file_path": str(raw_path),
+        "downloaded_at": result["downloaded_at"].replace("T", " "),
+        "bytes_downloaded": len(result["data"]),
+        "raw_sha256": hashlib.sha256(result["data"]).hexdigest(),
+        "samples_count": len(samples),
+        "channels": [channel.name for channel in channels],
+        "samples": payload_samples,
+    }
+
+
+def post_json(url, token, payload, timeout):
+    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "Accept": "application/json",
+        "User-Agent": f"{APP_NAME}/1.0",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        body = response.read().decode("utf-8", "replace")
+        return response.status, body
+
+
+def write_outbox(out_dir, payload, raw_data):
+    path = Path(out_dir)
+    path.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    json_path = path / f"pasteurizador_payload_{stamp}.json"
+    raw_path = path / f"pasteurizador_memflash_{stamp}.fl"
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    raw_path.write_bytes(raw_data)
+    return json_path, raw_path
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Coleta historico do FieldLogger e envia para a API SantiLac.")
+    parser.add_argument("--start", help="Inicio do periodo no horario local do equipamento. Ex: 2026-06-01 00:00:00")
+    parser.add_argument("--end", help="Fim do periodo no horario local do equipamento. Ex: 2026-06-01 23:59:59")
+    parser.add_argument("--previous-day", action="store_true", help="Coleta somente o dia anterior no horario de Brasilia.")
+    parser.add_argument("--previous-production-day", action="store_true", help="Coleta o ultimo dia de producao. Segunda-feira busca sabado.")
+    parser.add_argument("--timezone", default=os.environ.get("PASTEURIZADOR_TIMEZONE", "America/Sao_Paulo"))
+    args = parser.parse_args()
+
+    env_file = os.environ.get("PASTEURIZADOR_ENV", DEFAULT_ENV_FILE)
+    env = {**load_env(env_file), **os.environ}
+
+    host = env.get("FIELDLOGGER_HOST", DEFAULT_HOST)
+    port = int(env.get("FIELDLOGGER_PORT", DEFAULT_PORT))
+    unit_id = int(env.get("FIELDLOGGER_UNIT_ID", DEFAULT_UNIT_ID))
+    equipment = env.get("EQUIPMENT_NAME", "pasteurizador")
+    max_bytes = int(env.get("FIELDLOGGER_MAX_BYTES", "2000000"))
+    api_url = env.get("SANTILAC_API_URL", "").strip()
+    api_token = env.get("SANTILAC_API_TOKEN", "").strip()
+    http_timeout = int(env.get("SANTILAC_HTTP_TIMEOUT", "240"))
+    out_dir = env.get("OUTBOX_DIR", "/var/lib/santilac-pasteurizador/outbox")
+    post_empty_periods = env.get("POST_EMPTY_PERIODS", "0").strip().lower() in {"1", "true", "yes", "sim"}
+
+    period_start = parse_local_datetime(args.start) if args.start else None
+    period_end = parse_local_datetime(args.end) if args.end else None
+    if args.previous_production_day:
+        period_start, period_end = previous_production_day_range(args.timezone)
+    elif args.previous_day:
+        period_start, period_end = previous_day_range(args.timezone)
+    if period_start is not None and period_end is not None and period_start > period_end:
+        print(f"[{APP_NAME}] periodo invalido: inicio maior que fim", file=sys.stderr)
+        return 2
+
+    started = time.time()
+    print(f"[{APP_NAME}] coletando historico {equipment} em {host}:{port} unit={unit_id}")
+    if period_start or period_end:
+        print(
+            f"[{APP_NAME}] filtro_periodo="
+            f"{period_start.strftime('%Y-%m-%d %H:%M:%S') if period_start else '-'}.."
+            f"{period_end.strftime('%Y-%m-%d %H:%M:%S') if period_end else '-'} "
+            f"timezone={args.timezone}"
+        )
+    result = download_history_file(host=host, port=port, unit_id=unit_id, max_bytes=max_bytes)
+    all_samples, channels = extract_history_samples(result["data"])
+    samples = filter_samples_by_period(all_samples, period_start, period_end)
+    _, raw_path = write_outbox(out_dir, {"status": "raw_downloaded"}, result["data"])
+    payload = build_payload(result, samples, channels, equipment, raw_path)
+    json_path = raw_path.with_name(raw_path.name.replace("memflash", "payload")).with_suffix(".json")
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    values = [sample.values.get("Temp.Pasteuriza") for sample in samples if sample.values.get("Temp.Pasteuriza") is not None]
+    print(f"[{APP_NAME}] bytes={len(result['data'])} amostras_arquivo={len(all_samples)} amostras_filtradas={len(samples)} registros={len(payload['samples'])}")
+    print(f"[{APP_NAME}] canais={', '.join(channel.name for channel in channels)}")
+    if all_samples:
+        print(f"[{APP_NAME}] periodo_arquivo={all_samples[0].timestamp:%Y-%m-%d %H:%M:%S}..{all_samples[-1].timestamp:%Y-%m-%d %H:%M:%S}")
+    if samples:
+        print(f"[{APP_NAME}] periodo={samples[0].timestamp:%Y-%m-%d %H:%M:%S}..{samples[-1].timestamp:%Y-%m-%d %H:%M:%S}")
+    if values:
+        peak = max(samples, key=lambda sample: sample.values.get("Temp.Pasteuriza") or float("-inf"))
+        print(f"[{APP_NAME}] Temp.Pasteuriza={min(values):.2f}..{max(values):.2f} C pico={peak.timestamp:%Y-%m-%d %H:%M:%S}")
+    print(f"[{APP_NAME}] outbox json={json_path}")
+    print(f"[{APP_NAME}] outbox raw={raw_path}")
+
+    if api_url and (payload["samples"] or post_empty_periods):
+        try:
+            status, body = post_json(api_url, api_token, payload, http_timeout)
+            print(f"[{APP_NAME}] POST {api_url} -> HTTP {status}")
+            if body:
+                print(body[:1000])
+        except urllib.error.HTTPError as exc:
+            print(f"[{APP_NAME}] erro HTTP {exc.code}: {exc.read().decode('utf-8', 'replace')[:1000]}", file=sys.stderr)
+            return 2
+        except Exception as exc:
+            print(f"[{APP_NAME}] erro ao enviar para API: {exc}", file=sys.stderr)
+            return 2
+    elif api_url:
+        print(f"[{APP_NAME}] nenhum registro no periodo filtrado; POST ignorado para nao gravar coleta vazia.")
+    else:
+        print(f"[{APP_NAME}] SANTILAC_API_URL vazio; payload ficou salvo no outbox.")
+
+    print(f"[{APP_NAME}] finalizado em {time.time() - started:.1f}s")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

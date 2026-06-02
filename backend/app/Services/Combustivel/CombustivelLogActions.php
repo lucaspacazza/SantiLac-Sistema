@@ -1,0 +1,11 @@
+<?php
+
+namespace App\Services\Combustivel;
+
+final class CombustivelLogActions
+{
+    public const ENTRADA_REGISTRADA = 'ENTRADA_COMBUSTIVEL_REGISTRADA';
+    public const SAIDA_REGISTRADA = 'SAIDA_COMBUSTIVEL_REGISTRADA';
+    public const TENTATIVA_SAIDA_SEM_ESTOQUE = 'TENTATIVA_SAIDA_SEM_ESTOQUE';
+    public const TENTATIVA_ENTRADA_ACIMA_CAPACIDADE = 'TENTATIVA_ENTRADA_ACIMA_CAPACIDADE';
+}

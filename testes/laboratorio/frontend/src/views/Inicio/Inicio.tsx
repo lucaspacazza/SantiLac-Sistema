@@ -17,7 +17,6 @@ export function Inicio({ overview, onOpenCronograma, onOpenSubmodulo }: {
       <div className="module-grid">
         {overview.submodulos.map((submodulo) => (
           <button className="module-card" key={submodulo.codigo} onClick={() => onOpenSubmodulo ? onOpenSubmodulo(submodulo.rota_listagem) : onOpenCronograma?.()}>
-            <span>{submodulo.documento}</span>
             <strong>{submodulo.nome}</strong>
             <small>{submodulo.descricao}</small>
           </button>

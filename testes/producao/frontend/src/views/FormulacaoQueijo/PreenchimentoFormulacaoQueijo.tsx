@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from 'lucide-react'
+﻿import { Plus, Trash2 } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
 import { today } from '../../shared/formatters'
@@ -11,8 +11,7 @@ export function PreenchimentoFormulacaoQueijo({
   const [insumoRows, setInsumoRows] = useState([1])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    await onCreate(event)
-    setInsumoRows([1])
+    return onCreate(event)
   }
 
   function addInsumo() {
@@ -27,8 +26,8 @@ export function PreenchimentoFormulacaoQueijo({
     <section className="panel">
       <h2>Preenchimento</h2>
       <form className="form-grid" onSubmit={handleSubmit}>
+        <input name="data_formulacao" type="hidden" value={today()} />
         <label>Tipo de queijo<input name="tipo_queijo" required /></label>
-        <label>Data<input name="data_formulacao" type="date" defaultValue={today()} required /></label>
         <label>Lote do queijo<input name="lote_queijo" required /></label>
         <label>Lote do leite<input name="lote_leite" /></label>
         <label>Silo<input name="silo" /></label>
@@ -45,7 +44,6 @@ export function PreenchimentoFormulacaoQueijo({
         <label>Hora da coagulação<input name="hora_coagulacao" type="time" /></label>
         <label>Hora do corte<input name="hora_corte" type="time" /></label>
         <label>Temp. cozimento<input name="temperatura_cozimento" type="number" step="0.01" /></label>
-        <label className="wide">Observações<textarea name="observacoes" rows={3} /></label>
 
         <div className="wide subform-stack">
           <div className="subform-head">

@@ -1,13 +1,15 @@
-import { Save } from 'lucide-react'
+import { Save, XCircle } from 'lucide-react'
 import type { FormEvent } from 'react'
 import type { SoroRefrigerado } from '../../api/producaoApi'
 
 export function EdicaoSoroRefrigerado({
   item,
   onSave,
+  onCancel,
 }: {
   item: SoroRefrigerado
   onSave: (event: FormEvent<HTMLFormElement>) => Promise<void> | void
+  onCancel: () => void
 }) {
   return (
     <section className="panel">
@@ -18,9 +20,9 @@ export function EdicaoSoroRefrigerado({
         <label>Litragem vendida<input name="litragem_vendida" type="number" step="0.001" min="0" defaultValue={item.litragem_vendida ?? ''} /></label>
         <label>Silo armazenado<input name="silo_armazenado" defaultValue={item.silo_armazenado ?? ''} /></label>
         <label>Responsável<input name="responsavel" defaultValue={item.responsavel ?? ''} /></label>
-        <label className="wide">Observações<textarea name="observacoes" rows={3} defaultValue={item.observacoes ?? ''} /></label>
 
         <div className="form-actions wide">
+          <button className="btn secondary" type="button" onClick={onCancel}><XCircle size={16} />Cancelar ficha</button>
           <button className="btn primary" type="submit"><Save size={16} />Salvar alterações</button>
         </div>
       </form>

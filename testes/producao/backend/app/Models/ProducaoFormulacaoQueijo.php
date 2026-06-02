@@ -11,6 +11,7 @@ class ProducaoFormulacaoQueijo extends Model
     protected $table = 'producao_formulacoes_queijo';
 
     protected $fillable = [
+        'codigo_formulacao',
         'documento_codigo',
         'documento_nome',
         'documento_revisao',

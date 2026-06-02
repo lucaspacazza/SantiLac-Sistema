@@ -27,9 +27,9 @@ Thumbs.db
 .xlsx
 *.md
 !docs/modulos/estoque.md
-!testes/estoque/README.md
-!testes/estoque/backend/contracts/api.md
 referencias/
 skills/
 PAC/
 deploy_ct_106/
+testes/*
+testes/laboratorio

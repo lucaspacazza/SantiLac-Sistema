@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Combustivel\CombustivelController;
 use App\Http\Controllers\Api\Estoque\EstoqueController;
+use App\Http\Controllers\Api\Pasteurizador\PasteurizadorController;
 use App\Http\Controllers\Api\ProdutorController;
 use App\Http\Controllers\Api\Qualidade\QualidadeController;
 use App\Http\Controllers\Api\Qualidade\RelatoriosController;
@@ -13,6 +15,9 @@ Route::prefix('api/auth')->group(function (): void {
     Route::get('/me', [AuthController::class, 'me'])->middleware('auth');
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
 });
+
+Route::post('/api/pasteurizador/coletas', [PasteurizadorController::class, 'criarColeta'])
+    ->middleware('throttle:6,1');
 
 Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): void {
     Route::prefix('produtores')->group(function (): void {
@@ -55,6 +60,29 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
 
         Route::get('/movimentos', [EstoqueController::class, 'movimentos']);
         Route::post('/movimentos', [EstoqueController::class, 'registrarMovimento']);
+    });
+
+    Route::prefix('combustivel')->group(function (): void {
+        Route::get('/resumo', [CombustivelController::class, 'resumo']);
+        Route::post('/entrada', [CombustivelController::class, 'entrada']);
+        Route::post('/saida', [CombustivelController::class, 'saida']);
+        Route::get('/historico', [CombustivelController::class, 'historico']);
+        Route::get('/logs', [CombustivelController::class, 'logs']);
+        Route::get('/usuarios', [CombustivelController::class, 'usuarios']);
+        Route::get('/motoristas', [CombustivelController::class, 'motoristas']);
+        Route::get('/caminhoes', [CombustivelController::class, 'caminhoes']);
+    });
+
+    Route::prefix('pasteurizador')->group(function (): void {
+        Route::get('/overview', [PasteurizadorController::class, 'overview']);
+        Route::get('/coletas', [PasteurizadorController::class, 'coletas']);
+        Route::post('/coletar-agora', [PasteurizadorController::class, 'coletarAgora']);
+        Route::get('/coletas/{id}', [PasteurizadorController::class, 'coleta']);
+        Route::get('/coletas/{id}/amostras', [PasteurizadorController::class, 'amostras']);
+        Route::get('/coletas/{id}/exportar.csv', [PasteurizadorController::class, 'exportarCsv']);
+        Route::get('/amostras', [PasteurizadorController::class, 'amostrasPeriodo']);
+        Route::get('/amostras/exportar.csv', [PasteurizadorController::class, 'exportarCsvPeriodo']);
+        Route::get('/amostras/exportar.pdf', [PasteurizadorController::class, 'exportarPdfPeriodo']);
     });
 });
 

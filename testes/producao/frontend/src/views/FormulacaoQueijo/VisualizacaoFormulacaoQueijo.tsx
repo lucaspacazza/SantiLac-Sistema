@@ -1,15 +1,12 @@
-import { Pencil } from 'lucide-react'
-import type { ExportFormat, FormulacaoInsumo, FormulacaoQueijo } from '../../api/producaoApi'
+﻿import type { ExportFormat, FormulacaoInsumo, FormulacaoQueijo } from '../../api/producaoApi'
 import { ExportFormatMenu } from '../../shared/ExportFormatMenu'
 import { formatDate, formatNumber } from '../../shared/formatters'
 
 export function VisualizacaoFormulacaoQueijo({
   item,
-  onEdit,
   onExport,
 }: {
   item: FormulacaoQueijo
-  onEdit: () => void
   onExport: (format: ExportFormat) => void
 }) {
   const insumos = groupInsumos(item.insumos)
@@ -17,20 +14,21 @@ export function VisualizacaoFormulacaoQueijo({
   return (
     <section className="document-view">
       <div className="document-actions">
-        {item.status !== 'finalizada' && <button className="btn secondary" type="button" onClick={onEdit}><Pencil size={16} />Editar</button>}
-        <ExportFormatMenu onExport={onExport} />
+        {item.status === 'finalizada' && <ExportFormatMenu onExport={onExport} />}
       </div>
 
-      <article className="document-sheet">
+      <article className="document-sheet document-sheet-compact">
         <header className="document-header">
           <div>
             <h2>Controle de formulação do queijo</h2>
-            <span>Dados carregados do banco</span>
+            <span>Ficha preenchida</span>
           </div>
         </header>
 
         <div className="document-form-list">
-          <DocumentLine label="Tipo de Queijo / Data" value={`${item.tipo_queijo || '-'}   ${formatDate(item.data_formulacao)}`} />
+          <DocumentLine label="Código da Formulação" value={item.codigo_formulacao} />
+          <DocumentLine label="Tipo de Queijo" value={item.tipo_queijo} />
+          <DocumentLine label="Data" value={formatDate(item.data_formulacao)} />
           <DocumentLine label="Silo" value={item.silo} />
           <DocumentLine label="Lote do Leite" value={item.lote_leite} />
           <DocumentLine label="Lote do Queijo" value={item.lote_queijo} />
@@ -60,7 +58,6 @@ export function VisualizacaoFormulacaoQueijo({
           <DocumentLine label="Hora do Corte" value={item.hora_corte} />
           <DocumentLine label="Temperatura de Cozimento" value={formatNumber(item.temperatura_cozimento, ' °C')} />
           <DocumentLine label="Responsável pela Produção" value={item.responsavel_id ? String(item.responsavel_id) : null} />
-          <DocumentLine label="Observações" value={item.observacoes} />
         </div>
       </article>
     </section>

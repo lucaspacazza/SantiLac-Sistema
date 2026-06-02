@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+﻿import { Plus } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { today } from '../../shared/formatters'
 
@@ -16,7 +16,6 @@ export function PreenchimentoSoroRefrigerado({
         <label>Litragem vendida<input name="litragem_vendida" type="number" step="0.001" min="0" /></label>
         <label>Silo armazenado<input name="silo_armazenado" /></label>
         <label>Responsável<input name="responsavel" /></label>
-        <label className="wide">Observações<textarea name="observacoes" rows={3} /></label>
 
         <div className="form-actions wide">
           <button className="btn primary" type="submit"><Plus size={16} />Salvar ficha</button>

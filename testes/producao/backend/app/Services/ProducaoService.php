@@ -79,6 +79,7 @@ class ProducaoService
             $query->where(function ($query) use ($search): void {
                 $query
                     ->where('tipo_queijo', 'like', "%{$search}%")
+                    ->orWhere('codigo_formulacao', 'like', "%{$search}%")
                     ->orWhere('lote_queijo', 'like', "%{$search}%")
                     ->orWhere('lote_leite', 'like', "%{$search}%");
             });
@@ -108,6 +109,8 @@ class ProducaoService
         $id = DB::connection('raw')->transaction(function () use ($payload, $usuarioId): int {
             $insumos = $payload['insumos'] ?? [];
             unset($payload['insumos']);
+            $payload['tipo_queijo'] = (string) ($payload['tipo_queijo'] ?? '');
+            $payload['lote_queijo'] = (string) ($payload['lote_queijo'] ?? '');
 
             $formulacao = ProducaoFormulacaoQueijo::query()->create([
                 ...$payload,
@@ -117,6 +120,8 @@ class ProducaoService
                 'status' => 'rascunho',
                 'insumos_json' => array_values($insumos),
             ]);
+            $formulacao->codigo_formulacao = $this->codigoFormulacaoQueijo($formulacao);
+            $formulacao->save();
 
             return (int) $formulacao->id;
         });
@@ -132,13 +137,15 @@ class ProducaoService
             return null;
         }
 
-        if ($formulacao->status === 'finalizada') {
+        if ($formulacao->status !== 'rascunho') {
             return false;
         }
 
         DB::connection('raw')->transaction(function () use ($formulacao, $payload, $usuarioId): void {
             $insumos = $payload['insumos'] ?? [];
             unset($payload['insumos']);
+            $payload['tipo_queijo'] = (string) ($payload['tipo_queijo'] ?? '');
+            $payload['lote_queijo'] = (string) ($payload['lote_queijo'] ?? '');
 
             $formulacao->fill([
                 ...$payload,
@@ -160,8 +167,24 @@ class ProducaoService
             return null;
         }
 
-        if ($formulacao->status !== 'finalizada') {
+        if ($formulacao->status === 'rascunho') {
             $formulacao->status = 'finalizada';
+            $formulacao->save();
+        }
+
+        return $this->formulacaoQueijo($id);
+    }
+
+    public function cancelarFormulacaoQueijo(int $id): ?array
+    {
+        $formulacao = ProducaoFormulacaoQueijo::query()->where('id', $id)->first();
+
+        if ($formulacao === null) {
+            return null;
+        }
+
+        if ($formulacao->status === 'rascunho') {
+            $formulacao->status = 'cancelada';
             $formulacao->save();
         }
 
@@ -177,6 +200,32 @@ class ProducaoService
         }
 
         return $this->formatarFormulacaoQueijo($formulacao);
+    }
+
+    public function formulacaoQueijoDia(int $id): ?array
+    {
+        $formulacao = ProducaoFormulacaoQueijo::query()->where('id', $id)->first();
+
+        if ($formulacao === null) {
+            return null;
+        }
+
+        $data = optional($formulacao->data_formulacao)->toDateString();
+        $items = ProducaoFormulacaoQueijo::query()
+            ->whereDate('data_formulacao', $data)
+            ->orderByRaw('CAST(numero_queijomatic AS UNSIGNED) ASC')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (ProducaoFormulacaoQueijo $item): array => $this->formatarFormulacaoQueijo($item))
+            ->values()
+            ->all();
+
+        return [
+            'id' => (int) $formulacao->id,
+            'documento_codigo' => 'PLAN_6.3',
+            'data_formulacao' => $data,
+            'items' => $items,
+        ];
     }
 
     public function soroRefrigerado(Request $request): array
@@ -206,7 +255,22 @@ class ProducaoService
 
     public function finalizarSoroRefrigerado(int $id): ?array
     {
-        return $this->finalizarFormulario(ProducaoSoroRefrigerado::class, $id, fn (int $id): ?array => $this->soroRefrigeradoItem($id));
+        $ficha = $this->finalizarFormulario(ProducaoSoroRefrigerado::class, $id, fn (int $id): ?array => $this->soroRefrigeradoItem($id));
+
+        if ($ficha === null) {
+            return null;
+        }
+
+        if (($ficha['status'] ?? null) === 'finalizada') {
+            $this->controlarEstoqueSoroRefrigerado($id);
+        }
+
+        return $this->soroRefrigeradoItem($id);
+    }
+
+    public function cancelarSoroRefrigerado(int $id): ?array
+    {
+        return $this->cancelarFormulario(ProducaoSoroRefrigerado::class, $id, fn (int $id): ?array => $this->soroRefrigeradoItem($id));
     }
 
     public function soroRefrigeradoItem(int $id): ?array
@@ -214,6 +278,65 @@ class ProducaoService
         $item = ProducaoSoroRefrigerado::query()->where('id', $id)->first();
 
         return $item === null ? null : $this->formatarSoroRefrigerado($item);
+    }
+
+    public function estoqueSoroRefrigeradoResumo(): array
+    {
+        $estoque = DB::connection('raw')
+            ->table('estoque')
+            ->where('codigo', 'PROD-SORO-REFRIGERADO')
+            ->first();
+
+        if ($estoque === null) {
+            return [
+                'estoque' => null,
+                'ultima_entrada' => null,
+                'movimentos' => [],
+            ];
+        }
+
+        $movimentos = DB::connection('raw')
+            ->table('estoque_logs')
+            ->where('estoque_id', (int) $estoque->id)
+            ->orderByDesc('data_movimento')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get()
+            ->map(fn ($movimento): array => [
+                'id' => (int) $movimento->id,
+                'tipo' => (string) $movimento->tipo,
+                'quantidade' => (float) $movimento->quantidade,
+                'saldo_antes' => (float) $movimento->saldo_antes,
+                'saldo_depois' => (float) $movimento->saldo_depois,
+                'data_movimento' => (string) $movimento->data_movimento,
+                'documento' => $movimento->documento,
+                'motivo' => $movimento->motivo,
+            ])
+            ->all();
+
+        $ultimaEntrada = DB::connection('raw')
+            ->table('estoque_logs')
+            ->where('estoque_id', (int) $estoque->id)
+            ->where('tipo', 'entrada')
+            ->orderByDesc('data_movimento')
+            ->orderByDesc('id')
+            ->first();
+
+        return [
+            'estoque' => [
+                'id' => (int) $estoque->id,
+                'nome' => (string) $estoque->nome,
+                'unidade' => (string) $estoque->unidade,
+                'saldo_atual' => (float) $estoque->saldo_atual,
+            ],
+            'ultima_entrada' => $ultimaEntrada === null ? null : [
+                'quantidade' => (float) $ultimaEntrada->quantidade,
+                'data_movimento' => (string) $ultimaEntrada->data_movimento,
+                'saldo_depois' => (float) $ultimaEntrada->saldo_depois,
+                'documento' => $ultimaEntrada->documento,
+            ],
+            'movimentos' => $movimentos,
+        ];
     }
 
     public function controlarEstoqueSoroRefrigerado(int $id, ?int $usuarioId = null): ?array
@@ -342,6 +465,11 @@ class ProducaoService
         return $this->finalizarFormulario(ProducaoFormulacaoCreme::class, $id, fn (int $id): ?array => $this->formulacaoCreme($id));
     }
 
+    public function cancelarFormulacaoCreme(int $id): ?array
+    {
+        return $this->cancelarFormulario(ProducaoFormulacaoCreme::class, $id, fn (int $id): ?array => $this->formulacaoCreme($id));
+    }
+
     public function formulacaoCreme(int $id): ?array
     {
         $item = ProducaoFormulacaoCreme::query()->where('id', $id)->first();
@@ -379,6 +507,11 @@ class ProducaoService
         return $this->finalizarFormulario(ProducaoCreme::class, $id, fn (int $id): ?array => $this->producaoCreme($id));
     }
 
+    public function cancelarProducaoCreme(int $id): ?array
+    {
+        return $this->cancelarFormulario(ProducaoCreme::class, $id, fn (int $id): ?array => $this->producaoCreme($id));
+    }
+
     public function producaoCreme(int $id): ?array
     {
         $item = ProducaoCreme::query()->where('id', $id)->first();
@@ -389,7 +522,7 @@ class ProducaoService
     public function exportarFormulario(string $tipo, int $id, string $formato): ?array
     {
         $config = [
-            'formulacao-queijo' => ['processor' => 'formulacao_queijo', 'finder' => fn (): ?array => $this->formulacaoQueijo($id)],
+            'formulacao-queijo' => ['processor' => 'formulacao_queijo', 'finder' => fn (): ?array => $this->formulacaoQueijoDia($id)],
             'soro-refrigerado' => ['processor' => 'soro_refrigerado', 'finder' => fn (): ?array => $this->soroRefrigeradoItem($id)],
             'formulacao-creme' => ['processor' => 'formulacao_creme', 'finder' => fn (): ?array => $this->formulacaoCreme($id)],
             'producao-creme' => ['processor' => 'producao_creme', 'finder' => fn (): ?array => $this->producaoCreme($id)],
@@ -524,7 +657,7 @@ class ProducaoService
             return null;
         }
 
-        if ($registro->status === 'finalizada') {
+        if ($registro->status !== 'rascunho') {
             return false;
         }
 
@@ -547,8 +680,24 @@ class ProducaoService
             return null;
         }
 
-        if ($registro->status !== 'finalizada') {
+        if ($registro->status === 'rascunho') {
             $registro->status = 'finalizada';
+            $registro->save();
+        }
+
+        return $finder($id);
+    }
+
+    private function cancelarFormulario(string $modelClass, int $id, Closure $finder): ?array
+    {
+        $registro = $modelClass::query()->where('id', $id)->first();
+
+        if ($registro === null) {
+            return null;
+        }
+
+        if ($registro->status === 'rascunho') {
+            $registro->status = 'cancelada';
             $registro->save();
         }
 
@@ -564,6 +713,7 @@ class ProducaoService
     {
         return [
             'id' => (int) $formulacao->id,
+            'codigo_formulacao' => $formulacao->codigo_formulacao ?: $this->codigoFormulacaoQueijo($formulacao),
             'ordem_producao_id' => null,
             'documento_codigo' => (string) $formulacao->documento_codigo,
             'tipo_queijo' => (string) $formulacao->tipo_queijo,
@@ -599,6 +749,13 @@ class ProducaoService
                 ->values()
                 ->all(),
         ];
+    }
+
+    private function codigoFormulacaoQueijo(ProducaoFormulacaoQueijo $formulacao): string
+    {
+        $data = optional($formulacao->data_formulacao)->format('Ymd') ?: now('America/Sao_Paulo')->format('Ymd');
+
+        return sprintf('FQ-%s-%06d', $data, (int) $formulacao->id);
     }
 
     private function formatarSoroRefrigerado(ProducaoSoroRefrigerado $item): array

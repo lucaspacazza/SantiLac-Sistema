@@ -1,19 +1,11 @@
 import {
   ArrowDownToLine,
   ArrowRightLeft,
-  BarChart3,
-  FlaskConical,
-  Home,
-  LogOut,
-  Package,
   Plus,
   RefreshCcw,
-  Settings,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import type { AuthUser } from '../../api/authApi'
-import { ThemeToggle, type ThemeMode } from '../../shared/ThemeToggle'
 import { estoqueApi, type EstoqueItem, type EstoqueItemDetalhe, type Movimento, type Overview } from './api/estoqueApi'
 import { today } from './shared/formatters'
 import { DetalheItem } from './views/DetalheItem/DetalheItem'
@@ -84,21 +76,7 @@ function pushRoute(route: RouteState): void {
   }
 }
 
-export function EstoqueModule({
-  user,
-  theme,
-  onToggleTheme,
-  onBackToSystem,
-  onOpenModule,
-  onLogout,
-}: {
-  user: AuthUser
-  theme: ThemeMode
-  onToggleTheme: () => void
-  onBackToSystem: () => void
-  onOpenModule: (module: 'qualidade' | 'estoque') => void
-  onLogout: () => void
-}) {
+export function EstoqueModule() {
   const [route, setRoute] = useState<RouteState>(() => parseRoute())
   const [status, setStatus] = useState<LoadStatus>('loading')
   const [statusText, setStatusText] = useState('Carregando estoque...')
@@ -247,7 +225,6 @@ export function EstoqueModule({
       data_movimento: String(form.get('data_movimento') || today()),
       documento: String(form.get('documento') ?? '').trim() || undefined,
       motivo: String(form.get('motivo') ?? '').trim() || undefined,
-      observacao: String(form.get('observacao') ?? '').trim() || undefined,
     })
 
     setMovementFormOpen(false)
@@ -278,60 +255,9 @@ export function EstoqueModule({
           : 'Entradas, saídas e ajustes.'
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <img className="sidebar-logo" src="/assets/img/logo.png" alt="Santi'Lac" />
+    <>
 
-        <nav className="nav" aria-label="Navegação principal">
-          <span className="nav-section-title">Sistema</span>
-          <button className="nav-item nav-motion-home" type="button" onClick={onBackToSystem}>
-            <Home size={16} />
-            Início do sistema
-          </button>
-          <button className="nav-item nav-motion-quality" type="button" onClick={() => onOpenModule('qualidade')}>
-            <FlaskConical size={16} />
-            Qualidade
-          </button>
-          <button className="nav-item nav-motion-stock is-active" type="button" onClick={() => pushRoute({ view: 'inicio' })}>
-            <Package size={16} />
-            Estoque
-          </button>
-          <div className="nav-subtree" aria-label="Submódulos de estoque">
-            <button className={`nav-subitem nav-motion-start ${route.view === 'inicio' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'inicio' })}><Home size={15} />Início</button>
-            <button className={`nav-subitem nav-motion-items ${route.view === 'itens' || route.view === 'detalhe-item' || route.view === 'editar-item' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'itens' })}><Package size={15} />Itens</button>
-            <button className={`nav-subitem nav-motion-movements ${route.view === 'movimentos' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'movimentos' })}><ArrowRightLeft size={15} />Movimentações</button>
-          </div>
-          <button className="nav-item nav-motion-dashboard is-disabled" type="button" disabled>
-            <BarChart3 size={16} />
-            Dashboard
-          </button>
-          <button className="nav-item nav-motion-admin is-disabled" type="button" disabled>
-            <Settings size={16} />
-            Administração
-          </button>
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="sidebar-user">
-            <span className="avatar small">{user.nome.slice(0, 1).toUpperCase()}</span>
-            <span>{user.nome}</span>
-          </div>
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-        </div>
-      </aside>
-
-      <main className="content">
-        <header className="global-topbar">
-          <span />
-          <nav>
-            <button type="button" onClick={onLogout}>
-              <LogOut size={15} />
-              Sair
-            </button>
-          </nav>
-        </header>
-
-        <section className="page">
+      <section className="page">
           <header className="page-head">
             <div>
               <h1>{pageTitle}</h1>
@@ -392,8 +318,7 @@ export function EstoqueModule({
           )}
 
           {route.view === 'movimentos' && <MovimentosView movimentos={movimentos} />}
-        </section>
-      </main>
+      </section>
 
       {itemFormOpen && (
         <Modal title="Novo item" onClose={() => setItemFormOpen(false)}>
@@ -432,7 +357,6 @@ export function EstoqueModule({
             <input name="data_movimento" type="date" defaultValue={today()} required />
             <input name="documento" placeholder="Documento" />
             <input name="motivo" placeholder="Motivo" />
-            <textarea name="observacao" placeholder="Observação" />
             <div className="modal-actions">
               <button className="btn secondary" type="button" onClick={() => setMovementFormOpen(false)}>Cancelar</button>
               <button className="btn primary" type="submit">Registrar</button>
@@ -440,7 +364,7 @@ export function EstoqueModule({
           </form>
         </Modal>
       )}
-    </div>
+    </>
   )
 }
 

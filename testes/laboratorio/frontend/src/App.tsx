@@ -162,7 +162,6 @@ export function App() {
     await laboratorioApi.criarCronograma({
       ano: Number(form.get('ano')),
       titulo: 'Cronograma de análises de produtos mensais',
-      documento_revisao: optionalString(form, 'documento_revisao'),
       observacoes: optionalString(form, 'observacoes'),
       itens: produto
         ? [{

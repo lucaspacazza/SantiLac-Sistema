@@ -87,7 +87,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const laboratorioApi = {
   overview: () => request<Overview>('/api/laboratorio/overview'),
   cronogramas: (ano = '') => request<Paginated<Cronograma>>(`/api/laboratorio/cronogramas?per_page=100&ano=${encodeURIComponent(ano)}`),
-  criarCronograma: (payload: Omit<Cronograma, 'id' | 'documento_codigo' | 'responsavel_tecnico_id' | 'status'> & { status?: Cronograma['status'] }) =>
+  criarCronograma: (payload: Omit<Cronograma, 'id' | 'documento_codigo' | 'documento_revisao' | 'responsavel_tecnico_id' | 'status'> & { status?: Cronograma['status'] }) =>
     request<Cronograma>('/api/laboratorio/cronogramas', {
       method: 'POST',
       body: JSON.stringify(payload),

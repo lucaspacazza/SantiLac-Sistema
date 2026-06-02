@@ -1,0 +1,15 @@
+[Unit]
+Description=SantiLac pasteurizador - gatilho HTTP do coletor
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/santilac-pasteurizador-processor
+ExecStart=/usr/bin/python3 /opt/santilac-pasteurizador-processor/trigger_server.py
+Restart=always
+RestartSec=3
+User=root
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

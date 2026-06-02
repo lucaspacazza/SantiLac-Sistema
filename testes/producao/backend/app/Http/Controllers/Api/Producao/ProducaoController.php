@@ -51,6 +51,14 @@ class ProducaoController extends Controller
         return $this->responderItem($this->producao->soroRefrigeradoItem($id), 'PROD_404', 'Controle de soro refrigerado não encontrado.', $id);
     }
 
+    public function estoqueSoroRefrigerado(): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $this->producao->estoqueSoroRefrigeradoResumo(),
+        ]);
+    }
+
     public function atualizarSoroRefrigerado(Request $request, int $id): JsonResponse
     {
         return $this->responderAtualizacao(
@@ -65,9 +73,9 @@ class ProducaoController extends Controller
         return $this->responderItem($this->producao->finalizarSoroRefrigerado($id), 'PROD_404', 'Controle de soro refrigerado não encontrado.', $id);
     }
 
-    public function controlarEstoqueSoroRefrigerado(Request $request, int $id): JsonResponse
+    public function cancelarSoroRefrigerado(int $id): JsonResponse
     {
-        return $this->responderItem($this->producao->controlarEstoqueSoroRefrigerado($id, $request->user()?->id), 'PROD_404', 'Controle de soro refrigerado não encontrado.', $id);
+        return $this->responderItem($this->producao->cancelarSoroRefrigerado($id), 'PROD_404', 'Controle de soro refrigerado não encontrado.', $id);
     }
 
     public function formulacoesCreme(Request $request): JsonResponse
@@ -105,6 +113,11 @@ class ProducaoController extends Controller
         return $this->responderItem($this->producao->finalizarFormulacaoCreme($id), 'PROD_404', 'Formulação de creme não encontrada.', $id);
     }
 
+    public function cancelarFormulacaoCreme(int $id): JsonResponse
+    {
+        return $this->responderItem($this->producao->cancelarFormulacaoCreme($id), 'PROD_404', 'Formulação de creme não encontrada.', $id);
+    }
+
     public function producoesCreme(Request $request): JsonResponse
     {
         return response()->json([
@@ -140,6 +153,11 @@ class ProducaoController extends Controller
         return $this->responderItem($this->producao->finalizarProducaoCreme($id), 'PROD_404', 'Produção de creme não encontrada.', $id);
     }
 
+    public function cancelarProducaoCreme(int $id): JsonResponse
+    {
+        return $this->responderItem($this->producao->cancelarProducaoCreme($id), 'PROD_404', 'Produção de creme não encontrada.', $id);
+    }
+
     public function criarFormulacaoQueijo(Request $request): JsonResponse
     {
         $payload = $this->validarFormulacaoQueijo($request);
@@ -173,11 +191,11 @@ class ProducaoController extends Controller
     {
         return $request->validate([
             'ordem_producao_id' => ['nullable', 'integer'],
-            'tipo_queijo' => ['required', 'string', 'max:120'],
+            'tipo_queijo' => ['nullable', 'string', 'max:120'],
             'data_formulacao' => ['required', 'date'],
             'silo' => ['nullable', 'string', 'max:60'],
             'lote_leite' => ['nullable', 'string', 'max:80'],
-            'lote_queijo' => ['required', 'string', 'max:80'],
+            'lote_queijo' => ['nullable', 'string', 'max:80'],
             'numero_queijomatic' => ['nullable', 'string', 'max:60'],
             'inicio_enchimento' => ['nullable', 'date_format:H:i'],
             'quantidade_leite' => ['nullable', 'numeric', 'min:0'],
@@ -248,6 +266,20 @@ class ProducaoController extends Controller
     public function finalizarFormulacaoQueijo(int $id): JsonResponse
     {
         $formulacao = $this->producao->finalizarFormulacaoQueijo($id);
+
+        if ($formulacao === null) {
+            return response()->json($this->erro('PROD_404', 'Formulação de queijo não encontrada.', ['id' => $id]), 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $formulacao,
+        ]);
+    }
+
+    public function cancelarFormulacaoQueijo(int $id): JsonResponse
+    {
+        $formulacao = $this->producao->cancelarFormulacaoQueijo($id);
 
         if ($formulacao === null) {
             return response()->json($this->erro('PROD_404', 'Formulação de queijo não encontrada.', ['id' => $id]), 404);

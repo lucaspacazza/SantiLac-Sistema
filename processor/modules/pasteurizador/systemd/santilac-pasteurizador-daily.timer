@@ -1,0 +1,13 @@
+[Unit]
+Description=SantiLac pasteurizador - agenda coleta de producao 04:00 America/Sao_Paulo
+
+[Timer]
+# CT105 esta em UTC; 07:00 UTC equivale a 04:00 em Brasilia.
+# Roda de segunda a sabado.
+# Segunda coleta sabado; domingo nao roda porque o pasteurizador fica desligado.
+OnCalendar=Mon..Sat *-*-* 07:00:00
+Persistent=true
+Unit=santilac-pasteurizador-daily.service
+
+[Install]
+WantedBy=timers.target

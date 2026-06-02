@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react'
+import { CheckCircle2, ChevronLeft, ChevronRight, Plus, Search, XCircle } from 'lucide-react'
 import type { FormulacaoQueijo } from '../../api/producaoApi'
 import { formatDate, formatNumber } from '../../shared/formatters'
 
@@ -9,9 +9,10 @@ export function ListagemFormulacoesQueijo({
   onSearchChange,
   onSearch,
   onPageChange,
-  onOpenEdit,
+  onOpenItem,
   onCreateNew,
   onFinalize,
+  onCancel,
 }: {
   items: FormulacaoQueijo[]
   pagination: {
@@ -23,9 +24,10 @@ export function ListagemFormulacoesQueijo({
   onSearchChange: (value: string) => void
   onSearch: () => void
   onPageChange: (page: number) => void
-  onOpenEdit: (id: number) => void
+  onOpenItem: (item: FormulacaoQueijo) => void
   onCreateNew: () => void
   onFinalize: (id: number) => void
+  onCancel: (id: number) => void
 }) {
   const totalPages = Math.max(1, Math.ceil(pagination.total / pagination.per_page))
   const firstItem = pagination.total === 0 ? 0 : ((pagination.current_page - 1) * pagination.per_page) + 1
@@ -36,41 +38,44 @@ export function ListagemFormulacoesQueijo({
       <div className="toolbar">
         <form className="search" onSubmit={(event) => { event.preventDefault(); onSearch() }}>
           <Search size={16} />
-          <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Buscar por queijo ou lote" />
+          <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Buscar por código, queijo ou lote" />
         </form>
         <button className="btn primary" type="button" onClick={onCreateNew}><Plus size={16} />Nova ficha</button>
       </div>
 
       <section className="panel">
         <h2>Fichas registradas</h2>
-        <div className="table">
-          <div className="table-head table-head-actions"><span>Data</span><span>Queijo</span><span>Lote</span><span>Leite</span><span>Insumos</span><span>Ação</span></div>
+        <div className="table table-compact-6">
+          <div className="table-head table-head-actions"><span>Código</span><span>Data</span><span>Queijo</span><span>Lote</span><span>Leite</span><span>Ação</span></div>
           {items.map((item) => {
-            const isLocked = item.status === 'finalizada'
+            const isOpen = item.status === 'rascunho'
 
             return (
               <div
-                className={`table-row table-row-actions row-button ${isLocked ? 'is-locked' : ''}`}
+                className={`table-row table-row-actions row-button ${!isOpen ? 'is-locked' : ''}`}
                 key={item.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => onOpenEdit(item.id)}
+                onClick={() => onOpenItem(item)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') onOpenEdit(item.id)
+                  if (event.key === 'Enter' || event.key === ' ') onOpenItem(item)
                 }}
               >
+                <strong>{item.codigo_formulacao}</strong>
                 <span>{formatDate(item.data_formulacao)}</span>
                 <strong>{item.tipo_queijo}</strong>
                 <span>{item.lote_queijo}</span>
                 <span>{formatNumber(item.quantidade_leite, ' L')}</span>
-                <span>{item.insumos.length}</span>
-                {isLocked
-                  ? <span className="locked">Bloqueada</span>
-                  : <span className="row-actions"><button className="btn secondary compact" type="button" onClick={(event) => { event.stopPropagation(); onFinalize(item.id) }}><CheckCircle2 size={15} />Finalizar</button></span>}
+                {isOpen
+                  ? <span className="row-actions">
+                      <button className="btn secondary compact" type="button" onClick={(event) => { event.stopPropagation(); onCancel(item.id) }}><XCircle size={15} />Cancelar</button>
+                      <button className="btn secondary compact" type="button" onClick={(event) => { event.stopPropagation(); onFinalize(item.id) }}><CheckCircle2 size={15} />Finalizar</button>
+                    </span>
+                  : <span className="locked">{item.status === 'cancelada' ? 'Cancelada' : 'Bloqueada'}</span>}
               </div>
             )
           })}
-          {items.length === 0 && <div className="empty">Nenhuma ficha encontrada no banco.</div>}
+          {items.length === 0 && <div className="empty">Nenhuma ficha encontrada.</div>}
         </div>
 
         <div className="pagination">

@@ -1,25 +1,18 @@
-import { PackageCheck, Pencil } from 'lucide-react'
-import type { ExportFormat, SoroRefrigerado } from '../../api/producaoApi'
+﻿import type { ExportFormat, SoroRefrigerado } from '../../api/producaoApi'
 import { ExportFormatMenu } from '../../shared/ExportFormatMenu'
 import { formatDate, formatNumber } from '../../shared/formatters'
 
 export function VisualizacaoSoroRefrigerado({
   item,
-  onEdit,
   onExport,
-  onControlarEstoque,
 }: {
   item: SoroRefrigerado
-  onEdit: () => void
   onExport: (format: ExportFormat) => void
-  onControlarEstoque: () => void
 }) {
   return (
     <section className="document-view">
       <div className="document-actions">
-        {item.status !== 'finalizada' && <button className="btn secondary" type="button" onClick={onEdit}><Pencil size={16} />Editar</button>}
-        <button className="btn secondary" type="button" onClick={onControlarEstoque}><PackageCheck size={16} />Estoque</button>
-        <ExportFormatMenu onExport={onExport} />
+        {item.status === 'finalizada' && <ExportFormatMenu onExport={onExport} />}
       </div>
       <article className="document-sheet">
         <header className="document-header"><div><h2>Controle de produção de soro refrigerado</h2><span>{formatDate(item.data_registro)}</span></div></header>
@@ -34,7 +27,6 @@ export function VisualizacaoSoroRefrigerado({
             <Field label="Responsável" value={item.responsavel} />
           </div>
         </section>
-        <section className="document-section"><h3>Observações</h3><p>{item.observacoes || 'Sem observações.'}</p></section>
       </article>
     </section>
   )

@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS producao_submodulos;
 
 CREATE TABLE producao_formulacoes_queijo (
   id bigint unsigned NOT NULL AUTO_INCREMENT,
+  codigo_formulacao varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   documento_codigo varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'PLAN_6.3',
   documento_nome varchar(160) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Controle de formulação do queijo',
   documento_revisao varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -39,6 +40,7 @@ CREATE TABLE producao_formulacoes_queijo (
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
+  UNIQUE KEY idx_formulacoes_queijo_codigo (codigo_formulacao),
   KEY idx_formulacoes_queijo_lote (lote_queijo),
   KEY idx_formulacoes_queijo_data (data_formulacao),
   KEY idx_formulacoes_queijo_status (status)

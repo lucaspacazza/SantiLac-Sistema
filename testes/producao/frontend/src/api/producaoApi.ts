@@ -28,6 +28,7 @@ export type FormulacaoInsumo = {
 
 export type FormulacaoQueijo = {
   id: number
+  codigo_formulacao: string
   documento_codigo: string
   tipo_queijo: string
   data_formulacao: string
@@ -49,7 +50,6 @@ export type FormulacaoQueijo = {
   temperatura_cozimento: number | null
   responsavel_id: number | null
   status: 'rascunho' | 'finalizada' | 'cancelada'
-  observacoes: string | null
   insumos: FormulacaoInsumo[]
 }
 
@@ -62,7 +62,7 @@ export type Paginated<T> = {
   }
 }
 
-export type FormulacaoQueijoPayload = Omit<FormulacaoQueijo, 'id' | 'documento_codigo' | 'responsavel_id' | 'status'>
+export type FormulacaoQueijoPayload = Omit<FormulacaoQueijo, 'id' | 'codigo_formulacao' | 'documento_codigo' | 'responsavel_id' | 'status'>
 
 export type StatusFicha = 'rascunho' | 'finalizada' | 'cancelada'
 
@@ -77,25 +77,32 @@ export type SoroRefrigerado = {
   silo_armazenado: string | null
   responsavel: string | null
   status: StatusFicha
-  observacoes: string | null
 }
 
 export type SoroRefrigeradoPayload = Omit<SoroRefrigerado, 'id' | 'documento_codigo' | 'status' | 'estoque_total' | 'sobra_estoque'>
 
-export type EstoqueSoroResultado = {
-  ficha: SoroRefrigerado
+export type EstoqueSoroResumo = {
   estoque: {
     id: number
     nome: string
     unidade: string
     saldo_atual: number
-  }
-  movimentado: boolean
+  } | null
+  ultima_entrada: {
+    quantidade: number
+    data_movimento: string
+    saldo_depois: number
+    documento: string | null
+  } | null
   movimentos: Array<{
-    tipo: 'entrada' | 'saida'
+    id: number
+    tipo: 'entrada' | 'saida' | 'ajuste'
     quantidade: number
     saldo_antes: number
     saldo_depois: number
+    data_movimento: string
+    documento: string | null
+    motivo: string | null
   }>
 }
 
@@ -113,7 +120,6 @@ export type FormulacaoCreme = {
   acidez: number | null
   responsavel: string | null
   status: StatusFicha
-  observacoes: string | null
 }
 
 export type FormulacaoCremePayload = Omit<FormulacaoCreme, 'id' | 'documento_codigo' | 'status'>
@@ -130,7 +136,6 @@ export type ProducaoCreme = {
   quantidade_produzida_kg: number | null
   responsavel: string | null
   status: StatusFicha
-  observacoes: string | null
 }
 
 export type ProducaoCremePayload = Omit<ProducaoCreme, 'id' | 'documento_codigo' | 'status'>
@@ -210,10 +215,15 @@ export const producaoApi = {
     request<FormulacaoQueijo>(`/api/producao/formulacoes-queijo/${id}/finalizar`, {
       method: 'PATCH',
     }),
+  cancelarFormulacaoQueijo: (id: number) =>
+    request<FormulacaoQueijo>(`/api/producao/formulacoes-queijo/${id}/cancelar`, {
+      method: 'PATCH',
+    }),
   exportarFormulacaoQueijo: (id: number, formato: ExportFormat) =>
     download(`/api/producao/formulacoes-queijo/${id}/exportar${formato === 'pdf' ? '/pdf' : ''}`, `formulacao-queijo-${id}.${formato}`),
   soroRefrigerado: (q = '', page = 1, perPage = 10) =>
     request<Paginated<SoroRefrigerado>>(`/api/producao/soro-refrigerado?per_page=${perPage}&page=${page}&q=${encodeURIComponent(q)}`),
+  estoqueSoroRefrigerado: () => request<EstoqueSoroResumo>('/api/producao/soro-refrigerado/estoque'),
   soroRefrigeradoItem: (id: number) => request<SoroRefrigerado>(`/api/producao/soro-refrigerado/${id}`),
   criarSoroRefrigerado: (payload: SoroRefrigeradoPayload) =>
     request<SoroRefrigerado>('/api/producao/soro-refrigerado', {
@@ -229,9 +239,9 @@ export const producaoApi = {
     request<SoroRefrigerado>(`/api/producao/soro-refrigerado/${id}/finalizar`, {
       method: 'PATCH',
     }),
-  controlarEstoqueSoroRefrigerado: (id: number) =>
-    request<EstoqueSoroResultado>(`/api/producao/soro-refrigerado/${id}/estoque`, {
-      method: 'POST',
+  cancelarSoroRefrigerado: (id: number) =>
+    request<SoroRefrigerado>(`/api/producao/soro-refrigerado/${id}/cancelar`, {
+      method: 'PATCH',
     }),
   exportarSoroRefrigerado: (id: number, formato: ExportFormat) =>
     download(`/api/producao/soro-refrigerado/${id}/exportar${formato === 'pdf' ? '/pdf' : ''}`, `soro-refrigerado-${id}.${formato}`),
@@ -252,6 +262,10 @@ export const producaoApi = {
     request<FormulacaoCreme>(`/api/producao/formulacoes-creme/${id}/finalizar`, {
       method: 'PATCH',
     }),
+  cancelarFormulacaoCreme: (id: number) =>
+    request<FormulacaoCreme>(`/api/producao/formulacoes-creme/${id}/cancelar`, {
+      method: 'PATCH',
+    }),
   exportarFormulacaoCreme: (id: number, formato: ExportFormat) =>
     download(`/api/producao/formulacoes-creme/${id}/exportar${formato === 'pdf' ? '/pdf' : ''}`, `formulacao-creme-${id}.${formato}`),
   producoesCreme: (q = '', page = 1, perPage = 10) =>
@@ -269,6 +283,10 @@ export const producaoApi = {
     }),
   finalizarProducaoCreme: (id: number) =>
     request<ProducaoCreme>(`/api/producao/producoes-creme/${id}/finalizar`, {
+      method: 'PATCH',
+    }),
+  cancelarProducaoCreme: (id: number) =>
+    request<ProducaoCreme>(`/api/producao/producoes-creme/${id}/cancelar`, {
       method: 'PATCH',
     }),
   exportarProducaoCreme: (id: number, formato: ExportFormat) =>

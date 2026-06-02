@@ -1,4 +1,4 @@
-import { Plus, Save, Trash2 } from 'lucide-react'
+import { Plus, Save, Trash2, XCircle } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
 import type { FormulacaoQueijo } from '../../api/producaoApi'
@@ -6,9 +6,11 @@ import type { FormulacaoQueijo } from '../../api/producaoApi'
 export function EdicaoFormulacaoQueijo({
   item,
   onSave,
+  onCancel,
 }: {
   item: FormulacaoQueijo
   onSave: (event: FormEvent<HTMLFormElement>) => Promise<void> | void
+  onCancel: () => void
 }) {
   const [insumoRows, setInsumoRows] = useState(() => item.insumos.length > 0 ? item.insumos.map((_, index) => index + 1) : [1])
 
@@ -24,8 +26,8 @@ export function EdicaoFormulacaoQueijo({
     <section className="panel">
       <h2>Edição</h2>
       <form className="form-grid" onSubmit={onSave}>
+        <input name="data_formulacao" type="hidden" value={item.data_formulacao} />
         <label>Tipo de queijo<input name="tipo_queijo" defaultValue={item.tipo_queijo} required /></label>
-        <label>Data<input name="data_formulacao" type="date" defaultValue={item.data_formulacao} required /></label>
         <label>Lote do queijo<input name="lote_queijo" defaultValue={item.lote_queijo} required /></label>
         <label>Lote do leite<input name="lote_leite" defaultValue={item.lote_leite ?? ''} /></label>
         <label>Silo<input name="silo" defaultValue={item.silo ?? ''} /></label>
@@ -42,7 +44,6 @@ export function EdicaoFormulacaoQueijo({
         <label>Hora da coagulação<input name="hora_coagulacao" type="time" defaultValue={item.hora_coagulacao?.slice(0, 5) ?? ''} /></label>
         <label>Hora do corte<input name="hora_corte" type="time" defaultValue={item.hora_corte?.slice(0, 5) ?? ''} /></label>
         <label>Temp. cozimento<input name="temperatura_cozimento" type="number" step="0.01" defaultValue={item.temperatura_cozimento ?? ''} /></label>
-        <label className="wide">Observações<textarea name="observacoes" rows={3} defaultValue={item.observacoes ?? ''} /></label>
 
         <div className="wide subform-stack">
           <div className="subform-head">
@@ -65,6 +66,7 @@ export function EdicaoFormulacaoQueijo({
         </div>
 
         <div className="form-actions wide">
+          <button className="btn secondary" type="button" onClick={onCancel}><XCircle size={16} />Cancelar ficha</button>
           <button className="btn primary" type="submit"><Save size={16} />Salvar alterações</button>
         </div>
       </form>

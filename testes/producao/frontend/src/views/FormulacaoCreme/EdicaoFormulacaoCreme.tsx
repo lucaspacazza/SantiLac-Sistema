@@ -1,8 +1,8 @@
-import { Save } from 'lucide-react'
+import { Save, XCircle } from 'lucide-react'
 import type { FormEvent } from 'react'
 import type { FormulacaoCreme } from '../../api/producaoApi'
 
-export function EdicaoFormulacaoCreme({ item, onSave }: { item: FormulacaoCreme; onSave: (event: FormEvent<HTMLFormElement>) => Promise<void> | void }) {
+export function EdicaoFormulacaoCreme({ item, onSave, onCancel }: { item: FormulacaoCreme; onSave: (event: FormEvent<HTMLFormElement>) => Promise<void> | void; onCancel: () => void }) {
   return (
     <section className="panel">
       <h2>Edição</h2>
@@ -17,8 +17,8 @@ export function EdicaoFormulacaoCreme({ item, onSave }: { item: FormulacaoCreme;
         <label>Acidez (°D)<input name="acidez" type="number" step="0.01" min="0" defaultValue={item.acidez ?? ''} /></label>
         <label>Responsável pelo monitoramento<input name="responsavel_monitoramento" defaultValue={item.responsavel_monitoramento ?? ''} /></label>
         <label>Responsável<input name="responsavel" defaultValue={item.responsavel ?? ''} /></label>
-        <label className="wide">Observações<textarea name="observacoes" rows={3} defaultValue={item.observacoes ?? ''} /></label>
         <div className="form-actions wide">
+          <button className="btn secondary" type="button" onClick={onCancel}><XCircle size={16} />Cancelar ficha</button>
           <button className="btn primary" type="submit"><Save size={16} />Salvar alterações</button>
         </div>
       </form>

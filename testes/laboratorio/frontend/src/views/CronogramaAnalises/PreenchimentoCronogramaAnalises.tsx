@@ -12,7 +12,6 @@ export function PreenchimentoCronogramaAnalises({
       <h2>Preenchimento</h2>
       <form className="form-grid" onSubmit={onCreate}>
         <label>Ano<input name="ano" type="number" min="2020" max="2100" defaultValue={currentYear()} required /></label>
-        <label>Revisão<input name="documento_revisao" /></label>
         <label className="wide">Observações<textarea name="observacoes" rows={3} /></label>
 
         <div className="subform wide">

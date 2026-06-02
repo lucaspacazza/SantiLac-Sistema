@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react'
+import { CheckCircle2, ChevronLeft, ChevronRight, Package, Plus, Search, XCircle } from 'lucide-react'
 import type { SoroRefrigerado } from '../../api/producaoApi'
 import { formatDate, formatNumber } from '../../shared/formatters'
 
@@ -9,9 +9,11 @@ export function ListagemSoroRefrigerado({
   onSearchChange,
   onSearch,
   onPageChange,
-  onOpenEdit,
+  onOpenItem,
   onCreateNew,
+  onOpenEstoque,
   onFinalize,
+  onCancel,
 }: {
   items: SoroRefrigerado[]
   pagination: { current_page: number; per_page: number; total: number }
@@ -19,9 +21,11 @@ export function ListagemSoroRefrigerado({
   onSearchChange: (value: string) => void
   onSearch: () => void
   onPageChange: (page: number) => void
-  onOpenEdit: (id: number) => void
+  onOpenItem: (item: SoroRefrigerado) => void
   onCreateNew: () => void
+  onOpenEstoque: () => void
   onFinalize: (id: number) => void
+  onCancel: (id: number) => void
 }) {
   const totalPages = Math.max(1, Math.ceil(pagination.total / pagination.per_page))
   const firstItem = pagination.total === 0 ? 0 : ((pagination.current_page - 1) * pagination.per_page) + 1
@@ -34,29 +38,33 @@ export function ListagemSoroRefrigerado({
           <Search size={16} />
           <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Buscar por silo ou responsável" />
         </form>
+        <button className="btn secondary" type="button" onClick={onOpenEstoque}><Package size={16} />Estoque</button>
         <button className="btn primary" type="button" onClick={onCreateNew}><Plus size={16} />Nova ficha</button>
       </div>
 
       <section className="panel">
         <h2>Fichas registradas</h2>
-        <div className="table">
+        <div className="table table-compact-5">
           <div className="table-head table-head-actions"><span>Data</span><span>Silo</span><span>Entrada</span><span>Estoque</span><span>Ação</span></div>
           {items.map((item) => {
-            const isLocked = item.status === 'finalizada'
+            const isOpen = item.status === 'rascunho'
 
             return (
-              <div className={`table-row table-row-actions row-button ${isLocked ? 'is-locked' : ''}`} key={item.id} role="button" tabIndex={0} onClick={() => onOpenEdit(item.id)}>
+              <div className={`table-row table-row-actions row-button ${!isOpen ? 'is-locked' : ''}`} key={item.id} role="button" tabIndex={0} onClick={() => onOpenItem(item)}>
                 <span>{formatDate(item.data_registro)}</span>
                 <strong>{item.silo_armazenado ?? '-'}</strong>
                 <span>{formatNumber(item.entrada_diaria_estoque, ' L')}</span>
                 <span>{formatNumber(item.estoque_total, ' L')}</span>
-                {isLocked
-                  ? <span className="locked">Bloqueada</span>
-                  : <span className="row-actions"><button className="btn secondary compact" type="button" onClick={(event) => { event.stopPropagation(); onFinalize(item.id) }}><CheckCircle2 size={15} />Finalizar</button></span>}
+                {isOpen
+                  ? <span className="row-actions">
+                      <button className="btn secondary compact" type="button" onClick={(event) => { event.stopPropagation(); onCancel(item.id) }}><XCircle size={15} />Cancelar</button>
+                      <button className="btn secondary compact" type="button" onClick={(event) => { event.stopPropagation(); onFinalize(item.id) }}><CheckCircle2 size={15} />Finalizar</button>
+                    </span>
+                  : <span className="locked">{item.status === 'cancelada' ? 'Cancelada' : 'Bloqueada'}</span>}
               </div>
             )
           })}
-          {items.length === 0 && <div className="empty">Nenhuma ficha encontrada no banco.</div>}
+          {items.length === 0 && <div className="empty">Nenhuma ficha encontrada.</div>}
         </div>
 
         <div className="pagination">

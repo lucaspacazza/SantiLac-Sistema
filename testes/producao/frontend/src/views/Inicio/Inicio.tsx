@@ -1,10 +1,8 @@
 import { ClipboardList, FlaskConical } from 'lucide-react'
 import type { Overview } from '../../api/producaoApi'
 
-export function Inicio({ overview, onOpenFormulacao, onOpenSubmodulo }: {
+export function Inicio({ overview }: {
   overview: Overview
-  onOpenFormulacao?: () => void
-  onOpenSubmodulo?: (view: string) => void
 }) {
   return (
     <div className="dashboard">
@@ -13,15 +11,11 @@ export function Inicio({ overview, onOpenFormulacao, onOpenSubmodulo }: {
         <div className="kpi"><ClipboardList size={18} /><span>Rascunhos</span><strong>{overview.totais.rascunhos}</strong></div>
       </div>
 
-      <div className="module-grid">
-        {overview.submodulos.map((submodulo) => (
-          <button className="module-card" key={submodulo.codigo} onClick={() => onOpenSubmodulo ? onOpenSubmodulo(submodulo.rota_listagem) : onOpenFormulacao?.()}>
-            <span>{submodulo.documento}</span>
-            <strong>{submodulo.nome}</strong>
-            <small>{submodulo.descricao}</small>
-          </button>
-        ))}
-      </div>
+      <section className="info-panel">
+        <h2>Produção</h2>
+        <p>Área de acompanhamento dos registros produtivos em teste.</p>
+        <p>Use a sidebar para acessar cada submódulo e consultar ou preencher as fichas.</p>
+      </section>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   producaoApi,
+  type EstoqueSoroResumo,
   type FormulacaoCreme,
   type FormulacaoCremePayload,
   type FormulacaoQueijo,
@@ -29,6 +30,7 @@ import { ListagemProducoesCreme } from './views/ProducaoCreme/ListagemProducoesC
 import { PreenchimentoProducaoCreme } from './views/ProducaoCreme/PreenchimentoProducaoCreme'
 import { VisualizacaoProducaoCreme } from './views/ProducaoCreme/VisualizacaoProducaoCreme'
 import { EdicaoSoroRefrigerado } from './views/SoroRefrigerado/EdicaoSoroRefrigerado'
+import { EstoqueSoroRefrigerado } from './views/SoroRefrigerado/EstoqueSoroRefrigerado'
 import { ListagemSoroRefrigerado } from './views/SoroRefrigerado/ListagemSoroRefrigerado'
 import { PreenchimentoSoroRefrigerado } from './views/SoroRefrigerado/PreenchimentoSoroRefrigerado'
 import { VisualizacaoSoroRefrigerado } from './views/SoroRefrigerado/VisualizacaoSoroRefrigerado'
@@ -41,6 +43,7 @@ type View =
   | 'edicao-formulacao-queijo'
   | 'preenchimento-soro-refrigerado'
   | 'listagem-soro-refrigerado'
+  | 'estoque-soro-refrigerado'
   | 'visualizacao-soro-refrigerado'
   | 'edicao-soro-refrigerado'
   | 'preenchimento-formulacao-creme'
@@ -73,6 +76,7 @@ function isView(value: string): value is View {
     'edicao-formulacao-queijo',
     'preenchimento-soro-refrigerado',
     'listagem-soro-refrigerado',
+    'estoque-soro-refrigerado',
     'visualizacao-soro-refrigerado',
     'edicao-soro-refrigerado',
     'preenchimento-formulacao-creme',
@@ -117,6 +121,7 @@ export function App() {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [formulacoes, setFormulacoes] = useState<FormulacaoQueijo[]>([])
   const [soros, setSoros] = useState<SoroRefrigerado[]>([])
+  const [estoqueSoro, setEstoqueSoro] = useState<EstoqueSoroResumo | null>(null)
   const [formulacoesCreme, setFormulacoesCreme] = useState<FormulacaoCreme[]>([])
   const [producoesCreme, setProducoesCreme] = useState<ProducaoCreme[]>([])
   const [pagination, setPagination] = useState<Pagination>({ current_page: 1, per_page: 10, total: 0 })
@@ -140,7 +145,7 @@ export function App() {
     try {
       setOverview(await producaoApi.overview())
       setStatus('live')
-      setStatusText('Dados carregados do banco.')
+      setStatusText('Dados carregados.')
     } catch (error) {
       setStatus('error')
       setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar o módulo.')
@@ -155,6 +160,20 @@ export function App() {
     await loadList(() => producaoApi.soroRefrigerado(search, page, 10), setSoros)
   }
 
+  async function loadEstoqueSoro() {
+    setStatus('loading')
+    setStatusText('Carregando estoque do soro refrigerado...')
+
+    try {
+      setEstoqueSoro(await producaoApi.estoqueSoroRefrigerado())
+      setStatus('live')
+      setStatusText('Estoque do soro carregado.')
+    } catch (error) {
+      setStatus('error')
+      setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar o estoque do soro.')
+    }
+  }
+
   async function loadFormulacoesCreme(page = pagination.current_page) {
     await loadList(() => producaoApi.formulacoesCreme(search, page, 10), setFormulacoesCreme)
   }
@@ -165,14 +184,14 @@ export function App() {
 
   async function loadList<T>(loader: () => Promise<{ items: T[]; pagination: Pagination }>, setter: (items: T[]) => void) {
     setStatus('loading')
-    setStatusText('Carregando fichas do banco...')
+    setStatusText('Carregando fichas...')
 
     try {
       const result = await loader()
       setter(result.items)
       setPagination(result.pagination)
       setStatus('live')
-      setStatusText(`${result.pagination.total} ficha(s) carregada(s) do banco.`)
+      setStatusText(`${result.pagination.total} ficha(s) carregada(s).`)
     } catch (error) {
       setStatus('error')
       setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar as fichas.')
@@ -181,7 +200,7 @@ export function App() {
 
   async function loadEditRecord(id: number) {
     setStatus('loading')
-    setStatusText('Carregando ficha do banco...')
+    setStatusText('Carregando ficha...')
 
     try {
       if (view === 'edicao-formulacao-queijo' || view === 'visualizacao-formulacao-queijo') setFormulacaoEmEdicao(await producaoApi.formulacaoQueijo(id))
@@ -189,7 +208,7 @@ export function App() {
       if (view === 'edicao-formulacao-creme' || view === 'visualizacao-formulacao-creme') setFormulacaoCremeEmEdicao(await producaoApi.formulacaoCreme(id))
       if (view === 'edicao-producao-creme' || view === 'visualizacao-producao-creme') setProducaoCremeEmEdicao(await producaoApi.producaoCreme(id))
       setStatus('live')
-      setStatusText('Ficha carregada do banco.')
+      setStatusText('Ficha carregada.')
     } catch (error) {
       setStatus('error')
       setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar a ficha.')
@@ -209,6 +228,7 @@ export function App() {
     if (view === 'inicio') void loadOverview()
     else if (view === 'listagem-formulacoes-queijo') void loadFormulacoes()
     else if (view === 'listagem-soro-refrigerado') void loadSoros()
+    else if (view === 'estoque-soro-refrigerado') void loadEstoqueSoro()
     else if (view === 'listagem-formulacoes-creme') void loadFormulacoesCreme()
     else if (view === 'listagem-producoes-creme') void loadProducoesCreme()
     else if ((view.startsWith('edicao-') || view.startsWith('visualizacao-')) && editId !== null) void loadEditRecord(editId)
@@ -243,7 +263,6 @@ export function App() {
       hora_coagulacao: String(form.get('hora_coagulacao') ?? '') || null,
       hora_corte: String(form.get('hora_corte') ?? '') || null,
       temperatura_cozimento: optionalNumber(form, 'temperatura_cozimento'),
-      observacoes: optionalString(form, 'observacoes'),
       insumos: insumoQuantidades
         .map((value, index) => ({
           tipo_insumo: String(insumoTipos[index] ?? 'outro') as FormulacaoQueijo['insumos'][number]['tipo_insumo'],
@@ -262,7 +281,6 @@ export function App() {
       litragem_vendida: optionalNumber(form, 'litragem_vendida'),
       silo_armazenado: optionalString(form, 'silo_armazenado'),
       responsavel: optionalString(form, 'responsavel'),
-      observacoes: optionalString(form, 'observacoes'),
     }
   }
 
@@ -278,7 +296,6 @@ export function App() {
       gordura_final: optionalNumber(form, 'gordura_final'),
       acidez: optionalNumber(form, 'acidez'),
       responsavel: optionalString(form, 'responsavel'),
-      observacoes: optionalString(form, 'observacoes'),
     }
   }
 
@@ -292,21 +309,22 @@ export function App() {
       lote_creme_produzido: String(form.get('lote_creme_produzido') ?? '').trim(),
       quantidade_produzida_kg: optionalNumber(form, 'quantidade_produzida_kg'),
       responsavel: optionalString(form, 'responsavel'),
-      observacoes: optionalString(form, 'observacoes'),
     }
   }
 
   async function saveAndClose<T>(event: FormEvent<HTMLFormElement>, action: (form: FormData) => Promise<T>, nextView: View) {
     event.preventDefault()
+    const formElement = event.currentTarget
+    const formData = new FormData(formElement)
     setStatus('loading')
-    setStatusText('Salvando ficha no banco...')
+    setStatusText('Salvando ficha...')
 
     try {
-      await action(new FormData(event.currentTarget))
-      event.currentTarget.reset()
+      await action(formData)
+      formElement.reset()
       navigate(nextView)
       setStatus('live')
-      setStatusText('Ficha salva no banco.')
+      setStatusText('Ficha salva.')
     } catch (error) {
       setStatus('error')
       setStatusText(error instanceof Error ? error.message : 'Não foi possível salvar a ficha.')
@@ -315,14 +333,15 @@ export function App() {
 
   async function updateAndClose<T>(event: FormEvent<HTMLFormElement>, action: (form: FormData) => Promise<T>, nextView: View) {
     event.preventDefault()
+    const formData = new FormData(event.currentTarget)
     setStatus('loading')
-    setStatusText('Salvando alterações no banco...')
+    setStatusText('Salvando alterações...')
 
     try {
-      await action(new FormData(event.currentTarget))
+      await action(formData)
       navigate(nextView)
       setStatus('live')
-      setStatusText('Alterações salvas no banco.')
+      setStatusText('Alterações salvas.')
     } catch (error) {
       setStatus('error')
       setStatusText(error instanceof Error ? error.message : 'Não foi possível salvar as alterações.')
@@ -346,7 +365,7 @@ export function App() {
 
   async function exportCurrent(action: (id: number, formato: ExportFormat) => Promise<{ arquivo: string }>, id: number, formato: ExportFormat) {
     setStatus('loading')
-    setStatusText('Gerando documento com dados do banco...')
+    setStatusText('Gerando documento...')
 
     try {
       const result = await action(id, formato)
@@ -358,18 +377,19 @@ export function App() {
     }
   }
 
-  async function controlarEstoqueSoro(id: number) {
+  async function cancelCurrent(id: number, action: (id: number) => Promise<unknown>, reload: () => Promise<void>, nextView?: View) {
     setStatus('loading')
-    setStatusText('Atualizando estoque do soro refrigerado...')
+    setStatusText('Cancelando ficha...')
 
     try {
-      const result = await producaoApi.controlarEstoqueSoroRefrigerado(id)
-      setSoroEmEdicao(result.ficha)
+      await action(id)
+      await reload()
+      if (nextView) navigate(nextView)
       setStatus('live')
-      setStatusText(result.movimentado ? 'Estoque atualizado pelo sistema.' : 'Estoque já estava controlado para esta ficha.')
+      setStatusText('Ficha cancelada.')
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Não foi possível atualizar o estoque do soro.')
+      setStatusText(error instanceof Error ? error.message : 'Não foi possível cancelar a ficha.')
     }
   }
 
@@ -377,6 +397,7 @@ export function App() {
     if (view === 'inicio') void loadOverview()
     if (view === 'listagem-formulacoes-queijo') void loadFormulacoes()
     if (view === 'listagem-soro-refrigerado') void loadSoros()
+    if (view === 'estoque-soro-refrigerado') void loadEstoqueSoro()
     if (view === 'listagem-formulacoes-creme') void loadFormulacoesCreme()
     if (view === 'listagem-producoes-creme') void loadProducoesCreme()
     if ((view.startsWith('edicao-') || view.startsWith('visualizacao-')) && editId !== null) void loadEditRecord(editId)
@@ -394,6 +415,22 @@ export function App() {
     if (view === 'listagem-soro-refrigerado') void loadSoros(page)
     if (view === 'listagem-formulacoes-creme') void loadFormulacoesCreme(page)
     if (view === 'listagem-producoes-creme') void loadProducoesCreme(page)
+  }
+
+  function openFormulacaoQueijo(item: FormulacaoQueijo) {
+    navigate(item.status === 'rascunho' ? 'edicao-formulacao-queijo' : 'visualizacao-formulacao-queijo', item.id)
+  }
+
+  function openSoroRefrigerado(item: SoroRefrigerado) {
+    navigate(item.status === 'rascunho' ? 'edicao-soro-refrigerado' : 'visualizacao-soro-refrigerado', item.id)
+  }
+
+  function openFormulacaoCreme(item: FormulacaoCreme) {
+    navigate(item.status === 'rascunho' ? 'edicao-formulacao-creme' : 'visualizacao-formulacao-creme', item.id)
+  }
+
+  function openProducaoCreme(item: ProducaoCreme) {
+    navigate(item.status === 'rascunho' ? 'edicao-producao-creme' : 'visualizacao-producao-creme', item.id)
   }
 
   const pageTitle = titleForView(view)
@@ -414,26 +451,27 @@ export function App() {
           </div>
           <div className={`status-line is-${status}`}><span className="status-dot" />{statusText}</div>
 
-          {view === 'inicio' && overview !== null && <Inicio overview={overview} onOpenSubmodulo={(nextView) => navigate(nextView as View)} />}
+          {view === 'inicio' && overview !== null && <Inicio overview={overview} />}
           {view === 'preenchimento-formulacao-queijo' && <PreenchimentoFormulacaoQueijo onCreate={(event) => saveAndClose(event, (form) => producaoApi.criarFormulacaoQueijo(payloadFromFormulacaoQueijo(form)), 'listagem-formulacoes-queijo')} />}
-          {view === 'listagem-formulacoes-queijo' && <ListagemFormulacoesQueijo items={formulacoes} pagination={pagination} search={search} onSearchChange={setSearch} onSearch={searchCurrentList} onPageChange={changeCurrentPage} onOpenEdit={(id) => navigate('visualizacao-formulacao-queijo', id)} onCreateNew={() => navigate('preenchimento-formulacao-queijo')} onFinalize={(id) => void finalizeCurrent(id, producaoApi.finalizarFormulacaoQueijo, loadFormulacoes)} />}
-          {view === 'visualizacao-formulacao-queijo' && formulacaoEmEdicao !== null && <VisualizacaoFormulacaoQueijo item={formulacaoEmEdicao} onEdit={() => navigate('edicao-formulacao-queijo', formulacaoEmEdicao.id)} onExport={(formato) => void exportCurrent(producaoApi.exportarFormulacaoQueijo, formulacaoEmEdicao.id, formato)} />}
-          {view === 'edicao-formulacao-queijo' && formulacaoEmEdicao !== null && <EdicaoFormulacaoQueijo key={formulacaoEmEdicao.id} item={formulacaoEmEdicao} onSave={(event) => updateAndClose(event, (form) => producaoApi.atualizarFormulacaoQueijo(formulacaoEmEdicao.id, payloadFromFormulacaoQueijo(form)), 'listagem-formulacoes-queijo')} />}
+          {view === 'listagem-formulacoes-queijo' && <ListagemFormulacoesQueijo items={formulacoes} pagination={pagination} search={search} onSearchChange={setSearch} onSearch={searchCurrentList} onPageChange={changeCurrentPage} onOpenItem={openFormulacaoQueijo} onCreateNew={() => navigate('preenchimento-formulacao-queijo')} onFinalize={(id) => void finalizeCurrent(id, producaoApi.finalizarFormulacaoQueijo, loadFormulacoes)} onCancel={(id) => void cancelCurrent(id, producaoApi.cancelarFormulacaoQueijo, loadFormulacoes)} />}
+          {view === 'visualizacao-formulacao-queijo' && formulacaoEmEdicao !== null && <VisualizacaoFormulacaoQueijo item={formulacaoEmEdicao} onExport={(formato) => void exportCurrent(producaoApi.exportarFormulacaoQueijo, formulacaoEmEdicao.id, formato)} />}
+          {view === 'edicao-formulacao-queijo' && formulacaoEmEdicao !== null && <EdicaoFormulacaoQueijo key={formulacaoEmEdicao.id} item={formulacaoEmEdicao} onSave={(event) => updateAndClose(event, (form) => producaoApi.atualizarFormulacaoQueijo(formulacaoEmEdicao.id, payloadFromFormulacaoQueijo(form)), 'listagem-formulacoes-queijo')} onCancel={() => void cancelCurrent(formulacaoEmEdicao.id, producaoApi.cancelarFormulacaoQueijo, loadFormulacoes, 'listagem-formulacoes-queijo')} />}
 
           {view === 'preenchimento-soro-refrigerado' && <PreenchimentoSoroRefrigerado onCreate={(event) => saveAndClose(event, (form) => producaoApi.criarSoroRefrigerado(payloadFromSoro(form)), 'listagem-soro-refrigerado')} />}
-          {view === 'listagem-soro-refrigerado' && <ListagemSoroRefrigerado items={soros} pagination={pagination} search={search} onSearchChange={setSearch} onSearch={searchCurrentList} onPageChange={changeCurrentPage} onOpenEdit={(id) => navigate('visualizacao-soro-refrigerado', id)} onCreateNew={() => navigate('preenchimento-soro-refrigerado')} onFinalize={(id) => void finalizeCurrent(id, producaoApi.finalizarSoroRefrigerado, loadSoros)} />}
-          {view === 'visualizacao-soro-refrigerado' && soroEmEdicao !== null && <VisualizacaoSoroRefrigerado item={soroEmEdicao} onEdit={() => navigate('edicao-soro-refrigerado', soroEmEdicao.id)} onExport={(formato) => void exportCurrent(producaoApi.exportarSoroRefrigerado, soroEmEdicao.id, formato)} onControlarEstoque={() => void controlarEstoqueSoro(soroEmEdicao.id)} />}
-          {view === 'edicao-soro-refrigerado' && soroEmEdicao !== null && <EdicaoSoroRefrigerado key={soroEmEdicao.id} item={soroEmEdicao} onSave={(event) => updateAndClose(event, (form) => producaoApi.atualizarSoroRefrigerado(soroEmEdicao.id, payloadFromSoro(form)), 'listagem-soro-refrigerado')} />}
+          {view === 'listagem-soro-refrigerado' && <ListagemSoroRefrigerado items={soros} pagination={pagination} search={search} onSearchChange={setSearch} onSearch={searchCurrentList} onPageChange={changeCurrentPage} onOpenItem={openSoroRefrigerado} onCreateNew={() => navigate('preenchimento-soro-refrigerado')} onOpenEstoque={() => navigate('estoque-soro-refrigerado')} onFinalize={(id) => void finalizeCurrent(id, producaoApi.finalizarSoroRefrigerado, loadSoros)} onCancel={(id) => void cancelCurrent(id, producaoApi.cancelarSoroRefrigerado, loadSoros)} />}
+          {view === 'estoque-soro-refrigerado' && <EstoqueSoroRefrigerado resumo={estoqueSoro} />}
+          {view === 'visualizacao-soro-refrigerado' && soroEmEdicao !== null && <VisualizacaoSoroRefrigerado item={soroEmEdicao} onExport={(formato) => void exportCurrent(producaoApi.exportarSoroRefrigerado, soroEmEdicao.id, formato)} />}
+          {view === 'edicao-soro-refrigerado' && soroEmEdicao !== null && <EdicaoSoroRefrigerado key={soroEmEdicao.id} item={soroEmEdicao} onSave={(event) => updateAndClose(event, (form) => producaoApi.atualizarSoroRefrigerado(soroEmEdicao.id, payloadFromSoro(form)), 'listagem-soro-refrigerado')} onCancel={() => void cancelCurrent(soroEmEdicao.id, producaoApi.cancelarSoroRefrigerado, loadSoros, 'listagem-soro-refrigerado')} />}
 
           {view === 'preenchimento-formulacao-creme' && <PreenchimentoFormulacaoCreme onCreate={(event) => saveAndClose(event, (form) => producaoApi.criarFormulacaoCreme(payloadFromFormulacaoCreme(form)), 'listagem-formulacoes-creme')} />}
-          {view === 'listagem-formulacoes-creme' && <ListagemFormulacoesCreme items={formulacoesCreme} pagination={pagination} search={search} onSearchChange={setSearch} onSearch={searchCurrentList} onPageChange={changeCurrentPage} onOpenEdit={(id) => navigate('visualizacao-formulacao-creme', id)} onCreateNew={() => navigate('preenchimento-formulacao-creme')} onFinalize={(id) => void finalizeCurrent(id, producaoApi.finalizarFormulacaoCreme, loadFormulacoesCreme)} />}
-          {view === 'visualizacao-formulacao-creme' && formulacaoCremeEmEdicao !== null && <VisualizacaoFormulacaoCreme item={formulacaoCremeEmEdicao} onEdit={() => navigate('edicao-formulacao-creme', formulacaoCremeEmEdicao.id)} onExport={(formato) => void exportCurrent(producaoApi.exportarFormulacaoCreme, formulacaoCremeEmEdicao.id, formato)} />}
-          {view === 'edicao-formulacao-creme' && formulacaoCremeEmEdicao !== null && <EdicaoFormulacaoCreme key={formulacaoCremeEmEdicao.id} item={formulacaoCremeEmEdicao} onSave={(event) => updateAndClose(event, (form) => producaoApi.atualizarFormulacaoCreme(formulacaoCremeEmEdicao.id, payloadFromFormulacaoCreme(form)), 'listagem-formulacoes-creme')} />}
+          {view === 'listagem-formulacoes-creme' && <ListagemFormulacoesCreme items={formulacoesCreme} pagination={pagination} search={search} onSearchChange={setSearch} onSearch={searchCurrentList} onPageChange={changeCurrentPage} onOpenItem={openFormulacaoCreme} onCreateNew={() => navigate('preenchimento-formulacao-creme')} onFinalize={(id) => void finalizeCurrent(id, producaoApi.finalizarFormulacaoCreme, loadFormulacoesCreme)} onCancel={(id) => void cancelCurrent(id, producaoApi.cancelarFormulacaoCreme, loadFormulacoesCreme)} />}
+          {view === 'visualizacao-formulacao-creme' && formulacaoCremeEmEdicao !== null && <VisualizacaoFormulacaoCreme item={formulacaoCremeEmEdicao} onExport={(formato) => void exportCurrent(producaoApi.exportarFormulacaoCreme, formulacaoCremeEmEdicao.id, formato)} />}
+          {view === 'edicao-formulacao-creme' && formulacaoCremeEmEdicao !== null && <EdicaoFormulacaoCreme key={formulacaoCremeEmEdicao.id} item={formulacaoCremeEmEdicao} onSave={(event) => updateAndClose(event, (form) => producaoApi.atualizarFormulacaoCreme(formulacaoCremeEmEdicao.id, payloadFromFormulacaoCreme(form)), 'listagem-formulacoes-creme')} onCancel={() => void cancelCurrent(formulacaoCremeEmEdicao.id, producaoApi.cancelarFormulacaoCreme, loadFormulacoesCreme, 'listagem-formulacoes-creme')} />}
 
           {view === 'preenchimento-producao-creme' && <PreenchimentoProducaoCreme onCreate={(event) => saveAndClose(event, (form) => producaoApi.criarProducaoCreme(payloadFromProducaoCreme(form)), 'listagem-producoes-creme')} />}
-          {view === 'listagem-producoes-creme' && <ListagemProducoesCreme items={producoesCreme} pagination={pagination} search={search} onSearchChange={setSearch} onSearch={searchCurrentList} onPageChange={changeCurrentPage} onOpenEdit={(id) => navigate('visualizacao-producao-creme', id)} onCreateNew={() => navigate('preenchimento-producao-creme')} onFinalize={(id) => void finalizeCurrent(id, producaoApi.finalizarProducaoCreme, loadProducoesCreme)} />}
-          {view === 'visualizacao-producao-creme' && producaoCremeEmEdicao !== null && <VisualizacaoProducaoCreme item={producaoCremeEmEdicao} onEdit={() => navigate('edicao-producao-creme', producaoCremeEmEdicao.id)} onExport={(formato) => void exportCurrent(producaoApi.exportarProducaoCreme, producaoCremeEmEdicao.id, formato)} />}
-          {view === 'edicao-producao-creme' && producaoCremeEmEdicao !== null && <EdicaoProducaoCreme key={producaoCremeEmEdicao.id} item={producaoCremeEmEdicao} onSave={(event) => updateAndClose(event, (form) => producaoApi.atualizarProducaoCreme(producaoCremeEmEdicao.id, payloadFromProducaoCreme(form)), 'listagem-producoes-creme')} />}
+          {view === 'listagem-producoes-creme' && <ListagemProducoesCreme items={producoesCreme} pagination={pagination} search={search} onSearchChange={setSearch} onSearch={searchCurrentList} onPageChange={changeCurrentPage} onOpenItem={openProducaoCreme} onCreateNew={() => navigate('preenchimento-producao-creme')} onFinalize={(id) => void finalizeCurrent(id, producaoApi.finalizarProducaoCreme, loadProducoesCreme)} onCancel={(id) => void cancelCurrent(id, producaoApi.cancelarProducaoCreme, loadProducoesCreme)} />}
+          {view === 'visualizacao-producao-creme' && producaoCremeEmEdicao !== null && <VisualizacaoProducaoCreme item={producaoCremeEmEdicao} onExport={(formato) => void exportCurrent(producaoApi.exportarProducaoCreme, producaoCremeEmEdicao.id, formato)} />}
+          {view === 'edicao-producao-creme' && producaoCremeEmEdicao !== null && <EdicaoProducaoCreme key={producaoCremeEmEdicao.id} item={producaoCremeEmEdicao} onSave={(event) => updateAndClose(event, (form) => producaoApi.atualizarProducaoCreme(producaoCremeEmEdicao.id, payloadFromProducaoCreme(form)), 'listagem-producoes-creme')} onCancel={() => void cancelCurrent(producaoCremeEmEdicao.id, producaoApi.cancelarProducaoCreme, loadProducoesCreme, 'listagem-producoes-creme')} />}
         </div>
       </section>
     </main>
@@ -449,6 +487,7 @@ function titleForView(view: View): string {
     'edicao-formulacao-queijo': 'Edição da Formulação de Queijo',
     'preenchimento-soro-refrigerado': 'Preenchimento do Soro Refrigerado',
     'listagem-soro-refrigerado': 'Soro Refrigerado',
+    'estoque-soro-refrigerado': 'Estoque do Soro Refrigerado',
     'visualizacao-soro-refrigerado': 'Visualização do Soro Refrigerado',
     'edicao-soro-refrigerado': 'Edição do Soro Refrigerado',
     'preenchimento-formulacao-creme': 'Preenchimento da Formulação de Creme',
@@ -466,8 +505,9 @@ function titleForView(view: View): string {
 
 function copyForView(view: View): string {
   if (view === 'inicio') return 'Módulo principal para fichas produtivas.'
+  if (view === 'estoque-soro-refrigerado') return 'Saldo, última entrada e movimentações.'
   if (view.includes('preenchimento')) return 'Preenchimento operacional salvo como rascunho.'
-  if (view.includes('visualizacao')) return 'Formulário preenchido com dados gravados no banco.'
+  if (view.includes('visualizacao')) return 'Formulário preenchido.'
   if (view.includes('edicao')) return 'Ajuste de ficha em rascunho antes da finalização.'
 
   return 'Consulta das fichas gravadas.'

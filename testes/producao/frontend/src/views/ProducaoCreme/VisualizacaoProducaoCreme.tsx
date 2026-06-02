@@ -1,22 +1,18 @@
-import { Pencil } from 'lucide-react'
-import type { ExportFormat, ProducaoCreme } from '../../api/producaoApi'
+﻿import type { ExportFormat, ProducaoCreme } from '../../api/producaoApi'
 import { ExportFormatMenu } from '../../shared/ExportFormatMenu'
 import { formatDate, formatNumber } from '../../shared/formatters'
 
 export function VisualizacaoProducaoCreme({
   item,
-  onEdit,
   onExport,
 }: {
   item: ProducaoCreme
-  onEdit: () => void
   onExport: (format: ExportFormat) => void
 }) {
   return (
     <section className="document-view">
       <div className="document-actions">
-        {item.status !== 'finalizada' && <button className="btn secondary" type="button" onClick={onEdit}><Pencil size={16} />Editar</button>}
-        <ExportFormatMenu onExport={onExport} />
+        {item.status === 'finalizada' && <ExportFormatMenu onExport={onExport} />}
       </div>
       <article className="document-sheet">
         <header className="document-header"><div><h2>Controle de produção creme</h2><span>{formatDate(item.data_fabricacao)}</span></div></header>
@@ -32,7 +28,6 @@ export function VisualizacaoProducaoCreme({
             <Field label="Responsável" value={item.responsavel} />
           </div>
         </section>
-        <section className="document-section"><h3>Observações</h3><p>{item.observacoes || 'Sem observações.'}</p></section>
       </article>
     </section>
   )

@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react'
+import { CheckCircle2, ChevronLeft, ChevronRight, Plus, Search, XCircle } from 'lucide-react'
 import type { FormulacaoCreme } from '../../api/producaoApi'
 import { formatDate, formatNumber } from '../../shared/formatters'
 
@@ -9,9 +9,10 @@ export function ListagemFormulacoesCreme({
   onSearchChange,
   onSearch,
   onPageChange,
-  onOpenEdit,
+  onOpenItem,
   onCreateNew,
   onFinalize,
+  onCancel,
 }: {
   items: FormulacaoCreme[]
   pagination: { current_page: number; per_page: number; total: number }
@@ -19,9 +20,10 @@ export function ListagemFormulacoesCreme({
   onSearchChange: (value: string) => void
   onSearch: () => void
   onPageChange: (page: number) => void
-  onOpenEdit: (id: number) => void
+  onOpenItem: (item: FormulacaoCreme) => void
   onCreateNew: () => void
   onFinalize: (id: number) => void
+  onCancel: (id: number) => void
 }) {
   const totalPages = Math.max(1, Math.ceil(pagination.total / pagination.per_page))
   const firstItem = pagination.total === 0 ? 0 : ((pagination.current_page - 1) * pagination.per_page) + 1
@@ -38,23 +40,26 @@ export function ListagemFormulacoesCreme({
       </div>
       <section className="panel">
         <h2>Fichas registradas</h2>
-        <div className="table">
+        <div className="table table-compact-5">
           <div className="table-head table-head-actions"><span>Data</span><span>Lote</span><span>Creme</span><span>Gordura final</span><span>Ação</span></div>
           {items.map((item) => {
-            const isLocked = item.status === 'finalizada'
+            const isOpen = item.status === 'rascunho'
             return (
-              <div className={`table-row table-row-actions row-button ${isLocked ? 'is-locked' : ''}`} key={item.id} role="button" tabIndex={0} onClick={() => onOpenEdit(item.id)}>
+              <div className={`table-row table-row-actions row-button ${!isOpen ? 'is-locked' : ''}`} key={item.id} role="button" tabIndex={0} onClick={() => onOpenItem(item)}>
                 <span>{formatDate(item.data_fabricacao)}</span>
                 <strong>{item.lote_creme_produzido}</strong>
                 <span>{item.tipo_creme ?? '-'}</span>
                 <span>{formatNumber(item.gordura_final, '%')}</span>
-                {isLocked
-                  ? <span className="locked">Bloqueada</span>
-                  : <span className="row-actions"><button className="btn secondary compact" type="button" onClick={(event) => { event.stopPropagation(); onFinalize(item.id) }}><CheckCircle2 size={15} />Finalizar</button></span>}
+                {isOpen
+                  ? <span className="row-actions">
+                      <button className="btn secondary compact" type="button" onClick={(event) => { event.stopPropagation(); onCancel(item.id) }}><XCircle size={15} />Cancelar</button>
+                      <button className="btn secondary compact" type="button" onClick={(event) => { event.stopPropagation(); onFinalize(item.id) }}><CheckCircle2 size={15} />Finalizar</button>
+                    </span>
+                  : <span className="locked">{item.status === 'cancelada' ? 'Cancelada' : 'Bloqueada'}</span>}
               </div>
             )
           })}
-          {items.length === 0 && <div className="empty">Nenhuma ficha encontrada no banco.</div>}
+          {items.length === 0 && <div className="empty">Nenhuma ficha encontrada.</div>}
         </div>
         <div className="pagination">
           <span>{firstItem}-{lastItem} de {pagination.total}</span>

@@ -1,16 +1,5 @@
-import {
-  BarChart3,
-  FlaskConical,
-  Home,
-  LogOut,
-  Package,
-  RefreshCcw,
-  Settings,
-  Users,
-} from 'lucide-react'
+import { RefreshCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import type { AuthUser } from '../../api/authApi'
-import { ThemeToggle, type ThemeMode } from '../../shared/ThemeToggle'
 import { qualidadeApi, type Produtor } from './api/qualidadeApi'
 import { relatoriosApi } from './api/relatoriosApi'
 import { ExportFormatMenu, type ExportFormat } from './shared/ExportFormatMenu'
@@ -114,21 +103,7 @@ function monthYearToApi(value: string): string | null {
   return `${match[2]}-${match[1]}`
 }
 
-export function QualidadeModule({
-  user,
-  theme,
-  onToggleTheme,
-  onBackToSystem,
-  onOpenModule,
-  onLogout,
-}: {
-  user: AuthUser
-  theme: ThemeMode
-  onToggleTheme: () => void
-  onBackToSystem: () => void
-  onOpenModule: (module: 'qualidade' | 'estoque') => void
-  onLogout: () => void
-}) {
+export function QualidadeModule() {
   const [produtores, setProdutores] = useState<Produtor[]>([])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<LoadStatus>('loading')
@@ -275,61 +250,8 @@ export function QualidadeModule({
           : 'Visão de qualidade.'
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <img className="sidebar-logo" src="/assets/img/logo.png" alt="Santi'Lac" />
-
-        <nav className="nav" aria-label="Navegação principal">
-          <span className="nav-section-title">Sistema</span>
-          <button className="nav-item nav-motion-home" type="button" onClick={onBackToSystem}>
-            <Home size={16} />
-            Início do sistema
-          </button>
-          <button className="nav-item nav-motion-quality is-active" type="button" onClick={() => pushRoute({ view: 'inicio', producerCode: null, issuesCode: null })}>
-            <FlaskConical size={16} />
-            Qualidade
-          </button>
-          <div className="nav-subtree" aria-label="Submódulos de qualidade">
-            <button className={`nav-subitem nav-motion-start ${route.view === 'inicio' && !route.producerCode ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'inicio', producerCode: null, issuesCode: null })}><Home size={15} />Início</button>
-            <button className={`nav-subitem nav-motion-producers ${route.view === 'produtores' || route.producerCode ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'produtores', producerCode: null, issuesCode: null })}><Users size={15} />Produtores</button>
-            <button className={`nav-subitem nav-motion-analyses ${route.view === 'analises' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'analises', producerCode: null, issuesCode: null })}><FlaskConical size={15} />Análises</button>
-            <button className={`nav-subitem nav-motion-reports ${route.view === 'relatorios' ? 'is-active' : ''}`} type="button" onClick={() => pushRoute({ view: 'relatorios', producerCode: null, issuesCode: null })}><BarChart3 size={15} />Relatórios</button>
-          </div>
-          <button className="nav-item nav-motion-stock" type="button" onClick={() => onOpenModule('estoque')}>
-            <Package size={16} />
-            Estoque
-          </button>
-          <button className="nav-item nav-motion-dashboard is-disabled" type="button" disabled>
-            <BarChart3 size={16} />
-            Dashboard
-          </button>
-          <button className="nav-item nav-motion-admin is-disabled" type="button" disabled>
-            <Settings size={16} />
-            Administração
-          </button>
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="sidebar-user">
-            <span className="avatar small">{user.nome.slice(0, 1).toUpperCase()}</span>
-            <span>{user.nome}</span>
-          </div>
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-        </div>
-      </aside>
-
-      <main className="content">
-        <header className="global-topbar">
-          <span />
-          <nav>
-            <button type="button" onClick={onLogout}>
-              <LogOut size={15} />
-              Sair
-            </button>
-          </nav>
-        </header>
-
-        <section className="page">
+    <>
+      <section className="page">
           <header className="page-head">
             <div>
               <h1>{pageTitle}</h1>
@@ -387,7 +309,6 @@ export function QualidadeModule({
             />
           )}
         </section>
-      </main>
-    </div>
+    </>
   )
 }

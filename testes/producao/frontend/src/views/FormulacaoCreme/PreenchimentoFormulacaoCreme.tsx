@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+﻿import { Plus } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { today } from '../../shared/formatters'
 
@@ -17,7 +17,6 @@ export function PreenchimentoFormulacaoCreme({ onCreate }: { onCreate: (event: F
         <label>Acidez (°D)<input name="acidez" type="number" step="0.01" min="0" /></label>
         <label>Responsável pelo monitoramento<input name="responsavel_monitoramento" /></label>
         <label>Responsável<input name="responsavel" /></label>
-        <label className="wide">Observações<textarea name="observacoes" rows={3} /></label>
         <div className="form-actions wide">
           <button className="btn primary" type="submit"><Plus size={16} />Salvar ficha</button>
         </div>

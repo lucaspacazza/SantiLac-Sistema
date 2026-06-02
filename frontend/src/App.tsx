@@ -1,18 +1,22 @@
 import { useEffect, useState } from 'react'
 import { authApi, type AuthUser } from './api/authApi'
+import { CombustivelModule } from './modules/combustivel/CombustivelModule'
 import { EstoqueModule } from './modules/estoque/EstoqueModule'
+import { PasteurizadorModule } from './modules/pasteurizador/PasteurizadorModule'
 import { QualidadeModule } from './modules/qualidade/QualidadeModule'
 import { LoginPage } from './pages/LoginPage'
-import { SystemHome, type SystemModule } from './pages/SystemHome'
+import { SystemHome } from './pages/SystemHome'
+import { CoreSidebar, routeForModule } from './shared/CoreSidebar'
 import type { ThemeMode } from './shared/ThemeToggle'
+import { isSystemModule, type SystemModule } from './shared/modules'
 
 type AppState = 'booting' | 'guest' | 'authenticated'
 
 function moduleFromHash(): SystemModule | null {
   const firstPart = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean)[0]
 
-  if (firstPart === 'estoque') {
-    return 'estoque'
+  if (isSystemModule(firstPart)) {
+    return firstPart
   }
 
   if (['inicio', 'produtores', 'pendencias', 'analises', 'relatorios'].includes(firstPart)) {
@@ -59,6 +63,19 @@ export function App() {
     void boot()
   }, [])
 
+  useEffect(() => {
+    if (state !== 'authenticated' || !user) {
+      return
+    }
+
+    const handleHashChange = () => {
+      setActiveModule(moduleFromHash())
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [state, user])
+
   async function handleLogin(email: string, password: string, remember: boolean) {
     setIsLoggingIn(true)
     setLoginError(null)
@@ -83,8 +100,14 @@ export function App() {
   }
 
   function handleOpenModule(module: SystemModule) {
-    window.location.hash = module === 'estoque' ? '#/estoque/inicio' : '#/inicio'
-    setActiveModule(module)
+    const route = routeForModule(module)
+    if (route.startsWith('#')) {
+      window.location.hash = route
+      setActiveModule(module)
+      return
+    }
+
+    window.location.href = route
   }
 
   function handleBackToSystem() {
@@ -95,19 +118,6 @@ export function App() {
   function handleToggleTheme() {
     setTheme((current) => current === 'dark' ? 'light' : 'dark')
   }
-
-  useEffect(() => {
-    if (state !== 'authenticated' || !user) {
-      return
-    }
-
-    const handleHashChange = () => {
-      setActiveModule(moduleFromHash())
-    }
-
-    window.addEventListener('hashchange', handleHashChange)
-    return () => window.removeEventListener('hashchange', handleHashChange)
-  }, [state, user])
 
   if (state === 'booting') {
     return (
@@ -122,21 +132,32 @@ export function App() {
     return <LoginPage loading={isLoggingIn} error={loginError} onLogin={handleLogin} />
   }
 
-  if (activeModule === 'qualidade') {
-    return <QualidadeModule user={user} theme={theme} onToggleTheme={handleToggleTheme} onBackToSystem={handleBackToSystem} onOpenModule={handleOpenModule} onLogout={handleLogout} />
-  }
-
-  if (activeModule === 'estoque') {
-    return <EstoqueModule user={user} theme={theme} onToggleTheme={handleToggleTheme} onBackToSystem={handleBackToSystem} onOpenModule={handleOpenModule} onLogout={handleLogout} />
-  }
-
   return (
-    <SystemHome
-      user={user}
-      theme={theme}
-      onToggleTheme={handleToggleTheme}
-      onOpenModule={handleOpenModule}
-      onLogout={handleLogout}
-    />
+    <div className="app-shell">
+      <CoreSidebar
+        userName={user.nome}
+        theme={theme}
+        activeModule={activeModule}
+        onToggleTheme={handleToggleTheme}
+        onLogout={handleLogout}
+        onBackToSystem={handleBackToSystem}
+        onOpenModule={handleOpenModule}
+        showSystemHomeActive={activeModule === null}
+      />
+
+      <main className="content">
+        {activeModule === 'qualidade' ? (
+          <QualidadeModule />
+        ) : activeModule === 'estoque' ? (
+          <EstoqueModule />
+        ) : activeModule === 'pasteurizador' ? (
+          <PasteurizadorModule />
+        ) : activeModule === 'combustivel' ? (
+          <CombustivelModule />
+        ) : (
+          <SystemHome />
+        )}
+      </main>
+    </div>
   )
 }

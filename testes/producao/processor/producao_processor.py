@@ -10,8 +10,43 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZIP_DEFLATED, ZipFile
 
-NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
-ET.register_namespace("w", NS["w"])
+OOXML_NAMESPACES = {
+    "wpc": "http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas",
+    "cx": "http://schemas.microsoft.com/office/drawing/2014/chartex",
+    "cx1": "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex",
+    "cx2": "http://schemas.microsoft.com/office/drawing/2015/10/21/chartex",
+    "cx3": "http://schemas.microsoft.com/office/drawing/2016/5/9/chartex",
+    "cx4": "http://schemas.microsoft.com/office/drawing/2016/5/10/chartex",
+    "cx5": "http://schemas.microsoft.com/office/drawing/2016/5/11/chartex",
+    "cx6": "http://schemas.microsoft.com/office/drawing/2016/5/12/chartex",
+    "cx7": "http://schemas.microsoft.com/office/drawing/2016/5/13/chartex",
+    "cx8": "http://schemas.microsoft.com/office/drawing/2016/5/14/chartex",
+    "mc": "http://schemas.openxmlformats.org/markup-compatibility/2006",
+    "aink": "http://schemas.microsoft.com/office/drawing/2016/ink",
+    "am3d": "http://schemas.microsoft.com/office/drawing/2017/model3d",
+    "o": "urn:schemas-microsoft-com:office:office",
+    "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "m": "http://schemas.openxmlformats.org/officeDocument/2006/math",
+    "v": "urn:schemas-microsoft-com:vml",
+    "wp14": "http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing",
+    "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
+    "w10": "urn:schemas-microsoft-com:office:word",
+    "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+    "w14": "http://schemas.microsoft.com/office/word/2010/wordml",
+    "w15": "http://schemas.microsoft.com/office/word/2012/wordml",
+    "w16cex": "http://schemas.microsoft.com/office/word/2018/wordml/cex",
+    "w16cid": "http://schemas.microsoft.com/office/word/2016/wordml/cid",
+    "w16": "http://schemas.microsoft.com/office/word/2018/wordml",
+    "w16se": "http://schemas.microsoft.com/office/word/2015/wordml/symex",
+    "wpg": "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup",
+    "wpi": "http://schemas.microsoft.com/office/word/2010/wordprocessingInk",
+    "wne": "http://schemas.microsoft.com/office/word/2006/wordml",
+    "wps": "http://schemas.microsoft.com/office/word/2010/wordprocessingShape",
+}
+
+NS = {"w": OOXML_NAMESPACES["w"]}
+for prefix, uri in OOXML_NAMESPACES.items():
+    ET.register_namespace(prefix, uri)
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
@@ -83,6 +118,21 @@ def set_cell_text(cell, value):
     text.text = value if value is not None else ""
 
 
+def set_cell_lines(cell, lines):
+    paragraph = first_paragraph(cell)
+    for child in list(cell):
+        if child.tag == w_tag("p") and child is not paragraph:
+            cell.remove(child)
+    clear_paragraph_text(paragraph)
+    run = ET.SubElement(paragraph, w_tag("r"))
+    for index, line in enumerate(lines):
+        if index > 0:
+            ET.SubElement(run, w_tag("br"))
+        text = ET.SubElement(run, w_tag("t"))
+        text.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        text.text = line if line is not None else ""
+
+
 def append_to_label(cell, value):
     label = text_of(cell)
     suffix = value if value is not None else ""
@@ -99,15 +149,37 @@ def find_table(root, index):
 
 def find_row_by_label(table, label):
     wanted = normalize(label)
+    wanted_compact = compact_normalize(label)
     for row in rows(table):
         row_cells = cells(row)
-        if row_cells and normalize(text_of(row_cells[0])).startswith(wanted):
+        if row_cells and (
+            normalize(text_of(row_cells[0])).startswith(wanted)
+            or compact_normalize(text_of(row_cells[0])).startswith(wanted_compact)
+        ):
             return row
     return None
 
 
+def find_rows_by_label(table, label):
+    wanted = normalize(label)
+    wanted_compact = compact_normalize(label)
+    found = []
+    for row in rows(table):
+        row_cells = cells(row)
+        if row_cells and (
+            normalize(text_of(row_cells[0])).startswith(wanted)
+            or compact_normalize(text_of(row_cells[0])).startswith(wanted_compact)
+        ):
+            found.append(row)
+    return found
+
+
 def normalize(value):
     return re.sub(r"\s+", " ", value or "").strip().lower()
+
+
+def compact_normalize(value):
+    return re.sub(r"\s+", "", normalize(value))
 
 
 def value(data, key, suffix=""):
@@ -187,7 +259,102 @@ def fill_label_value_row(table, label, filled_value, cell_index=1):
         set_cell_text(row_cells[cell_index], filled_value)
 
 
+def page_break_paragraph():
+    paragraph = ET.Element(w_tag("p"))
+    run = ET.SubElement(paragraph, w_tag("r"))
+    br = ET.SubElement(run, w_tag("br"))
+    br.set(w_tag("type"), "page")
+    return paragraph
+
+
+def is_empty_paragraph(element):
+    if element.tag != w_tag("p"):
+        return False
+    if text_of(element):
+        return False
+    return not element.findall(".//w:br", NS) and not element.findall(".//w:drawing", NS)
+
+
+def remove_trailing_empty_paragraphs(root):
+    body = root.find(".//w:body", NS)
+    if body is None:
+        return
+    children = list(body)
+    while len(children) >= 2 and children[-1].tag == w_tag("sectPr") and is_empty_paragraph(children[-2]):
+        body.remove(children[-2])
+        children = list(body)
+
+
+def insert_row_before(table, target_row, new_row):
+    table.insert(list(table).index(target_row), new_row)
+
+
+def ensure_gordura_inicial_row(table):
+    gordura_inicial_row = find_row_by_label(table, "Gordura Inicial")
+    gordura_final_row = find_row_by_label(table, "Gordura Final")
+    if gordura_inicial_row is not None or gordura_final_row is None:
+        return
+    initial_row = clone_row(gordura_final_row)
+    initial_cells = cells(initial_row)
+    if initial_cells:
+        set_cell_text(initial_cells[0], "Gordura Inicial")
+    for cell in initial_cells[1:]:
+        set_cell_text(cell, "")
+    insert_row_before(table, gordura_final_row, initial_row)
+
+
+def clear_value_columns(table):
+    for row in rows(table):
+        for cell in cells(row)[1:]:
+            set_cell_text(cell, "")
+
+
+def set_row_height(row, height):
+    tr_pr = row.find("./w:trPr", NS)
+    if tr_pr is None:
+        tr_pr = ET.Element(w_tag("trPr"))
+        row.insert(0, tr_pr)
+    tr_height = tr_pr.find("./w:trHeight", NS)
+    if tr_height is None:
+        tr_height = ET.SubElement(tr_pr, w_tag("trHeight"))
+    tr_height.set(w_tag("val"), str(height))
+    tr_height.set(w_tag("hRule"), "exact")
+
+
+def compact_formulacao_table(table):
+    for index, row in enumerate(rows(table)):
+        set_row_height(row, 520 if index == 0 else 390)
+
+
+def ensure_ignorable_namespace_declarations(xml_bytes):
+    xml = xml_bytes.decode("utf-8")
+    match = re.search(r"\bmc:Ignorable=\"([^\"]+)\"", xml)
+    if not match:
+        return xml_bytes
+
+    document_start = xml.find("<w:document")
+    document_end = xml.find(">", document_start)
+    if document_start == -1 or document_end == -1:
+        return xml_bytes
+
+    document_tag = xml[document_start:document_end]
+    missing_declarations = []
+    for prefix in match.group(1).split():
+        if f"xmlns:{prefix}=" not in document_tag and prefix in OOXML_NAMESPACES:
+            missing_declarations.append(f' xmlns:{prefix}="{OOXML_NAMESPACES[prefix]}"')
+
+    if not missing_declarations:
+        return xml_bytes
+
+    xml = xml[:document_end] + "".join(missing_declarations) + xml[document_end:]
+    return xml.encode("utf-8")
+
+
 def fill_formulacao_queijo(root, data):
+    if isinstance(data.get("items"), list):
+        fill_formulacao_queijo_diario(root, data)
+        return
+
     table = find_table(root, 0)
     table_rows = rows(table)
     if table_rows:
@@ -252,6 +419,105 @@ def fill_formulacao_queijo(root, data):
     fill_label_value_row(table, "Hora do Corte", data.get("hora_corte") or "")
     fill_label_value_row(table, "Temperatura de Cozimento", value(data, "temperatura_cozimento", " °C"))
     fill_label_value_row(table, "Responsável pela Produção", data.get("responsavel") or "")
+
+
+def fill_formulacao_queijo_diario(root, data):
+    items = data.get("items") or []
+    table = find_table(root, 0)
+    body = root.find(".//w:body", NS)
+    if body is None:
+        return
+
+    chunks = [items[index:index + 6] for index in range(0, len(items), 6)] or [[]]
+    insert_at = list(body).index(table) + 1
+    all_tables = [table]
+
+    for _ in chunks[1:]:
+        cloned_table = clone_row(table)
+        body.insert(insert_at, page_break_paragraph())
+        insert_at += 1
+        body.insert(insert_at, cloned_table)
+        insert_at += 1
+        all_tables.append(cloned_table)
+
+    for current_table, chunk in zip(all_tables, chunks):
+        fill_formulacao_queijo_table(current_table, data.get("data_formulacao"), chunk)
+    remove_trailing_empty_paragraphs(root)
+
+
+def fill_formulacao_queijo_table(table, data_formulacao, items):
+    ensure_gordura_inicial_row(table)
+    clear_value_columns(table)
+    compact_formulacao_table(table)
+
+    table_rows = rows(table)
+    if table_rows:
+        first_cells = cells(table_rows[0])
+        if first_cells:
+            set_cell_lines(first_cells[0], ["Tipo de Queijo", f"Data: {date_br(data_formulacao)}"])
+        for column, item in enumerate(items[:6], start=1):
+            if column < len(first_cells):
+                set_cell_text(first_cells[column], item.get("tipo_queijo") or "")
+
+    simple_fields = [
+        ("Silo", "silo", ""),
+        ("Lote do Leite", "lote_leite", ""),
+        ("Lote do Queijo", "lote_queijo", ""),
+        ("N° Queijomatic", "numero_queijomatic", ""),
+        ("Início Enchimento", "inicio_enchimento", ""),
+        ("Quantidade Leite", "quantidade_leite", " L"),
+        ("Temperatura. De Pasteurização", "temperatura_pasteurizacao", " °C"),
+        ("Fosfatase", "fosfatase", "status"),
+        ("Peroxidase", "peroxidase", "status"),
+        ("Gordura Inicial", "gordura_inicial", " %"),
+        ("Gordura Final", "gordura_final", " %"),
+        ("Acidez", "acidez", " °D"),
+        ("Temperatura da Coagulação", "temperatura_coagulacao", " °C"),
+        ("Hora da Coagulação", "hora_coagulacao", ""),
+        ("Hora do Corte", "hora_corte", ""),
+        ("Temperatura de Cozimento", "temperatura_cozimento", " °C"),
+        ("Responsável pela Produção", "responsavel", ""),
+    ]
+
+    for label, key, suffix in simple_fields:
+        row = find_row_by_label(table, label)
+        if row is None:
+            continue
+        row_cells = cells(row)
+        for column, item in enumerate(items[:6], start=1):
+            if column >= len(row_cells):
+                continue
+            if suffix == "status":
+                cell_value = status_label(item.get(key))
+            elif suffix:
+                cell_value = value(item, key, suffix)
+            else:
+                cell_value = item.get(key) or ""
+            set_cell_text(row_cells[column], cell_value)
+
+    fermento_quantity_rows = find_rows_by_label(table, "Quantidade de Fermento")
+    insumo_rows = {
+        "fermento_mvd": (fermento_quantity_rows[0] if len(fermento_quantity_rows) > 0 else None, 0, "Lote do Fermento"),
+        "fermento_fast": (fermento_quantity_rows[1] if len(fermento_quantity_rows) > 1 else None, 1, "Lote do Fermento"),
+        "fermento": (fermento_quantity_rows[2] if len(fermento_quantity_rows) > 2 else None, 2, "Lote do Fermento"),
+        "cloreto": (find_row_by_label(table, "Quantidade de Cloreto"), 0, "Lote do Cloreto"),
+        "corante": (find_row_by_label(table, "Quantidade de Corante"), 0, "Lote do Corante"),
+        "coalho": (find_row_by_label(table, "Quantidade de Coalho"), 0, "Lote do Coalho"),
+    }
+
+    for column, item in enumerate(items[:6], start=1):
+        grouped = grouped_insumos(item)
+        for kind, (quantity_row, lot_index, lot_label) in insumo_rows.items():
+            current = grouped.get(kind, {})
+            if quantity_row is not None:
+                quantity_cells = cells(quantity_row)
+                if column < len(quantity_cells):
+                    set_cell_text(quantity_cells[column], "; ".join(current.get("quantidades", [])))
+            lot_rows = find_rows_by_label(table, lot_label)
+            if lot_index < len(lot_rows):
+                lot_cells = cells(lot_rows[lot_index])
+                if column < len(lot_cells):
+                    set_cell_text(lot_cells[column], "; ".join(current.get("lotes", [])))
 
 
 def fill_soro_refrigerado(root, data):
@@ -348,6 +614,9 @@ def slug(value):
 
 def output_name(tipo, data, formato):
     config = FORM_CONFIG[tipo]
+    if tipo == "formulacao_queijo" and isinstance(data.get("items"), list):
+        key = data.get("data_formulacao") or data.get("id")
+        return f"{config['documento'].lower().replace('.', '_')}_{config['slug']}_{slug(str(key))}.{formato}"
     key = data.get("lote_queijo") or data.get("lote_creme_produzido") or data.get("data_registro") or data.get("id")
     return f"{config['documento'].lower().replace('.', '_')}_{config['slug']}_{slug(str(key))}.{formato}"
 
@@ -366,6 +635,7 @@ def fill_docx(tipo, data, out_dir):
         root = ET.fromstring(document_xml)
         FILLERS[tipo](root, data)
         updated_xml = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+        updated_xml = ensure_ignorable_namespace_declarations(updated_xml)
         logo_bytes = LOGO_PATH.read_bytes() if LOGO_PATH.exists() else None
 
         with ZipFile(docx_path, "w", ZIP_DEFLATED) as target:
@@ -477,7 +747,7 @@ def build_pdf(tipo, data, out_dir):
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table
+    from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table
     from reportlab.platypus.tables import TableStyle
 
     config = FORM_CONFIG[tipo]
@@ -514,6 +784,53 @@ def build_pdf(tipo, data, out_dir):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ]))
     story.extend([header, Spacer(1, 5 * mm)])
+
+    if tipo == "formulacao_queijo" and isinstance(data.get("items"), list):
+        labels = [
+            ("Tipo de Queijo", "tipo_queijo", ""),
+            ("Silo", "silo", ""),
+            ("Lote do Leite", "lote_leite", ""),
+            ("Lote do Queijo", "lote_queijo", ""),
+            ("N° Queijomatic", "numero_queijomatic", ""),
+            ("Início Enchimento", "inicio_enchimento", ""),
+            ("Quantidade Leite", "quantidade_leite", " L"),
+            ("Temperatura. De Pasteurização", "temperatura_pasteurizacao", " °C"),
+            ("Fosfatase", "fosfatase", "status"),
+            ("Peroxidase", "peroxidase", "status"),
+            ("Gordura Inicial", "gordura_inicial", " %"),
+            ("Gordura Final", "gordura_final", " %"),
+            ("Acidez", "acidez", " °D"),
+            ("Temperatura da Coagulação", "temperatura_coagulacao", " °C"),
+            ("Hora da Coagulação", "hora_coagulacao", ""),
+            ("Hora do Corte", "hora_corte", ""),
+            ("Temperatura de Cozimento", "temperatura_cozimento", " °C"),
+            ("Responsável pela Produção", "responsavel", ""),
+        ]
+        items = data.get("items") or []
+        chunks = [items[index:index + 6] for index in range(0, len(items), 6)] or [[]]
+        small = ParagraphStyle("SmallSantiLac", parent=normal, fontName="Helvetica", fontSize=6.2, leading=7.1)
+        for chunk_index, chunk in enumerate(chunks):
+            if chunk_index > 0:
+                story.extend([PageBreak(), header, Spacer(1, 5 * mm)])
+            rows_pdf = []
+            for label, key, suffix in labels:
+                left = f"{label}<br/>Data: {date_br(data.get('data_formulacao'))}" if label == "Tipo de Queijo" else label
+                current_row = [Paragraph(f"<b>{escape(left)}</b>", small)]
+                for item in chunk:
+                    if suffix == "status":
+                        current_row.append(Paragraph(escape(status_label(item.get(key)) or "-"), small))
+                    elif suffix:
+                        current_row.append(Paragraph(escape(value(item, key, suffix) or "-"), small))
+                    else:
+                        current_row.append(Paragraph(escape(item.get(key) or "-"), small))
+                while len(current_row) < 7:
+                    current_row.append(Paragraph("", small))
+                rows_pdf.append(current_row)
+            table = Table(rows_pdf, colWidths=[48 * mm] + [34 * mm] * 6)
+            table.setStyle(form_table_style(colors))
+            story.append(table)
+        doc.build(story)
+        return pdf_path
 
     for section, fields in pdf_sections(tipo, data):
         story.append(Paragraph(section, section_title))
