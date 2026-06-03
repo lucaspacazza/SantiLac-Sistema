@@ -30,6 +30,22 @@ export const sidebarModules = [
     ],
   },
   {
+    slug: 'producao',
+    title: 'Produção',
+    desc: 'Fichas e ordens de produção.',
+    levels: ['2.0'],
+    icon: 'fa-cogs',
+    href: '#/producao/inicio',
+    children: [
+      { title: 'Visão geral', icon: 'fa-home', href: '#/producao/inicio' },
+      { title: 'Formulação queijo', icon: 'fa-clipboard-list', href: '#/producao/listagem-formulacoes-queijo' },
+      { title: 'Ordem de produção', icon: 'fa-list-check', href: '#/producao/ordem-producao' },
+      { title: 'Soro refrigerado', icon: 'fa-droplet', href: '#/producao/listagem-soro-refrigerado' },
+      { title: 'Formulação creme', icon: 'fa-clipboard-list', href: '#/producao/listagem-formulacoes-creme' },
+      { title: 'Produção creme', icon: 'fa-industry', href: '#/producao/listagem-producoes-creme' },
+    ],
+  },
+  {
     slug: 'estoque',
     title: 'Estoque',
     desc: 'Controle de insumos.',

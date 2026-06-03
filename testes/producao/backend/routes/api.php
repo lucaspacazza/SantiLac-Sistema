@@ -1,46 +1,62 @@
 <?php
 
+use App\Http\Controllers\Api\Producao\FormulacaoCremeController;
+use App\Http\Controllers\Api\Producao\FormulacaoQueijoController;
+use App\Http\Controllers\Api\Producao\OrdemProducaoController;
 use App\Http\Controllers\Api\Producao\ProducaoController;
+use App\Http\Controllers\Api\Producao\ProducaoCremeController;
+use App\Http\Controllers\Api\Producao\SoroRefrigeradoController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('producao')->group(function (): void {
     Route::get('/overview', [ProducaoController::class, 'overview']);
 
-    Route::get('/formulacoes-queijo', [ProducaoController::class, 'formulacoesQueijo']);
-    Route::post('/formulacoes-queijo', [ProducaoController::class, 'criarFormulacaoQueijo']);
-    Route::get('/formulacoes-queijo/{id}', [ProducaoController::class, 'formulacaoQueijo']);
-    Route::patch('/formulacoes-queijo/{id}', [ProducaoController::class, 'atualizarFormulacaoQueijo']);
-    Route::patch('/formulacoes-queijo/{id}/finalizar', [ProducaoController::class, 'finalizarFormulacaoQueijo']);
-    Route::patch('/formulacoes-queijo/{id}/cancelar', [ProducaoController::class, 'cancelarFormulacaoQueijo']);
-    Route::get('/formulacoes-queijo/{id}/exportar', [ProducaoController::class, 'exportarFormulacaoQueijo']);
-    Route::get('/formulacoes-queijo/{id}/exportar/pdf', [ProducaoController::class, 'exportarFormulacaoQueijoPdf']);
+    Route::get('/ordens-producao/catalogos', [OrdemProducaoController::class, 'catalogos']);
+    Route::get('/ordens-producao/exportar/{formato}', [OrdemProducaoController::class, 'exportarDia'])
+        ->whereIn('formato', ['xlsx', 'pdf']);
+    Route::get('/ordens-producao', [OrdemProducaoController::class, 'index']);
+    Route::get('/ordens-producao/{id}/exportar/{formato}', [OrdemProducaoController::class, 'exportar'])
+        ->whereNumber('id')
+        ->whereIn('formato', ['xlsx', 'pdf']);
+    Route::get('/ordens-producao/{id}', [OrdemProducaoController::class, 'show'])->whereNumber('id');
+    Route::post('/ordens-producao', [OrdemProducaoController::class, 'store']);
+    Route::post('/formulacoes-queijo/{id}/gerar-op', [OrdemProducaoController::class, 'gerarDaFormulacao']);
 
-    Route::get('/soro-refrigerado', [ProducaoController::class, 'soroRefrigerado']);
-    Route::post('/soro-refrigerado', [ProducaoController::class, 'criarSoroRefrigerado']);
-    Route::get('/soro-refrigerado/estoque', [ProducaoController::class, 'estoqueSoroRefrigerado']);
-    Route::get('/soro-refrigerado/{id}', [ProducaoController::class, 'soroRefrigeradoItem']);
-    Route::patch('/soro-refrigerado/{id}', [ProducaoController::class, 'atualizarSoroRefrigerado']);
-    Route::patch('/soro-refrigerado/{id}/finalizar', [ProducaoController::class, 'finalizarSoroRefrigerado']);
-    Route::patch('/soro-refrigerado/{id}/cancelar', [ProducaoController::class, 'cancelarSoroRefrigerado']);
-    Route::get('/soro-refrigerado/{id}/exportar', [ProducaoController::class, 'exportarSoroRefrigerado']);
-    Route::get('/soro-refrigerado/{id}/exportar/pdf', [ProducaoController::class, 'exportarSoroRefrigeradoPdf']);
+    Route::get('/formulacoes-queijo/catalogos', [FormulacaoQueijoController::class, 'catalogos']);
+    Route::get('/formulacoes-queijo', [FormulacaoQueijoController::class, 'index']);
+    Route::post('/formulacoes-queijo', [FormulacaoQueijoController::class, 'store']);
+    Route::get('/formulacoes-queijo/{id}', [FormulacaoQueijoController::class, 'show']);
+    Route::patch('/formulacoes-queijo/{id}', [FormulacaoQueijoController::class, 'update']);
+    Route::patch('/formulacoes-queijo/{id}/finalizar', [FormulacaoQueijoController::class, 'finalizar']);
+    Route::patch('/formulacoes-queijo/{id}/cancelar', [FormulacaoQueijoController::class, 'cancelar']);
+    Route::get('/formulacoes-queijo/{id}/exportar', [FormulacaoQueijoController::class, 'exportar']);
+    Route::get('/formulacoes-queijo/{id}/exportar/pdf', [FormulacaoQueijoController::class, 'exportarPdf']);
 
-    Route::get('/formulacoes-creme', [ProducaoController::class, 'formulacoesCreme']);
-    Route::post('/formulacoes-creme', [ProducaoController::class, 'criarFormulacaoCreme']);
-    Route::get('/formulacoes-creme/{id}', [ProducaoController::class, 'formulacaoCreme']);
-    Route::patch('/formulacoes-creme/{id}', [ProducaoController::class, 'atualizarFormulacaoCreme']);
-    Route::patch('/formulacoes-creme/{id}/finalizar', [ProducaoController::class, 'finalizarFormulacaoCreme']);
-    Route::patch('/formulacoes-creme/{id}/cancelar', [ProducaoController::class, 'cancelarFormulacaoCreme']);
-    Route::get('/formulacoes-creme/{id}/exportar', [ProducaoController::class, 'exportarFormulacaoCreme']);
-    Route::get('/formulacoes-creme/{id}/exportar/pdf', [ProducaoController::class, 'exportarFormulacaoCremePdf']);
+    Route::get('/soro-refrigerado', [SoroRefrigeradoController::class, 'index']);
+    Route::post('/soro-refrigerado', [SoroRefrigeradoController::class, 'store']);
+    Route::get('/soro-refrigerado/estoque', [SoroRefrigeradoController::class, 'estoque']);
+    Route::get('/soro-refrigerado/{id}', [SoroRefrigeradoController::class, 'show']);
+    Route::patch('/soro-refrigerado/{id}', [SoroRefrigeradoController::class, 'update']);
+    Route::patch('/soro-refrigerado/{id}/finalizar', [SoroRefrigeradoController::class, 'finalizar']);
+    Route::patch('/soro-refrigerado/{id}/cancelar', [SoroRefrigeradoController::class, 'cancelar']);
+    Route::get('/soro-refrigerado/{id}/exportar', [SoroRefrigeradoController::class, 'exportar']);
+    Route::get('/soro-refrigerado/{id}/exportar/pdf', [SoroRefrigeradoController::class, 'exportarPdf']);
 
-    Route::get('/producoes-creme', [ProducaoController::class, 'producoesCreme']);
-    Route::post('/producoes-creme', [ProducaoController::class, 'criarProducaoCreme']);
-    Route::get('/producoes-creme/{id}', [ProducaoController::class, 'producaoCreme']);
-    Route::patch('/producoes-creme/{id}', [ProducaoController::class, 'atualizarProducaoCreme']);
-    Route::patch('/producoes-creme/{id}/finalizar', [ProducaoController::class, 'finalizarProducaoCreme']);
-    Route::patch('/producoes-creme/{id}/cancelar', [ProducaoController::class, 'cancelarProducaoCreme']);
-    Route::get('/producoes-creme/{id}/exportar', [ProducaoController::class, 'exportarProducaoCreme']);
-    Route::get('/producoes-creme/{id}/exportar/pdf', [ProducaoController::class, 'exportarProducaoCremePdf']);
+    Route::get('/formulacoes-creme', [FormulacaoCremeController::class, 'index']);
+    Route::post('/formulacoes-creme', [FormulacaoCremeController::class, 'store']);
+    Route::get('/formulacoes-creme/{id}', [FormulacaoCremeController::class, 'show']);
+    Route::patch('/formulacoes-creme/{id}', [FormulacaoCremeController::class, 'update']);
+    Route::patch('/formulacoes-creme/{id}/finalizar', [FormulacaoCremeController::class, 'finalizar']);
+    Route::patch('/formulacoes-creme/{id}/cancelar', [FormulacaoCremeController::class, 'cancelar']);
+    Route::get('/formulacoes-creme/{id}/exportar', [FormulacaoCremeController::class, 'exportar']);
+    Route::get('/formulacoes-creme/{id}/exportar/pdf', [FormulacaoCremeController::class, 'exportarPdf']);
 
+    Route::get('/producoes-creme', [ProducaoCremeController::class, 'index']);
+    Route::post('/producoes-creme', [ProducaoCremeController::class, 'store']);
+    Route::get('/producoes-creme/{id}', [ProducaoCremeController::class, 'show']);
+    Route::patch('/producoes-creme/{id}', [ProducaoCremeController::class, 'update']);
+    Route::patch('/producoes-creme/{id}/finalizar', [ProducaoCremeController::class, 'finalizar']);
+    Route::patch('/producoes-creme/{id}/cancelar', [ProducaoCremeController::class, 'cancelar']);
+    Route::get('/producoes-creme/{id}/exportar', [ProducaoCremeController::class, 'exportar']);
+    Route::get('/producoes-creme/{id}/exportar/pdf', [ProducaoCremeController::class, 'exportarPdf']);
 });

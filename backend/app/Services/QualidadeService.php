@@ -194,7 +194,7 @@ class QualidadeService
         if ($missingCodes !== []) {
             $warnings[] = [
                 'code' => 'PRODUCER_410',
-                'message' => 'Alguns produtores da planilha nao existem no banco e foram ignorados.',
+                'message' => 'Alguns produtores da planilha não estão registrados e foram ignorados.',
                 'details' => [
                     'produtor_codigos' => $missingCodes,
                 ],

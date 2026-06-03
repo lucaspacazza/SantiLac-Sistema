@@ -3,6 +3,7 @@ import { authApi, type AuthUser } from './api/authApi'
 import { CombustivelModule } from './modules/combustivel/CombustivelModule'
 import { EstoqueModule } from './modules/estoque/EstoqueModule'
 import { PasteurizadorModule } from './modules/pasteurizador/PasteurizadorModule'
+import { ProducaoModule } from './modules/producao/ProducaoModule'
 import { QualidadeModule } from './modules/qualidade/QualidadeModule'
 import { LoginPage } from './pages/LoginPage'
 import { SystemHome } from './pages/SystemHome'
@@ -148,6 +149,8 @@ export function App() {
       <main className="content">
         {activeModule === 'qualidade' ? (
           <QualidadeModule />
+        ) : activeModule === 'producao' ? (
+          <ProducaoModule />
         ) : activeModule === 'estoque' ? (
           <EstoqueModule />
         ) : activeModule === 'pasteurizador' ? (

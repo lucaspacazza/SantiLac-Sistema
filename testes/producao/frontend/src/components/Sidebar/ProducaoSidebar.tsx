@@ -1,9 +1,13 @@
-import { Droplets, Factory, FlaskConical, Milk } from 'lucide-react'
+import { ClipboardList, Droplets, Factory, FlaskConical, Milk } from 'lucide-react'
 
 type View =
   | 'inicio'
   | 'preenchimento-formulacao-queijo'
   | 'listagem-formulacoes-queijo'
+  | 'todos-formulacoes-queijo'
+  | 'ordem-producao'
+  | 'preenchimento-ordem-producao'
+  | 'visualizacao-ordem-producao'
   | 'visualizacao-formulacao-queijo'
   | 'edicao-formulacao-queijo'
   | 'preenchimento-soro-refrigerado'
@@ -28,6 +32,7 @@ export function ProducaoSidebar({
   onNavigate: (view: View) => void
 }) {
   const isQueijo = view.includes('formulacao-queijo') || view.includes('formulacoes-queijo')
+  const isOrdemProducao = view === 'ordem-producao' || view === 'preenchimento-ordem-producao' || view === 'visualizacao-ordem-producao'
   const isSoro = view.includes('soro-refrigerado')
   const isFormulacaoCreme = view.includes('formulacao-creme') || view.includes('formulacoes-creme')
   const isProducaoCreme = view.includes('producao-creme') || view.includes('producoes-creme')
@@ -50,6 +55,11 @@ export function ProducaoSidebar({
           <button className={`nav-subitem ${isQueijo ? 'is-active' : ''}`} type="button" onClick={() => onNavigate('listagem-formulacoes-queijo')}>
             <FlaskConical size={15} />
             Formulação de queijo
+          </button>
+
+          <button className={`nav-subitem ${isOrdemProducao ? 'is-active' : ''}`} type="button" onClick={() => onNavigate('ordem-producao')}>
+            <ClipboardList size={15} />
+            Ordem de produção
           </button>
 
           <button className={`nav-subitem ${isSoro ? 'is-active' : ''}`} type="button" onClick={() => onNavigate('listagem-soro-refrigerado')}>

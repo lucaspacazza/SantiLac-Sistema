@@ -15,7 +15,6 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { AnimatedHomeIcon } from './AnimatedHomeIcon'
 import { ThemeToggle, type ThemeMode } from './ThemeToggle'
 import { moduleHref, sidebarModules, type SystemModule } from './modules'
 
@@ -63,7 +62,7 @@ export function CoreSidebar({
       <nav className="nav" aria-label="Módulos do sistema">
         <span className="nav-section-title">Sistema</span>
         <button className={`nav-item nav-motion-home ${showSystemHomeActive ? 'is-active' : ''}`} type="button" onClick={onBackToSystem}>
-          {showSystemHomeActive ? <AnimatedHomeIcon size={16} /> : <Home size={16} />}
+          <Home size={16} />
           Início do sistema
         </button>
 

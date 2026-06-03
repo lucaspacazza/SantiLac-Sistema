@@ -4,7 +4,6 @@ import { App } from './App'
 import './styles.css'
 import './modules/qualidade/qualidade.css'
 import './modules/estoque/estoque.css'
-import './shared/sidebarMotion.css'
 import './modules/pasteurizador/pasteurizador.css'
 
 createRoot(document.getElementById('root') as HTMLElement).render(

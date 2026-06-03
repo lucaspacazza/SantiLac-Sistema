@@ -18,7 +18,6 @@ export function Inicio({
           <h2>Monitoramento do pasteurizador</h2>
           <p>
             Consulta das coletas históricas gravadas pelo processador do módulo.
-            Os gráficos usam somente dados salvos no banco.
           </p>
         </div>
         <button className="btn primary" type="button" onClick={onNavigateHistorico}>
@@ -62,7 +61,7 @@ export function Inicio({
           </div>
         ) : (
           <div className="empty-state">
-            Nenhuma coleta salva no banco ainda.
+            Nenhuma coleta salva ainda.
           </div>
         )}
       </section>

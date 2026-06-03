@@ -54,12 +54,12 @@ export function PasteurizadorModule() {
 
   async function loadOverview() {
     setStatus('loading')
-    setStatusText('Carregando dados do banco...')
+    setStatusText('Carregando dados...')
 
     try {
       setOverview(await pasteurizadorApi.overview())
       setStatus('live')
-      setStatusText('Dados carregados do banco.')
+      setStatusText('Dados carregados.')
     } catch (error) {
       setStatus('error')
       setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar o módulo.')
@@ -124,7 +124,7 @@ export function PasteurizadorModule() {
   async function handleFiltrar() {
     setSelectedColetaId(null)
     setStatus('loading')
-    setStatusText('Consultando período no banco...')
+    setStatusText('Consultando período...')
 
     try {
       await loadColetasSalvas()
@@ -132,7 +132,7 @@ export function PasteurizadorModule() {
       setStatus('live')
       setStatusText(result.length
         ? `${result.length.toLocaleString('pt-BR')} ponto(s) carregado(s) para o gráfico.`
-        : 'Nenhum ponto encontrado no banco para esse período.')
+        : 'Nenhum ponto encontrado para esse período.')
     } catch (error) {
       setStatus('error')
       setStatusText(error instanceof Error ? error.message : 'Não foi possível filtrar o período.')
