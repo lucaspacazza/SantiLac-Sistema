@@ -87,6 +87,7 @@ export const sidebarModules = [
 ] as const satisfies readonly SidebarModule[]
 
 export type SystemModule = typeof sidebarModules[number]['slug']
+export type SidebarModuleItem = typeof sidebarModules[number]
 
 export function isSystemModule(value: string): value is SystemModule {
   return sidebarModules.some((module) => module.slug === value)
@@ -94,4 +95,30 @@ export function isSystemModule(value: string): value is SystemModule {
 
 export function moduleHref(slug: SystemModule): string {
   return sidebarModules.find((module) => module.slug === slug)?.href ?? '#/sistema'
+}
+
+export type ModuleAccessUser = {
+  niveis: string[]
+  admin: boolean
+}
+
+export function canAccessModule(user: ModuleAccessUser | null | undefined, module: SidebarModule): boolean {
+  if (!user) {
+    return false
+  }
+
+  if (user.admin || user.niveis.includes('7.0')) {
+    return true
+  }
+
+  return module.levels.some((level) => user.niveis.includes(level))
+}
+
+export function allowedSidebarModules(user: ModuleAccessUser | null | undefined) {
+  return sidebarModules.filter((module) => canAccessModule(user, module))
+}
+
+export function canAccessModuleSlug(user: ModuleAccessUser | null | undefined, slug: SystemModule): boolean {
+  const module = sidebarModules.find((item) => item.slug === slug)
+  return module ? canAccessModule(user, module) : false
 }

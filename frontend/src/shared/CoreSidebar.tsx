@@ -16,7 +16,7 @@ import {
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ThemeToggle, type ThemeMode } from './ThemeToggle'
-import { moduleHref, sidebarModules, type SystemModule } from './modules'
+import { moduleHref, sidebarModules, type SidebarModuleItem, type SystemModule } from './modules'
 
 export function routeForModule(module: SystemModule): string {
   return moduleHref(module)
@@ -31,6 +31,7 @@ export function CoreSidebar({
   onBackToSystem,
   onOpenModule,
   showSystemHomeActive = false,
+  modules = sidebarModules,
 }: {
   userName: string
   theme: ThemeMode
@@ -40,6 +41,7 @@ export function CoreSidebar({
   onBackToSystem: () => void
   onOpenModule: (module: SystemModule) => void
   showSystemHomeActive?: boolean
+  modules?: readonly SidebarModuleItem[]
 }) {
   const [currentHash, setCurrentHash] = useState(window.location.hash || '#/inicio')
 
@@ -66,7 +68,7 @@ export function CoreSidebar({
           Início do sistema
         </button>
 
-        {sidebarModules.map((module) => {
+        {modules.map((module) => {
           const isModuleActive = activeModule === module.slug
 
           return (

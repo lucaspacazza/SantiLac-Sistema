@@ -36,3 +36,13 @@ testes/laboratorio
 testes 
 spool/
 database/
+
+!.github/
+!.github/**
+!deploy/
+!deploy/**
+!deploy/*.md
+!database/
+database/*
+!database/migrations/
+!database/migrations/**

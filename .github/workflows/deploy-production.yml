@@ -1,0 +1,156 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      frontend:
+        description: Deploy frontend
+        type: boolean
+        default: false
+      backend:
+        description: Deploy backend
+        type: boolean
+        default: false
+      processor:
+        description: Deploy processor
+        type: boolean
+        default: false
+      database:
+        description: Run database migrations
+        type: boolean
+        default: false
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.detect.outputs.frontend }}
+      backend: ${{ steps.detect.outputs.backend }}
+      processor: ${{ steps.detect.outputs.processor }}
+      database: ${{ steps.detect.outputs.database }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "frontend=${{ inputs.frontend }}" >> "$GITHUB_OUTPUT"
+            echo "backend=${{ inputs.backend }}" >> "$GITHUB_OUTPUT"
+            echo "processor=${{ inputs.processor }}" >> "$GITHUB_OUTPUT"
+            echo "database=${{ inputs.database }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base="${{ github.event.before }}"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            base="$(git rev-parse HEAD^)"
+          fi
+
+          changed="$(git diff --name-only "$base" HEAD)"
+          echo "$changed"
+
+          has_change() {
+            printf '%s\n' "$changed" | grep -E "$1" >/dev/null 2>&1
+          }
+
+          if has_change '^(frontend/)'; then echo "frontend=true" >> "$GITHUB_OUTPUT"; else echo "frontend=false" >> "$GITHUB_OUTPUT"; fi
+          if has_change '^(backend/)'; then echo "backend=true" >> "$GITHUB_OUTPUT"; else echo "backend=false" >> "$GITHUB_OUTPUT"; fi
+          if has_change '^(processor/)'; then echo "processor=true" >> "$GITHUB_OUTPUT"; else echo "processor=false" >> "$GITHUB_OUTPUT"; fi
+          if has_change '^(database/migrations/)'; then echo "database=true" >> "$GITHUB_OUTPUT"; else echo "database=false" >> "$GITHUB_OUTPUT"; fi
+
+  deploy:
+    name: Deploy production
+    needs: detect
+    if: |
+      needs.detect.outputs.frontend == 'true' ||
+      needs.detect.outputs.backend == 'true' ||
+      needs.detect.outputs.processor == 'true' ||
+      needs.detect.outputs.database == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        if: needs.detect.outputs.frontend == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: bash deploy/scripts/setup-ssh.sh
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Prepare database migrations
+        if: needs.detect.outputs.database == 'true'
+        run: bash deploy/scripts/prepare-database.sh
+
+      - name: Run database migrations
+        if: needs.detect.outputs.database == 'true'
+        run: bash deploy/scripts/publish-database.sh
+        env:
+          DATABASE_CT: ${{ vars.DATABASE_CT }}
+          DB_HOST: ${{ vars.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT }}
+          DATABASE_BACKUP_DIR: ${{ vars.DATABASE_BACKUP_DIR }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+
+      - name: Prepare backend
+        if: needs.detect.outputs.backend == 'true'
+        run: bash deploy/scripts/prepare-backend.sh
+
+      - name: Deploy backend
+        if: needs.detect.outputs.backend == 'true'
+        run: bash deploy/scripts/publish-backend.sh
+        env:
+          BACKEND_CT: ${{ vars.BACKEND_CT }}
+          BACKEND_PATH: ${{ vars.BACKEND_PATH }}
+          BACKEND_HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL }}
+
+      - name: Prepare processor
+        if: needs.detect.outputs.processor == 'true'
+        run: bash deploy/scripts/prepare-processor.sh
+
+      - name: Deploy processor
+        if: needs.detect.outputs.processor == 'true'
+        run: bash deploy/scripts/publish-processor.sh
+        env:
+          PROCESSOR_CT: ${{ vars.PROCESSOR_CT }}
+          PROCESSOR_PATH: ${{ vars.PROCESSOR_PATH }}
+          PROCESSOR_INSTALL_REQUIREMENTS: ${{ vars.PROCESSOR_INSTALL_REQUIREMENTS }}
+          PROCESSOR_SERVICES: ${{ vars.PROCESSOR_SERVICES }}
+          PROCESSOR_HEALTH_URL: ${{ vars.PROCESSOR_HEALTH_URL }}
+
+      - name: Prepare frontend
+        if: needs.detect.outputs.frontend == 'true'
+        run: bash deploy/scripts/prepare-frontend.sh
+
+      - name: Deploy frontend
+        if: needs.detect.outputs.frontend == 'true'
+        run: bash deploy/scripts/publish-frontend.sh
+        env:
+          FRONTEND_CT: ${{ vars.FRONTEND_CT }}
+          FRONTEND_PATH: ${{ vars.FRONTEND_PATH }}
+          FRONTEND_HEALTH_URL: ${{ vars.FRONTEND_HEALTH_URL }}

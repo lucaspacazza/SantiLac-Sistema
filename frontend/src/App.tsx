@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { authApi, type AuthUser } from './api/authApi'
 import { CombustivelModule } from './modules/combustivel/CombustivelModule'
 import { EstoqueModule } from './modules/estoque/EstoqueModule'
@@ -9,22 +9,21 @@ import { LoginPage } from './pages/LoginPage'
 import { SystemHome } from './pages/SystemHome'
 import { CoreSidebar, routeForModule } from './shared/CoreSidebar'
 import type { ThemeMode } from './shared/ThemeToggle'
-import { isSystemModule, type SystemModule } from './shared/modules'
+import { allowedSidebarModules, canAccessModuleSlug, isSystemModule, type ModuleAccessUser, type SystemModule } from './shared/modules'
 
 type AppState = 'booting' | 'guest' | 'authenticated'
 
-function moduleFromHash(): SystemModule | null {
+function moduleFromHash(user: ModuleAccessUser | null): SystemModule | null {
   const firstPart = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean)[0]
+  let module: SystemModule | null = null
 
   if (isSystemModule(firstPart)) {
-    return firstPart
+    module = firstPart
+  } else if (['inicio', 'produtores', 'pendencias', 'analises', 'relatorios'].includes(firstPart)) {
+    module = 'qualidade'
   }
 
-  if (['inicio', 'produtores', 'pendencias', 'analises', 'relatorios'].includes(firstPart)) {
-    return 'qualidade'
-  }
-
-  return null
+  return module && canAccessModuleSlug(user, module) ? module : null
 }
 
 export function App() {
@@ -37,6 +36,7 @@ export function App() {
     const savedTheme = window.localStorage.getItem('santilac-theme')
     return savedTheme === 'light' ? 'light' : 'dark'
   })
+  const visibleModules = useMemo(() => allowedSidebarModules(user), [user])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -50,7 +50,7 @@ export function App() {
         const session = await authApi.me()
         if (session.user) {
           setUser(session.user)
-          setActiveModule(moduleFromHash())
+          setActiveModule(moduleFromHash(session.user))
           setState('authenticated')
           return
         }
@@ -70,7 +70,7 @@ export function App() {
     }
 
     const handleHashChange = () => {
-      setActiveModule(moduleFromHash())
+      setActiveModule(moduleFromHash(user))
     }
 
     window.addEventListener('hashchange', handleHashChange)
@@ -84,10 +84,11 @@ export function App() {
     try {
       const result = await authApi.login(email, password, remember)
       setUser(result.user)
-      setActiveModule(moduleFromHash())
+      window.location.hash = '#/sistema'
+      setActiveModule(null)
       setState('authenticated')
-    } catch (error) {
-      setLoginError(error instanceof Error ? error.message : 'Não foi possível entrar no sistema.')
+    } catch {
+      setLoginError('Usuário ou senha incorretos.')
     } finally {
       setIsLoggingIn(false)
     }
@@ -101,6 +102,12 @@ export function App() {
   }
 
   function handleOpenModule(module: SystemModule) {
+    if (!canAccessModuleSlug(user, module)) {
+      window.location.hash = '#/sistema'
+      setActiveModule(null)
+      return
+    }
+
     const route = routeForModule(module)
     if (route.startsWith('#')) {
       window.location.hash = route
@@ -139,6 +146,7 @@ export function App() {
         userName={user.nome}
         theme={theme}
         activeModule={activeModule}
+        modules={visibleModules}
         onToggleTheme={handleToggleTheme}
         onLogout={handleLogout}
         onBackToSystem={handleBackToSystem}

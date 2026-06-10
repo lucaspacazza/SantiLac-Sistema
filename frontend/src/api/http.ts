@@ -2,12 +2,14 @@ let csrfToken: string | null = null
 
 type ApiResponse<T> = {
   success: boolean
-  data: T
+  data?: T
   error?: {
     code: string
     message: string
     details?: Record<string, unknown>
   }
+  message?: string
+  errors?: Record<string, string[]>
 }
 
 export async function ensureCsrfToken(): Promise<string> {
@@ -25,6 +27,10 @@ export async function ensureCsrfToken(): Promise<string> {
   }
 
   const json = (await response.json()) as ApiResponse<{ token: string }>
+  if (!json.data?.token) {
+    throw new Error('Não foi possível iniciar a sessão.')
+  }
+
   csrfToken = json.data.token
   return csrfToken
 }
@@ -38,8 +44,8 @@ export async function apiGet<T>(path: string): Promise<T> {
   })
 
   const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
-  if (!response.ok || !json?.success) {
-    throw new Error(json?.error?.message ?? `HTTP ${response.status}`)
+  if (!response.ok || !json?.success || json.data === undefined) {
+    throw new Error(apiErrorMessage(json, `HTTP ${response.status}`))
   }
 
   return json.data
@@ -59,8 +65,8 @@ export async function apiPost<T>(path: string, payload: Record<string, unknown>)
   })
 
   const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
-  if (!response.ok || !json?.success) {
-    throw new Error(json?.error?.message ?? 'Falha ao processar solicitação.')
+  if (!response.ok || !json?.success || json.data === undefined) {
+    throw new Error(apiErrorMessage(json, 'Falha ao processar solicitação.'))
   }
 
   return json.data
@@ -80,8 +86,8 @@ export async function apiPatch<T>(path: string, payload: Record<string, unknown>
   })
 
   const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
-  if (!response.ok || !json?.success) {
-    throw new Error(json?.error?.message ?? 'Falha ao processar solicitação.')
+  if (!response.ok || !json?.success || json.data === undefined) {
+    throw new Error(apiErrorMessage(json, 'Falha ao processar solicitação.'))
   }
 
   return json.data
@@ -103,8 +109,8 @@ export async function apiPostFile<T>(path: string, field: string, file: File): P
   })
 
   const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
-  if (!response.ok || !json?.success) {
-    throw new Error(json?.error?.message ?? 'Falha ao enviar arquivo.')
+  if (!response.ok || !json?.success || json.data === undefined) {
+    throw new Error(apiErrorMessage(json, 'Falha ao enviar arquivo.'))
   }
 
   return json.data
@@ -129,7 +135,7 @@ export async function apiDownload(
 
   if (!response.ok) {
     const json = (await response.json().catch(() => null)) as ApiResponse<unknown> | null
-    throw new Error(json?.error?.message ?? options.errorMessage)
+    throw new Error(apiErrorMessage(json, options.errorMessage))
   }
 
   const blob = await response.blob()
@@ -144,6 +150,19 @@ export async function apiDownload(
   window.setTimeout(() => window.URL.revokeObjectURL(url), 1000)
 
   return { arquivo }
+}
+
+function apiErrorMessage<T>(json: ApiResponse<T> | null, fallback: string): string {
+  if (json?.error?.message) {
+    return json.error.message
+  }
+
+  const validationMessage = Object.values(json?.errors ?? {})[0]?.[0]
+  if (validationMessage) {
+    return validationMessage
+  }
+
+  return json?.message ?? fallback
 }
 
 function filenameFromDisposition(disposition: string | null, fallback: string): string {

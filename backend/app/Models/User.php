@@ -66,10 +66,10 @@ class User extends Authenticatable
             return [];
         }
 
-        return array_values(array_filter(
-            array_map('trim', preg_split('/[,.;\s]+/', $nivel) ?: []),
+        return array_values(array_unique(array_filter(
+            array_map('trim', preg_split('/[,;\s]+/', $nivel) ?: []),
             static fn (string $item): bool => $item !== ''
-        ));
+        )));
     }
 
     public function getRememberTokenName(): ?string
