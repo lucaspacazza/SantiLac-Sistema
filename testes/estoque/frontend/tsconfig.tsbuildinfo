@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/api/estoqueapi.ts","./src/shared/formatters.ts","./src/views/detalheitem/detalheitem.tsx","./src/views/editaritem/editaritem.tsx","./src/views/inicio/inicio.tsx","./src/views/itens/itens.tsx","./src/views/movimentos/movimentos.tsx"],"version":"5.9.3"}
