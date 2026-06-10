@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Cadastros\CadastrosController;
+use App\Http\Controllers\Api\Coletas\ColetasGestaoController;
 use App\Http\Controllers\Api\Combustivel\CombustivelController;
 use App\Http\Controllers\Api\Estoque\EstoqueController;
 use App\Http\Controllers\Api\Pasteurizador\PasteurizadorController;
@@ -66,6 +68,33 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
 
         Route::get('/movimentos', [EstoqueController::class, 'movimentos']);
         Route::post('/movimentos', [EstoqueController::class, 'registrarMovimento']);
+    });
+
+    Route::prefix('gestao')->group(function (): void {
+        Route::get('/rotas', [ColetasGestaoController::class, 'rotas']);
+        Route::get('/rotas/detalhe', [ColetasGestaoController::class, 'rotaDetalhe']);
+        Route::get('/rotas/coletas', [ColetasGestaoController::class, 'rotaColetas']);
+        Route::get('/coletas/detalhe', [ColetasGestaoController::class, 'coletaDetalhe']);
+    });
+
+    Route::prefix('cadastros')->group(function (): void {
+        Route::get('/usuarios', [CadastrosController::class, 'usuarios']);
+        Route::get('/usuarios/detalhe', [CadastrosController::class, 'usuario']);
+        Route::post('/usuarios/criar', [CadastrosController::class, 'criarUsuario']);
+        Route::post('/usuarios/editar', [CadastrosController::class, 'editarUsuario']);
+        Route::post('/usuarios/inativar', [CadastrosController::class, 'inativarUsuario']);
+
+        Route::get('/produtores', [CadastrosController::class, 'produtores']);
+        Route::get('/produtores/detalhe', [CadastrosController::class, 'produtor']);
+        Route::post('/produtores/criar', [CadastrosController::class, 'criarProdutor']);
+        Route::post('/produtores/editar', [CadastrosController::class, 'editarProdutor']);
+        Route::post('/produtores/inativar', [CadastrosController::class, 'inativarProdutor']);
+
+        Route::get('/motoristas', [CadastrosController::class, 'motoristas']);
+        Route::get('/motoristas/detalhe', [CadastrosController::class, 'motorista']);
+        Route::post('/motoristas/criar', [CadastrosController::class, 'criarMotorista']);
+        Route::post('/motoristas/editar', [CadastrosController::class, 'editarMotorista']);
+        Route::post('/motoristas/inativar', [CadastrosController::class, 'inativarMotorista']);
     });
 
     Route::prefix('combustivel')->group(function (): void {

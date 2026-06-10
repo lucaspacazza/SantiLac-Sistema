@@ -1,5 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { authApi, type AuthUser } from './api/authApi'
+import { CadastrosModule } from './modules/cadastros/CadastrosModule'
+import { ColetasModule } from './modules/coletas/ColetasModule'
 import { CombustivelModule } from './modules/combustivel/CombustivelModule'
 import { EstoqueModule } from './modules/estoque/EstoqueModule'
 import { PasteurizadorModule } from './modules/pasteurizador/PasteurizadorModule'
@@ -165,6 +167,10 @@ export function App() {
           <PasteurizadorModule />
         ) : activeModule === 'combustivel' ? (
           <CombustivelModule />
+        ) : activeModule === 'coletas' ? (
+          <ColetasModule />
+        ) : activeModule === 'cadastros' ? (
+          <CadastrosModule />
         ) : (
           <SystemHome />
         )}

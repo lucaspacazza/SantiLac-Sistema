@@ -84,6 +84,30 @@ export const sidebarModules = [
       { title: 'Histórico', icon: 'fa-clipboard-list', href: '#/pasteurizador/historico' },
     ],
   },
+  {
+    slug: 'coletas',
+    title: 'Coletas',
+    desc: 'Rotas e coletas do app.',
+    levels: ['3.6'],
+    icon: 'fa-route',
+    href: '#/coletas/rotas',
+    children: [
+      { title: 'Rotas', icon: 'fa-route', href: '#/coletas/rotas' },
+    ],
+  },
+  {
+    slug: 'cadastros',
+    title: 'Cadastros',
+    desc: 'Usuários, produtores e motoristas.',
+    levels: ['6.0'],
+    icon: 'fa-users',
+    href: '#/cadastros/usuarios',
+    children: [
+      { title: 'Usuários', icon: 'fa-users', href: '#/cadastros/usuarios' },
+      { title: 'Produtores', icon: 'fa-user', href: '#/cadastros/produtores' },
+      { title: 'Motoristas', icon: 'fa-id-card', href: '#/cadastros/motoristas' },
+    ],
+  },
 ] as const satisfies readonly SidebarModule[]
 
 export type SystemModule = typeof sidebarModules[number]['slug']

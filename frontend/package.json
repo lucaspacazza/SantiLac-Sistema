@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.468.0",
     "plotly.js-dist-min": "^3.6.0",
     "react": "^19.0.0",
@@ -18,6 +19,7 @@
     "vite": "^7.0.0"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.21",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0"
   }
