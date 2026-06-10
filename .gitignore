@@ -42,7 +42,3 @@ database/
 !deploy/
 !deploy/**
 !deploy/*.md
-!database/
-database/*
-!database/migrations/
-!database/migrations/**
