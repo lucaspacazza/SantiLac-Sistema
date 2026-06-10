@@ -2,6 +2,17 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Cadastros\CadastrosController;
+use App\Http\Controllers\Api\Coletas\Mobile\AppLogsController;
+use App\Http\Controllers\Api\Coletas\Mobile\CatalogoController;
+use App\Http\Controllers\Api\Coletas\Mobile\ProdutorEndpointController;
+use App\Http\Controllers\Api\Coletas\Mobile\ProdutoresController as MobileProdutoresController;
+use App\Http\Controllers\Api\Coletas\Mobile\RotasCancelController;
+use App\Http\Controllers\Api\Coletas\Mobile\RotasColetasBatchController;
+use App\Http\Controllers\Api\Coletas\Mobile\RotasFinishController;
+use App\Http\Controllers\Api\Coletas\Mobile\RotasGpsChunkController;
+use App\Http\Controllers\Api\Coletas\Mobile\RotasOpenRouteController;
+use App\Http\Controllers\Api\Coletas\Mobile\RotasStartController;
+use App\Http\Controllers\Api\Coletas\Mobile\RotasStopsBatchController;
 use App\Http\Controllers\Api\Coletas\ColetasGestaoController;
 use App\Http\Controllers\Api\Combustivel\CombustivelController;
 use App\Http\Controllers\Api\Estoque\EstoqueController;
@@ -22,6 +33,20 @@ Route::prefix('api/auth')->group(function (): void {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     Route::get('/me', [AuthController::class, 'me'])->middleware('auth');
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
+});
+
+Route::middleware('coletas.mobile.key')->prefix('api')->group(function (): void {
+    Route::get('/catalogo', CatalogoController::class);
+    Route::post('/produtores/endpoint', ProdutorEndpointController::class);
+    Route::post('/app/logs', AppLogsController::class);
+
+    Route::get('/rotas/open-route', RotasOpenRouteController::class);
+    Route::post('/rotas/start', RotasStartController::class);
+    Route::post('/rotas/finish', RotasFinishController::class);
+    Route::post('/rotas/cancel', RotasCancelController::class);
+    Route::post('/rotas/gps-chunk', RotasGpsChunkController::class);
+    Route::post('/rotas/stops-batch', RotasStopsBatchController::class);
+    Route::post('/rotas/coletas-batch', RotasColetasBatchController::class);
 });
 
 Route::post('/api/pasteurizador/coletas', [PasteurizadorController::class, 'criarColeta'])
@@ -175,6 +200,8 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
         Route::get('/producoes-creme/{id}/exportar/pdf', [ProducaoCremeController::class, 'exportarPdf']);
     });
 });
+
+Route::middleware('coletas.mobile.key')->get('/api/produtores', MobileProdutoresController::class);
 
 Route::view('/login', 'app')->name('login');
 Route::view('/{path?}', 'app')->where('path', '.*');

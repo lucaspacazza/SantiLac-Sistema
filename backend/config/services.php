@@ -40,4 +40,8 @@ return [
         'token' => env('PROCESSOR_TOKEN'),
     ],
 
+    'santilac' => [
+        'api_key' => env('SANTILAC_API_KEY'),
+    ],
+
 ];

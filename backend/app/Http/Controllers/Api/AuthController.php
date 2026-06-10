@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Coletas\Mobile\MobileAuthService;
 use App\Services\Sistema\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,8 @@ use Illuminate\Validation\ValidationException;
 class AuthController extends Controller
 {
     public function __construct(
-        private readonly AuditLogService $auditLog
+        private readonly AuditLogService $auditLog,
+        private readonly MobileAuthService $mobileAuth
     ) {
     }
 
@@ -31,6 +33,10 @@ class AuthController extends Controller
 
     public function login(Request $request): JsonResponse
     {
+        if ($request->has('senha') || $request->hasHeader('X-API-Key')) {
+            return $this->mobileLogin($request);
+        }
+
         $request->merge([
             'login' => trim((string) ($request->input('login') ?? $request->input('email') ?? '')),
         ]);
@@ -84,6 +90,37 @@ class AuthController extends Controller
                 'user' => $this->formatUser($user),
             ],
         ]);
+    }
+
+    private function mobileLogin(Request $request): JsonResponse
+    {
+        $expected = trim((string) config('services.santilac.api_key', ''));
+        $provided = trim((string) ($request->header('X-API-Key') ?: $request->bearerToken() ?: ''));
+
+        if ($expected === '') {
+            return response()->json([
+                'sucesso' => false,
+                'erros' => ['API key não configurada no servidor'],
+                'mapeamentos' => [],
+                'meta' => [],
+            ], 500);
+        }
+
+        if ($provided === '' || ! hash_equals($expected, $provided)) {
+            return response()->json([
+                'sucesso' => false,
+                'erros' => [$provided === '' ? 'API key ausente' : 'API key inválida'],
+                'mapeamentos' => [],
+                'meta' => [],
+            ], 401);
+        }
+
+        $response = $this->mobileAuth->login(
+            (string) $request->input('login', ''),
+            (string) $request->input('senha', '')
+        );
+
+        return response()->json($response, $response['sucesso'] ? 200 : 422);
     }
 
     public function me(Request $request): JsonResponse

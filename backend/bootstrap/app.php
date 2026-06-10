@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use App\Http\Middleware\RegistrarAcaoNoLog;
+use App\Http\Middleware\ColetasMobileApiKey;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
         $middleware->alias([
             'audit.action' => RegistrarAcaoNoLog::class,
+            'coletas.mobile.key' => ColetasMobileApiKey::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
