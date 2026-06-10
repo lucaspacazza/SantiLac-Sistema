@@ -112,6 +112,13 @@
 
 .coletas-module .input-with-icon {
   position: relative;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  display: block;
+  padding: 0;
+  color: inherit;
 }
 
 .coletas-module .input-with-icon svg {
@@ -124,6 +131,7 @@
 
 .coletas-module .input-with-icon input {
   padding-left: 34px;
+  box-sizing: border-box;
 }
 
 .coletas-module .status-line {
