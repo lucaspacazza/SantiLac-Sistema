@@ -230,6 +230,9 @@ class ColetasGestaoService
             FROM (
                 SELECT
                     gps_ordered.uuid,
+                    gps_ordered.ts,
+                    gps_ordered.lat,
+                    gps_ordered.lng,
                     CASE
                         WHEN gps_ordered.prev_lat IS NULL THEN 0
                         ELSE 6371 * 2 * ASIN(SQRT(
