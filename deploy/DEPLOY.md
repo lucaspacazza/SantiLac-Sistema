@@ -2,17 +2,23 @@
 
 Este deploy atualiza os containers de producao pelo GitHub Actions depois que algo entra na `main`.
 
+O workflow usa um **self-hosted runner** dentro do Proxmox, com label:
+
+```text
+santilac-prod
+```
+
+Ele precisa rodar em um ambiente onde o comando `pct` esteja disponivel. Assim o GitHub nao precisa acessar o IP interno `192.168.0.200` e nenhuma porta do Proxmox precisa ser exposta para a internet.
+
 ## Secrets do GitHub
 
 Crie em `Settings > Secrets and variables > Actions > Secrets`:
 
-- `DEPLOY_HOST`: IP ou DNS do Proxmox.
-- `DEPLOY_PORT`: porta SSH, normalmente `22`.
-- `DEPLOY_USER`: usuario SSH do Proxmox.
-- `DEPLOY_SSH_KEY`: chave privada SSH usada pelo deploy.
 - `DB_NAME`: banco MySQL.
 - `DB_USER`: usuario MySQL.
 - `DB_PASSWORD`: senha MySQL.
+
+Sem esses valores, o workflow para antes de mexer no servidor e mostra qual configuracao ficou faltando.
 
 ## Variables do GitHub
 
@@ -49,6 +55,22 @@ As migrations sao controladas pela tabela `schema_migrations`. Arquivo SQL ja ap
 ## Protecao recomendada
 
 Configure o ambiente `production` no GitHub com aprovacao manual. Assim o PR pode entrar na `main`, mas o deploy so executa depois da aprovacao.
+
+## Criar o runner
+
+No GitHub:
+
+```text
+Settings > Actions > Runners > New self-hosted runner
+```
+
+Escolha Linux x64 e use o token que o GitHub gerar. Instale no Proxmox host ou em um ambiente que consiga executar `pct`.
+
+Adicione a label:
+
+```text
+santilac-prod
+```
 
 ## Migrations
 
