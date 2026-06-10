@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${FRONTEND_CT:?FRONTEND_CT nao definido}"
-: "${FRONTEND_PATH:?FRONTEND_PATH nao definido}"
+FRONTEND_CT="${FRONTEND_CT:-100}"
+FRONTEND_PATH="${FRONTEND_PATH:-/var/www/santilac-front}"
 
 PACKAGE_PATH="${FRONTEND_PACKAGE:-${RUNNER_TEMP:-/tmp}/santilac-frontend.tar.gz}"
 REMOTE_PACKAGE="/tmp/santilac-frontend-${GITHUB_SHA:-manual}.tar.gz"

@@ -112,6 +112,8 @@ jobs:
           PROCESSOR_CT: ${{ vars.PROCESSOR_CT }}
           PROCESSOR_PATH: ${{ vars.PROCESSOR_PATH }}
           DATABASE_CT: ${{ vars.DATABASE_CT }}
+          BACKEND_ENV_CT: ${{ vars.BACKEND_ENV_CT }}
+          BACKEND_ENV_PATH: ${{ vars.BACKEND_ENV_PATH }}
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
@@ -125,6 +127,8 @@ jobs:
         run: bash deploy/scripts/publish-database.sh
         env:
           DATABASE_CT: ${{ vars.DATABASE_CT }}
+          BACKEND_ENV_CT: ${{ vars.BACKEND_ENV_CT }}
+          BACKEND_ENV_PATH: ${{ vars.BACKEND_ENV_PATH }}
           DB_HOST: ${{ vars.DB_HOST }}
           DB_PORT: ${{ vars.DB_PORT }}
           DATABASE_BACKUP_DIR: ${{ vars.DATABASE_BACKUP_DIR }}

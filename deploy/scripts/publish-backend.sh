@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${BACKEND_CT:?BACKEND_CT nao definido}"
-: "${BACKEND_PATH:?BACKEND_PATH nao definido}"
+BACKEND_CT="${BACKEND_CT:-101}"
+BACKEND_PATH="${BACKEND_PATH:-/var/www/santilac-backend}"
 
 PACKAGE_PATH="${BACKEND_PACKAGE:-${RUNNER_TEMP:-/tmp}/santilac-backend.tar.gz}"
 REMOTE_PACKAGE="/tmp/santilac-backend-${GITHUB_SHA:-manual}.tar.gz"

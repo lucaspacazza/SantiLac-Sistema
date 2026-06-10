@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${PROCESSOR_CT:?PROCESSOR_CT nao definido}"
-: "${PROCESSOR_PATH:?PROCESSOR_PATH nao definido}"
+PROCESSOR_CT="${PROCESSOR_CT:-102}"
+PROCESSOR_PATH="${PROCESSOR_PATH:-/var/www/processor}"
 
 PACKAGE_PATH="${PROCESSOR_PACKAGE:-${RUNNER_TEMP:-/tmp}/santilac-processor.tar.gz}"
 REMOTE_PACKAGE="/tmp/santilac-processor-${GITHUB_SHA:-manual}.tar.gz"

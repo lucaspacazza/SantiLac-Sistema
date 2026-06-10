@@ -12,25 +12,27 @@ Ele precisa rodar em um ambiente onde o comando `pct` esteja disponivel. Assim o
 
 ## Secrets do GitHub
 
-Crie em `Settings > Secrets and variables > Actions > Secrets`:
+Secrets opcionais em `Settings > Secrets and variables > Actions > Secrets`:
 
 - `DB_NAME`: banco MySQL.
 - `DB_USER`: usuario MySQL.
 - `DB_PASSWORD`: senha MySQL.
 
-Sem esses valores, o workflow para antes de mexer no servidor e mostra qual configuracao ficou faltando.
+Se `DB_NAME`, `DB_USER` e `DB_PASSWORD` nao forem definidos, o deploy le as credenciais do `.env` do backend no CT 101.
 
 ## Variables do GitHub
 
 Crie em `Settings > Secrets and variables > Actions > Variables`:
 
-- `FRONTEND_CT`: container do frontend, exemplo `100`.
-- `FRONTEND_PATH`: pasta do site no container, exemplo `/var/www/santilac-front`.
-- `BACKEND_CT`: container do backend, exemplo `101`.
-- `BACKEND_PATH`: pasta do Laravel no container, exemplo `/var/www/santilac-backend`.
-- `PROCESSOR_CT`: container do processor.
-- `PROCESSOR_PATH`: pasta do processor no container.
-- `DATABASE_CT`: container onde o MySQL roda.
+- `FRONTEND_CT`: container do frontend, padrao `100`.
+- `FRONTEND_PATH`: pasta do site no container, padrao `/var/www/santilac-front`.
+- `BACKEND_CT`: container do backend, padrao `101`.
+- `BACKEND_PATH`: pasta do Laravel no container, padrao `/var/www/santilac-backend`.
+- `PROCESSOR_CT`: container do processor, padrao `102`.
+- `PROCESSOR_PATH`: pasta do processor no container, padrao `/var/www/processor`.
+- `DATABASE_CT`: container onde o MySQL roda, padrao `103`.
+- `BACKEND_ENV_CT`: container usado para ler `.env` do backend, padrao `101`.
+- `BACKEND_ENV_PATH`: caminho do `.env` do backend, padrao `/var/www/santilac-backend/.env`.
 - `DB_HOST`: host MySQL visto dentro do container do banco, normalmente `127.0.0.1`.
 - `DB_PORT`: porta MySQL, normalmente `3306`.
 - `DATABASE_BACKUP_DIR`: pasta de backup antes de migrations, exemplo `/var/backups/santilac-db`.

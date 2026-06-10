@@ -18,25 +18,30 @@ if ! command -v pct >/dev/null 2>&1; then
 fi
 
 if [ "${DEPLOY_FRONTEND:-false}" = "true" ]; then
-  require_value FRONTEND_CT
-  require_value FRONTEND_PATH
+  FRONTEND_CT="${FRONTEND_CT:-100}"
+  FRONTEND_PATH="${FRONTEND_PATH:-/var/www/santilac-front}"
 fi
 
 if [ "${DEPLOY_BACKEND:-false}" = "true" ]; then
-  require_value BACKEND_CT
-  require_value BACKEND_PATH
+  BACKEND_CT="${BACKEND_CT:-101}"
+  BACKEND_PATH="${BACKEND_PATH:-/var/www/santilac-backend}"
 fi
 
 if [ "${DEPLOY_PROCESSOR:-false}" = "true" ]; then
-  require_value PROCESSOR_CT
-  require_value PROCESSOR_PATH
+  PROCESSOR_CT="${PROCESSOR_CT:-102}"
+  PROCESSOR_PATH="${PROCESSOR_PATH:-/var/www/processor}"
 fi
 
 if [ "${DEPLOY_DATABASE:-false}" = "true" ]; then
-  require_value DATABASE_CT
-  require_value DB_NAME
-  require_value DB_USER
-  require_value DB_PASSWORD
+  DATABASE_CT="${DATABASE_CT:-103}"
+  BACKEND_ENV_CT="${BACKEND_ENV_CT:-101}"
+  BACKEND_ENV_PATH="${BACKEND_ENV_PATH:-/var/www/santilac-backend/.env}"
+  if [ -z "${DB_NAME:-}" ] || [ -z "${DB_USER:-}" ] || [ -z "${DB_PASSWORD:-}" ]; then
+    if ! pct exec "$BACKEND_ENV_CT" -- test -f "$BACKEND_ENV_PATH"; then
+      echo "::error title=Configuracao ausente::Credenciais do banco nao foram definidas no GitHub e nao encontrei $BACKEND_ENV_PATH no CT $BACKEND_ENV_CT."
+      missing=1
+    fi
+  fi
 fi
 
 if [ "$missing" -ne 0 ]; then
