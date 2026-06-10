@@ -9,6 +9,9 @@ export function Inicio({ overview }: {
       <div className="kpi-row compact-kpis">
         <div className="kpi"><FlaskConical size={18} /><span>Formulações</span><strong>{overview.totais.formulacoes_queijo}</strong></div>
         <div className="kpi"><ClipboardList size={18} /><span>Rascunhos</span><strong>{overview.totais.rascunhos}</strong></div>
+        {overview.totais.ops_aguardando_formato > 0 && (
+          <div className="kpi warning-kpi"><ClipboardList size={18} /><span>OPs aguardando formato</span><strong>{overview.totais.ops_aguardando_formato}</strong></div>
+        )}
       </div>
 
       <section className="info-panel">

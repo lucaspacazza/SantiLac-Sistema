@@ -34,3 +34,5 @@ deploy_ct_106/
 testes/*
 testes/laboratorio
 testes 
+spool/
+database/

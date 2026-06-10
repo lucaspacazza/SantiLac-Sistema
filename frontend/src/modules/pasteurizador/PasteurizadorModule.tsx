@@ -128,11 +128,18 @@ export function PasteurizadorModule() {
 
     try {
       await loadColetasSalvas()
-      const result = await consultarAmostrasPeriodo()
+      let result = await consultarAmostrasPeriodo()
+
+      if (result.length === 0 && inicio && fim) {
+        setStatusText('Sem dados salvos. Coletando direto do equipamento...')
+        await pasteurizadorApi.coletarAgora(inicio, fim, horaInicio, horaFim)
+        await loadColetasSalvas()
+        result = await consultarAmostrasPeriodo()
+      }
       setStatus('live')
       setStatusText(result.length
         ? `${result.length.toLocaleString('pt-BR')} ponto(s) carregado(s) para o gráfico.`
-        : 'Nenhum ponto encontrado para esse período.')
+        : 'Nenhuma informação encontrada para esse período.')
     } catch (error) {
       setStatus('error')
       setStatusText(error instanceof Error ? error.message : 'Não foi possível filtrar o período.')

@@ -74,7 +74,7 @@ def filter_samples_by_period(samples, period_start, period_end):
     return filtered
 
 
-def build_payload(result, samples, channels, equipment, raw_path):
+def build_payload(result, samples, channels, equipment, raw_path, status="processada", mensagem_erro=None):
     units = {channel.name: channel.unit for channel in channels}
     payload_samples = []
     for sample in samples:
@@ -104,6 +104,8 @@ def build_payload(result, samples, channels, equipment, raw_path):
         "raw_sha256": hashlib.sha256(result["data"]).hexdigest(),
         "samples_count": len(samples),
         "channels": [channel.name for channel in channels],
+        "status": status,
+        "mensagem_erro": mensagem_erro,
         "samples": payload_samples,
     }
 
@@ -155,7 +157,7 @@ def main():
     api_token = env.get("SANTILAC_API_TOKEN", "").strip()
     http_timeout = int(env.get("SANTILAC_HTTP_TIMEOUT", "240"))
     out_dir = env.get("OUTBOX_DIR", "/var/lib/santilac-pasteurizador/outbox")
-    post_empty_periods = env.get("POST_EMPTY_PERIODS", "0").strip().lower() in {"1", "true", "yes", "sim"}
+    post_empty_periods = env.get("POST_EMPTY_PERIODS", "1").strip().lower() in {"1", "true", "yes", "sim"}
 
     period_start = parse_local_datetime(args.start) if args.start else None
     period_end = parse_local_datetime(args.end) if args.end else None
@@ -180,7 +182,30 @@ def main():
     all_samples, channels = extract_history_samples(result["data"])
     samples = filter_samples_by_period(all_samples, period_start, period_end)
     _, raw_path = write_outbox(out_dir, {"status": "raw_downloaded"}, result["data"])
-    payload = build_payload(result, samples, channels, equipment, raw_path)
+    status = "processada"
+    mensagem_erro = None
+    if (period_start or period_end) and all_samples:
+        arquivo_inicio = all_samples[0].timestamp
+        arquivo_fim = all_samples[-1].timestamp
+        if period_start is not None and arquivo_fim < period_start:
+            status = "erro"
+            mensagem_erro = (
+                "Histórico do equipamento esta atrasado: "
+                f"arquivo termina em {arquivo_fim:%Y-%m-%d %H:%M:%S}, "
+                f"periodo solicitado inicia em {period_start:%Y-%m-%d %H:%M:%S}."
+            )
+        elif period_end is not None and arquivo_inicio > period_end:
+            status = "erro"
+            mensagem_erro = (
+                "Histórico  do equipamento nao cobre o periodo solicitado: "
+                f"arquivo inicia em {arquivo_inicio:%Y-%m-%d %H:%M:%S}, "
+                f"periodo solicitado termina em {period_end:%Y-%m-%d %H:%M:%S}."
+            )
+    elif (period_start or period_end) and not all_samples:
+        status = "erro"
+        mensagem_erro = "Nenhuma amostra foi decodificada do histórico baixado do equipamento."
+
+    payload = build_payload(result, samples, channels, equipment, raw_path, status, mensagem_erro)
     json_path = raw_path.with_name(raw_path.name.replace("memflash", "payload")).with_suffix(".json")
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -191,6 +216,8 @@ def main():
         print(f"[{APP_NAME}] periodo_arquivo={all_samples[0].timestamp:%Y-%m-%d %H:%M:%S}..{all_samples[-1].timestamp:%Y-%m-%d %H:%M:%S}")
     if samples:
         print(f"[{APP_NAME}] periodo={samples[0].timestamp:%Y-%m-%d %H:%M:%S}..{samples[-1].timestamp:%Y-%m-%d %H:%M:%S}")
+    if mensagem_erro:
+        print(f"[{APP_NAME}] status={status} mensagem={mensagem_erro}")
     if values:
         peak = max(samples, key=lambda sample: sample.values.get("Temp.Pasteuriza") or float("-inf"))
         print(f"[{APP_NAME}] Temp.Pasteuriza={min(values):.2f}..{max(values):.2f} C pico={peak.timestamp:%Y-%m-%d %H:%M:%S}")
@@ -210,7 +237,7 @@ def main():
             print(f"[{APP_NAME}] erro ao enviar para API: {exc}", file=sys.stderr)
             return 2
     elif api_url:
-        print(f"[{APP_NAME}] nenhum registro no periodo filtrado; POST ignorado para nao gravar coleta vazia.")
+        print(f"[{APP_NAME}] nenhum registro no periodo filtrado; POST ignorado porque POST_EMPTY_PERIODS=0.")
     else:
         print(f"[{APP_NAME}] SANTILAC_API_URL vazio; payload ficou salvo no outbox.")
 

@@ -30,6 +30,14 @@ export function DetalheItem({ item, loading, onBack, onEdit }: DetalheItemProps)
     )
   }
 
+  const details = [
+    ['Categoria', item.categoria],
+    ['Unidade', item.unidade],
+    ['Saldo atual', formatQuantity(item.saldo_atual, item.unidade)],
+    ['Estoque mínimo', formatQuantity(item.estoque_minimo, item.unidade)],
+    ['Status', item.ativo ? 'Ativo' : 'Inativo'],
+  ] as const
+
   return (
     <section className="detail-grid estoque-detail">
       <header className="detail-title">
@@ -48,39 +56,16 @@ export function DetalheItem({ item, loading, onBack, onEdit }: DetalheItemProps)
         </button>
       </header>
 
-      <section className="readonly-grid">
-        <article className="readonly-card">
-          <span>Categoria</span>
-          <strong>{item.categoria}</strong>
-        </article>
-        <article className="readonly-card">
-          <span>Unidade</span>
-          <strong>{item.unidade}</strong>
-        </article>
-        <article className="readonly-card">
-          <span>Saldo atual</span>
-          <strong>{formatQuantity(item.saldo_atual, item.unidade)}</strong>
-        </article>
-        <article className="readonly-card">
-          <span>Estoque mínimo</span>
-          <strong>{formatQuantity(item.estoque_minimo, item.unidade)}</strong>
-        </article>
-        <article className="readonly-card">
-          <span>Status</span>
-          <strong>{item.ativo ? 'Ativo' : 'Inativo'}</strong>
-        </article>
+      <section className="detail-facts">
+        {details.map(([label, value]) => (
+          <div className="detail-fact" key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
       </section>
 
-      {item.descricao ? (
-        <section className="panel detail-description">
-          <div className="panel-title">
-            <h2>Descrição</h2>
-          </div>
-          <p>{item.descricao}</p>
-        </section>
-      ) : null}
-
-      <section className="table-card">
+      <section className="table-card estoque-movements">
         <div className="table-wrap">
           <table className="data-table">
             <thead>

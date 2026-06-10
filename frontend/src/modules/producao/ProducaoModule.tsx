@@ -73,10 +73,9 @@ type LoadStatus = 'loading' | 'live' | 'error'
 type Pagination = { current_page: number; per_page: number; total: number }
 
 function routeFromHash(): View {
-  const parts = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean)
-  if (parts[0] !== 'producao') return 'inicio'
+  const path = window.location.hash.replace(/^#\/?/, '').replace(/^producao\/?/, '')
+  const view = path.replace(/\/\d+$/, '')
 
-  const view = parts[1] ?? 'inicio'
   if (isView(view)) return view
 
   return 'inicio'
@@ -110,7 +109,7 @@ function isView(value: string): value is View {
 }
 
 function editIdFromHash(): number | null {
-  const match = window.location.hash.replace(/^#\/?/, '').match(/^producao\/(edicao|visualizacao)-[^/]+\/(\d+)$/)
+  const match = window.location.hash.replace(/^#\/?/, '').replace(/^producao\/?/, '').match(/^(edicao|visualizacao)-[^/]+\/(\d+)$/)
 
   return match ? Number(match[2]) : null
 }
@@ -286,6 +285,33 @@ export function ProducaoModule() {
     } catch (error) {
       setStatus('error')
       setStatusText(error instanceof Error ? error.message : 'Não foi possível salvar a ordem.')
+    } finally {
+      setSalvandoOrdemProducao(false)
+    }
+  }
+
+  async function definirFormatoOrdemProducao(formato: 'f1' | 'f4' | 'f6') {
+    if (ordemProducao?.id === null || ordemProducao?.id === undefined) {
+      setStatus('live')
+      setStatusText('OP não carregada.')
+      return
+    }
+
+    setSalvandoOrdemProducao(true)
+    setStatus('loading')
+    setStatusText('Finalizando formato da OP...')
+
+    try {
+      const result = await producaoApi.definirFormatoOrdemProducao(ordemProducao.id, formato)
+      setOrdemProducao(result)
+      if (dataOrdemProducao && consultouOrdemProducao) {
+        setOrdensProducao(await producaoApi.ordensProducao(dataOrdemProducao))
+      }
+      setStatus('live')
+      setStatusText('Formato definido. OP finalizada.')
+    } catch (error) {
+      setStatus('error')
+      setStatusText(error instanceof Error ? error.message : 'Não foi possível finalizar o formato da OP.')
     } finally {
       setSalvandoOrdemProducao(false)
     }
@@ -790,7 +816,7 @@ export function ProducaoModule() {
   return (
     <section className="producao-module page">
       <header className="global-topbar">
-        <button className="icon-btn" title="Recarregar" onClick={reloadCurrentView}><RefreshCcw size={16} /></button>
+          <button className="icon-btn" title="Recarregar" onClick={reloadCurrentView}><RefreshCcw size={16} /></button>
       </header>
 
       <div className="page-body">
@@ -805,7 +831,7 @@ export function ProducaoModule() {
           {view === 'todos-formulacoes-queijo' && <TodosFormulacoesQueijo items={formulacoes} pagination={pagination} search={search} onSearchChange={setSearch} onSearch={searchCurrentList} onPageChange={changeCurrentPage} onBack={() => navigate('listagem-formulacoes-queijo')} onOpenItem={openFormulacaoQueijo} onCreateNew={() => navigate('preenchimento-formulacao-queijo')} onFinalize={pedirFinalizacaoFormulacaoQueijo} onCancel={(id) => void cancelCurrent(id, producaoApi.cancelarFormulacaoQueijo, loadTodasFormulacoes)} />}
           {view === 'ordem-producao' && <ConsultaOrdemProducao data={dataOrdemProducao} ordens={ordensProducao} consultou={consultouOrdemProducao} onDataChange={changeDataOrdemProducao} onSearch={loadOrdemProducao} onCreate={() => navigate('preenchimento-ordem-producao')} onOpen={(id) => navigate('visualizacao-ordem-producao', id)} onExport={(formato) => void exportOrdensDoDia(formato)} />}
           {view === 'preenchimento-ordem-producao' && <PreenchimentoOrdemProducao catalogos={catalogosOrdemProducao} onCreate={createManualOrdemProducao} onBack={() => navigate('ordem-producao')} />}
-          {view === 'visualizacao-ordem-producao' && ordemProducao !== null && <VisualizacaoOrdemProducao ordem={ordemProducao} salvando={salvandoOrdemProducao} onBack={() => navigate('ordem-producao')} onSave={saveOrdemProducao} onExport={(formato) => void exportOrdemAtual(formato)} />}
+          {view === 'visualizacao-ordem-producao' && ordemProducao !== null && <VisualizacaoOrdemProducao ordem={ordemProducao} salvando={salvandoOrdemProducao} onBack={() => navigate('ordem-producao')} onSave={saveOrdemProducao} onDefinirFormato={(formato) => void definirFormatoOrdemProducao(formato)} onExport={(formato) => void exportOrdemAtual(formato)} />}
           {view === 'visualizacao-formulacao-queijo' && formulacaoEmEdicao !== null && <VisualizacaoFormulacaoQueijo item={formulacaoEmEdicao} onBack={() => navigate('listagem-formulacoes-queijo')} onExport={(formato) => void exportCurrent(producaoApi.exportarFormulacaoQueijo, formulacaoEmEdicao.id, formato)} />}
           {view === 'edicao-formulacao-queijo' && formulacaoEmEdicao !== null && <EdicaoFormulacaoQueijo key={formulacaoEmEdicao.id} item={formulacaoEmEdicao} catalogos={catalogosFormulacaoQueijo} onSave={(event) => updateAndClose(event, (form) => producaoApi.atualizarFormulacaoQueijo(formulacaoEmEdicao.id, payloadFromFormulacaoQueijo(form)), 'listagem-formulacoes-queijo')} onCancel={() => void cancelCurrent(formulacaoEmEdicao.id, producaoApi.cancelarFormulacaoQueijo, loadFormulacoes, 'listagem-formulacoes-queijo')} />}
 

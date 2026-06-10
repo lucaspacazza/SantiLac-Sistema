@@ -21,6 +21,17 @@ export function ConsultaOrdemProducao({
   onOpen: (id: number) => void
   onExport: (format: OrdemExportFormat) => void
 }) {
+  const pendentes = ordens.filter((ordem) => ordem.pendencia_formato).length
+
+  function statusLabel(ordem: OrdemProducaoResumo): string {
+    if (ordem.pendencia_formato) return 'Aguardando formato'
+    if (ordem.status === 'finalizada') return 'Finalizada'
+    if (ordem.status === 'rascunho') return 'Rascunho'
+    if (ordem.status === 'cancelada') return 'Cancelada'
+
+    return ordem.status ?? '-'
+  }
+
   return (
     <div className="stack">
       <div className="toolbar toolbar-date-query">
@@ -44,6 +55,11 @@ export function ConsultaOrdemProducao({
 
         {consultou && ordens.length > 0 && (
           <div className="table-list compact-list">
+            {pendentes > 0 && (
+              <div className="inline-alert">
+                {pendentes} OP(s) de mussarela aguardando escolha de formato.
+              </div>
+            )}
             <div className="table-head op-list-grid">
               <span>Código</span>
               <span>Queijo</span>
@@ -55,7 +71,7 @@ export function ConsultaOrdemProducao({
                 <strong>{ordem.codigo_ordem}</strong>
                 <span>{ordem.tipo_queijo}</span>
                 <span>{ordem.lote_queijo ?? '-'}</span>
-                <span>{ordem.status ?? '-'}</span>
+                <span>{statusLabel(ordem)}</span>
               </button>
             ))}
           </div>

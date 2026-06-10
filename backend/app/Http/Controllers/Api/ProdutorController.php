@@ -65,7 +65,7 @@ class ProdutorController extends Controller
                 'success' => false,
                 'error' => [
                     'code' => 'PRODUCER_410',
-                    'message' => 'Produtor nao encontrado.',
+                    'message' => 'Produtor não encontrado.',
                     'details' => [
                         'codigo' => $codigo,
                     ],

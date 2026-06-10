@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ProducaoCreme;
 use App\Models\ProducaoFormulacaoCreme;
 use App\Models\ProducaoFormulacaoQueijo;
+use App\Models\ProducaoOrdemProducao;
 use App\Models\ProducaoSoroRefrigerado;
 
 class ProducaoService
@@ -17,6 +18,7 @@ class ProducaoService
                 'soro_refrigerado' => ProducaoSoroRefrigerado::query()->count(),
                 'formulacoes_creme' => ProducaoFormulacaoCreme::query()->count(),
                 'producoes_creme' => ProducaoCreme::query()->count(),
+                'ops_aguardando_formato' => ProducaoOrdemProducao::query()->where('status', 'aguardando_formato')->count(),
                 'rascunhos' => ProducaoFormulacaoQueijo::query()->where('status', 'rascunho')->count()
                     + ProducaoSoroRefrigerado::query()->where('status', 'rascunho')->count()
                     + ProducaoFormulacaoCreme::query()->where('status', 'rascunho')->count()

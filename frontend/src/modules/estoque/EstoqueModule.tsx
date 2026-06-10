@@ -178,7 +178,6 @@ export function EstoqueModule() {
       codigo: String(form.get('codigo') ?? '').trim() || undefined,
       nome: String(form.get('nome') ?? '').trim(),
       categoria: String(form.get('categoria') ?? '').trim(),
-      descricao: String(form.get('descricao') ?? '').trim() || undefined,
       unidade: String(form.get('unidade') ?? '').trim(),
       saldo_atual: Number(form.get('saldo_atual') || 0),
       estoque_minimo: Number(form.get('estoque_minimo') || 0),
@@ -201,7 +200,6 @@ export function EstoqueModule() {
       codigo: String(form.get('codigo') ?? '').trim() || undefined,
       nome: String(form.get('nome') ?? '').trim(),
       categoria: String(form.get('categoria') ?? '').trim(),
-      descricao: String(form.get('descricao') ?? '').trim() || undefined,
       unidade: String(form.get('unidade') ?? '').trim(),
       estoque_minimo: Number(form.get('estoque_minimo') || 0),
       ativo: form.get('ativo') === 'on',
@@ -255,7 +253,7 @@ export function EstoqueModule() {
           : 'Entradas, saídas e ajustes.'
 
   return (
-    <>
+    <div className="estoque-module">
 
       <section className="page">
           <header className="page-head">
@@ -332,7 +330,6 @@ export function EstoqueModule() {
             <input name="unidade" placeholder="Unidade" required />
             <input name="saldo_atual" placeholder="Saldo atual" type="number" step="0.001" min="0" />
             <input name="estoque_minimo" placeholder="Estoque mínimo" type="number" step="0.001" min="0" />
-            <textarea name="descricao" placeholder="Descrição" />
             <div className="modal-actions">
               <button className="btn secondary" type="button" onClick={() => setItemFormOpen(false)}>Cancelar</button>
               <button className="btn primary" type="submit">Salvar</button>
@@ -364,7 +361,7 @@ export function EstoqueModule() {
           </form>
         </Modal>
       )}
-    </>
+    </div>
   )
 }
 

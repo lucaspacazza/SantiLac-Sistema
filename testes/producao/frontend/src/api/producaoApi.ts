@@ -4,6 +4,7 @@ export type Overview = {
     soro_refrigerado: number
     formulacoes_creme: number
     producoes_creme: number
+    ops_aguardando_formato: number
     rascunhos: number
   }
   submodulos: Array<{
@@ -79,7 +80,7 @@ export type FormulacaoQueijoCatalogos = {
   }>
 }
 
-export type StatusFicha = 'rascunho' | 'finalizada' | 'cancelada'
+export type StatusFicha = 'rascunho' | 'aguardando_formato' | 'finalizada' | 'cancelada'
 
 export type SoroRefrigerado = {
   id: number
@@ -162,6 +163,7 @@ export type OrdemProducao = {
   manual: boolean
   origem: string
   status: StatusFicha | null
+  pendencia_formato: boolean
   total_formulacoes: number
   campos: Array<{
     rotulo: string
@@ -185,6 +187,7 @@ export type OrdemProducaoResumo = {
   lote_queijo: string | null
   origem: string
   status: StatusFicha | null
+  pendencia_formato: boolean
 }
 
 export type OrdemProducaoPayload = {
@@ -203,7 +206,8 @@ export type OrdemProducaoCatalogos = {
     nome: string
     slug: string
     codigo_balanca: string
-    op_rotulo: string
+    op_rotulo: string | null
+    precisa_formato: boolean
   }>
   insumos: Array<{
     id: number
@@ -280,6 +284,11 @@ export const producaoApi = {
     request<OrdemProducao>('/api/producao/ordens-producao', {
       method: 'POST',
       body: JSON.stringify(payload),
+    }),
+  definirFormatoOrdemProducao: (id: number, formato: 'f1' | 'f4' | 'f6') =>
+    request<OrdemProducao>(`/api/producao/ordens-producao/${id}/definir-formato`, {
+      method: 'PATCH',
+      body: JSON.stringify({ formato }),
     }),
   exportarOrdensProducaoDia: (data: string, formato: OrdemExportFormat) =>
     download(`/api/producao/ordens-producao/exportar/${formato}?data=${encodeURIComponent(data)}`, `ordens-producao-${data}.${formato}`),

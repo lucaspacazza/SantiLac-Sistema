@@ -37,6 +37,19 @@ class FieldLoggerModbus:
         self.unit_id = unit_id
         self.timeout = timeout
         self.tid = 1
+        self.sock = None
+
+    def connect(self):
+        if self.sock is None:
+            self.sock = socket.create_connection((self.host, self.port), timeout=self.timeout)
+            self.sock.settimeout(self.timeout)
+
+    def close(self):
+        if self.sock is not None:
+            try:
+                self.sock.close()
+            finally:
+                self.sock = None
 
     def _recv_exact(self, sock, count):
         data = b""
@@ -54,7 +67,8 @@ class FieldLoggerModbus:
                 self.tid = (self.tid + 1) & 0xFFFF or 1
                 pdu = bytes([function]) + payload
                 packet = struct.pack(">HHHB", self.tid, 0, len(pdu) + 1, self.unit_id) + pdu
-                with socket.create_connection((self.host, self.port), timeout=timeout or self.timeout) as sock:
+                if self.sock is not None:
+                    sock = self.sock
                     sock.settimeout(timeout or self.timeout)
                     sock.sendall(packet)
                     header = self._recv_exact(sock, 7)
@@ -62,9 +76,21 @@ class FieldLoggerModbus:
                         raise RuntimeError(f"Cabecalho Modbus incompleto: {header.hex(' ')}")
                     _, _, length, unit = struct.unpack(">HHHB", header)
                     body = self._recv_exact(sock, length - 1)
+                else:
+                    with socket.create_connection((self.host, self.port), timeout=timeout or self.timeout) as sock:
+                        sock.settimeout(timeout or self.timeout)
+                        sock.sendall(packet)
+                        header = self._recv_exact(sock, 7)
+                        if len(header) != 7:
+                            raise RuntimeError(f"Cabecalho Modbus incompleto: {header.hex(' ')}")
+                        _, _, length, unit = struct.unpack(">HHHB", header)
+                        body = self._recv_exact(sock, length - 1)
                 break
             except (OSError, TimeoutError) as exc:
                 last_error = exc
+                if self.sock is not None:
+                    self.close()
+                    self.connect()
                 time.sleep(0.25 * (attempt + 1))
         else:
             raise last_error
@@ -183,16 +209,22 @@ def list_history_file(link, remote_dir=REMOTE_HISTORY_DIR):
 def download_history_file(host=DEFAULT_HOST, port=DEFAULT_PORT, unit_id=DEFAULT_UNIT_ID, max_bytes=2_000_000):
     link = FieldLoggerModbus(host, port, unit_id)
     try:
+        link.connect()
         link.write_single(0x035C, 3)
-        name, size_hint = list_history_file(link)
-        if name.lower() != "memflash.fl":
-            raise RuntimeError(f"Arquivo interno inesperado: {name!r}")
+        size_hint = 0
         link.write_path(REMOTE_HISTORY_FILE)
         data = bytearray()
-        target_size = min(size_hint or max_bytes, max_bytes)
+        # Keep one TCP session open while reading MemFlash.fl; the equipment
+        # serves newer blocks only while the file context stays alive.
+        target_size = max_bytes
         while len(data) < target_size:
             requested = min(DOWNLOAD_CHUNK_SIZE, target_size - len(data))
-            chunk = link.read_file(len(data), requested)
+            chunk = b""
+            for attempt in range(4):
+                chunk = link.read_file(len(data), requested)
+                if chunk:
+                    break
+                time.sleep(0.2 * (attempt + 1))
             if not chunk:
                 break
             data.extend(chunk)
@@ -209,6 +241,7 @@ def download_history_file(host=DEFAULT_HOST, port=DEFAULT_PORT, unit_id=DEFAULT_
             link.write_single(0x035C, 0)
         except Exception:
             pass
+        link.close()
 
 
 def extract_channels(data):
@@ -228,6 +261,8 @@ def extract_history_samples(data):
     for offset in range(RECORD_START, len(data) - RECORD_STRIDE + 1, RECORD_STRIDE):
         record = data[offset : offset + RECORD_STRIDE]
         if record[4:8] != b"\x80\xff\x00\x00":
+            continue
+        if int.from_bytes(record[8:10], "little") & 0x0001:
             continue
 
         try:

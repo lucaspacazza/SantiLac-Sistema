@@ -19,6 +19,7 @@ class ProducaoOverviewService
                 'soro_refrigerado' => ProducaoSoroRefrigerado::query()->count(),
                 'formulacoes_creme' => ProducaoFormulacaoCreme::query()->count(),
                 'producoes_creme' => ProducaoCreme::query()->count(),
+                'ops_aguardando_formato' => ProducaoOrdemProducao::query()->where('status', 'aguardando_formato')->count(),
                 'rascunhos' => $this->totalRascunhos(),
             ],
             'submodulos' => [

@@ -1,4 +1,4 @@
-import { Lock, LogIn, Mail } from 'lucide-react'
+import { Lock, LogIn, User } from 'lucide-react'
 import { FormEvent, useState } from 'react'
 
 export function LoginPage({
@@ -8,15 +8,15 @@ export function LoginPage({
 }: {
   loading: boolean
   error: string | null
-  onLogin: (email: string, password: string, remember: boolean) => Promise<void>
+  onLogin: (login: string, password: string, remember: boolean) => Promise<void>
 }) {
-  const [email, setEmail] = useState('')
+  const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    await onLogin(email, password, remember)
+    await onLogin(login, password, remember)
   }
 
   return (
@@ -35,15 +35,15 @@ export function LoginPage({
 
           <form className="login-form" onSubmit={handleSubmit}>
             <label>
-              <span>E-mail</span>
+              <span>Usuario ou e-mail</span>
               <div className="input-with-icon">
-                <Mail size={17} />
+                <User size={17} />
                 <input
-                  autoComplete="email"
-                  inputMode="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  type="email"
+                  autoComplete="username"
+                  inputMode="text"
+                  value={login}
+                  onChange={(event) => setLogin(event.target.value)}
+                  type="text"
                   required
                 />
               </div>

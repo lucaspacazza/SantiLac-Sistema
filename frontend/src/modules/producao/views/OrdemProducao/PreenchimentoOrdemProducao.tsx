@@ -15,6 +15,7 @@ export function PreenchimentoOrdemProducao({
 }) {
   const [insumoRows, setInsumoRows] = useState([1])
   const [selectedQueijoId, setSelectedQueijoId] = useState(() => String(catalogos.queijos[0]?.id ?? ''))
+  const [selectedFormato, setSelectedFormato] = useState('f4')
   const [selectedInsumos, setSelectedInsumos] = useState<Record<number, string>>({})
 
   const selectedQueijo = useMemo(
@@ -44,6 +45,10 @@ export function PreenchimentoOrdemProducao({
   function insumoByRow(rowId: number) {
     return catalogos.insumos.find((insumo) => String(insumo.id) === selectedInsumos[rowId]) ?? null
   }
+
+  const produtoRotulo = selectedQueijo?.precisa_formato
+    ? `PEÇAS ${selectedFormato.toUpperCase()}`
+    : selectedQueijo?.op_rotulo ?? ''
 
   return (
     <section className="panel">
@@ -75,6 +80,16 @@ export function PreenchimentoOrdemProducao({
             Lote
             <input name="lote_codigo" required />
           </label>
+          {selectedQueijo?.precisa_formato && (
+            <label>
+              Formato
+              <select value={selectedFormato} onChange={(event) => setSelectedFormato(event.target.value)}>
+                <option value="f1">F1</option>
+                <option value="f4">F4</option>
+                <option value="f6">F6</option>
+              </select>
+            </label>
+          )}
           <label>
             Litros
             <input name="lts_total" inputMode="decimal" />
@@ -82,7 +97,7 @@ export function PreenchimentoOrdemProducao({
         </div>
 
         <input name="produto_codigo" type="hidden" value={selectedQueijo?.codigo_balanca || selectedQueijo?.id || ''} />
-        <input name="produto_op_rotulo" type="hidden" value={selectedQueijo?.op_rotulo ?? ''} />
+        <input name="produto_op_rotulo" type="hidden" value={produtoRotulo} />
 
         <div className="op-insumo-list">
           {insumoRows.map((rowId, index) => {

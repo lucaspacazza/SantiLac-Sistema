@@ -116,12 +116,38 @@ class OrdemProducaoService
                 'data_ordem' => $data,
                 'campos_json' => $this->camposDaFormulacao($formulacao),
                 'origem' => 'automatica',
-                'status' => 'finalizada',
+                'status' => $this->isMussarela((string) $formulacao->tipo_queijo) ? 'aguardando_formato' : 'finalizada',
                 'observacoes' => 'Gerada pela formulação ' . ($formulacao->codigo_formulacao ?? $formulacao->id),
             ],
         );
 
         return $this->formatarOrdem($ordem, collect([$formulacao]));
+    }
+
+    public function definirFormato(int $id, string $formato): ?array
+    {
+        $ordem = ProducaoOrdemProducao::query()->where('id', $id)->first();
+        if ($ordem === null) {
+            return null;
+        }
+
+        $formulacoes = $this->formulacoesDaOrdem($ordem);
+        $formulacao = $formulacoes->first();
+        if (! $formulacao instanceof ProducaoFormulacaoQueijo || ! $this->isMussarela((string) $formulacao->tipo_queijo)) {
+            return $this->formatarOrdem($ordem, $formulacoes);
+        }
+
+        $campo = $this->campoFormatoMussarela($formato);
+        if ($campo === null) {
+            throw new \DomainException('Escolha F1, F4 ou F6.');
+        }
+
+        $ordem->forceFill([
+            'campos_json' => $this->camposComFormatoMussarela($ordem->campos_json, $campo),
+            'status' => 'finalizada',
+        ])->save();
+
+        return $this->formatarOrdem($ordem->refresh(), $formulacoes);
     }
 
     private function resumoOrdem(ProducaoOrdemProducao $ordem): array
@@ -138,6 +164,7 @@ class OrdemProducaoService
             'lote_queijo' => $formulacao?->lote_queijo,
             'origem' => (string) $ordem->origem,
             'status' => $ordem->status ?? 'rascunho',
+            'pendencia_formato' => ($ordem->status ?? '') === 'aguardando_formato',
         ];
     }
 
@@ -174,6 +201,7 @@ class OrdemProducaoService
             'manual' => $ordem->origem === 'manual',
             'origem' => $ordem->origem,
             'status' => $ordem->status ?? 'rascunho',
+            'pendencia_formato' => ($ordem->status ?? '') === 'aguardando_formato',
             'total_formulacoes' => $formulacoes->count(),
             'campos' => array_values(is_array($ordem->campos_json) ? $ordem->campos_json : []),
             'formulacoes' => $this->formatarFormulacoes($formulacoes),
@@ -225,9 +253,18 @@ class OrdemProducaoService
                 continue;
             }
 
-            $campo = $this->campoInsumo((string) ($insumo['tipo_insumo'] ?? ''), (string) ($insumo['nome_insumo'] ?? ''));
+            $nomeInsumo = (string) ($insumo['nome_insumo'] ?? '');
+            $campo = $this->campoInsumo((string) ($insumo['tipo_insumo'] ?? ''), $nomeInsumo);
             if ($campo === null) {
                 continue;
+            }
+
+            $rotulo = $this->rotuloInsumo($campo, $nomeInsumo);
+            if ($rotulo !== null) {
+                $valores['__rotulos'][$campo] = $rotulo;
+            }
+            if (! array_key_exists($campo, $valores)) {
+                $valores[$campo] = '';
             }
 
             $unidade = $this->unidadePadrao($campo, (string) ($insumo['unidade'] ?? ''));
@@ -247,26 +284,58 @@ class OrdemProducaoService
             $valores[$campo['chave']] = '';
         }
 
+        $valores['__rotulos'] = [];
+
         return $valores;
     }
 
     private function camposDoModelo(array $valores): array
     {
-        return collect(self::CAMPOS_OP)
-            ->filter(fn (array $campo): bool => (string) ($valores[$campo['chave']] ?? '') !== '')
-            ->map(fn (array $campo): array => [
-                'rotulo' => $campo['rotulo'],
-                'valor' => $valores[$campo['chave']] === self::CAMPO_EM_BRANCO ? '' : (string) ($valores[$campo['chave']] ?? ''),
+        $rotulos = is_array($valores['__rotulos'] ?? null) ? $valores['__rotulos'] : [];
+        $camposFixos = array_column(self::CAMPOS_OP, 'chave');
+        $campos = [];
+
+        $dinamicos = collect($valores)
+            ->reject(fn (mixed $valor, string $chave): bool => $chave === '__rotulos' || in_array($chave, $camposFixos, true) || (string) $valor === '')
+            ->map(fn (mixed $valor, string $chave): array => [
+                'rotulo' => (string) ($rotulos[$chave] ?? $this->rotuloCampo($chave) ?? mb_strtoupper(str_replace('_', ' ', $chave), 'UTF-8')),
+                'valor' => $valor === self::CAMPO_EM_BRANCO ? '' : (string) $valor,
             ])
             ->values()
             ->all();
+
+        foreach (self::CAMPOS_OP as $campo) {
+            $valor = $valores[$campo['chave']] ?? '';
+
+            if ((string) $valor !== '') {
+                $campos[] = [
+                    'rotulo' => (string) ($rotulos[$campo['chave']] ?? $campo['rotulo']),
+                    'valor' => $valor === self::CAMPO_EM_BRANCO ? '' : (string) $valor,
+                ];
+            }
+
+            if ($campo['chave'] === 'fermento_fast') {
+                array_push($campos, ...$dinamicos);
+            }
+        }
+
+        return $campos;
     }
 
     private function somarValoresOp(array $base, array $adicao): array
     {
         foreach ($adicao as $campo => $valor) {
+            if ($campo === '__rotulos') {
+                $base['__rotulos'] = array_merge($base['__rotulos'] ?? [], is_array($valor) ? $valor : []);
+                continue;
+            }
+
             if ($valor === '') {
                 continue;
+            }
+
+            if (! array_key_exists($campo, $base)) {
+                $base[$campo] = '';
             }
 
             if ($campo === 'producao_data') {
@@ -296,7 +365,7 @@ class OrdemProducaoService
         return $base;
     }
 
-    private function campoQueijo(string $tipoQueijo): ?string
+    private function campoQueijo(string $tipoQueijo, ?string $formatoMussarela = null): ?string
     {
         $tipo = $this->normalizar($tipoQueijo);
 
@@ -304,7 +373,7 @@ class OrdemProducaoService
             str_contains($tipo, 'f4') => 'pecas_f4',
             str_contains($tipo, 'f1') => 'pecas_f1',
             str_contains($tipo, 'f6') => 'pecas_f6',
-            str_contains($tipo, 'mussarela') => 'pecas_f4',
+            str_contains($tipo, 'mussarela') => $this->campoFormatoMussarela($formatoMussarela ?? ''),
             str_contains($tipo, 'colonial') => 'pecas_colonial',
             str_contains($tipo, 'coalho') => 'pecas_coalho',
             str_contains($tipo, 'provolone') => 'pecas_provolone',
@@ -324,7 +393,7 @@ class OrdemProducaoService
             str_contains($base, 'coalho') => 'coalho',
             str_contains($base, 'mvd') => 'fermento_mvd',
             str_contains($base, 'fast') => 'fermento_fast',
-            str_contains($base, 'fermento') => 'fermento_1',
+            str_contains($base, 'fermento') => 'fermento_extra_' . ($this->normalizarCodigo($nome) ?: 'generico'),
             str_contains($base, 'corante') => 'corante',
             default => null,
         };
@@ -332,6 +401,10 @@ class OrdemProducaoService
 
     private function unidadePadrao(string $campo, string $unidade): string
     {
+        if (str_starts_with($campo, 'fermento_extra_')) {
+            return 'g';
+        }
+
         return match ($campo) {
             'fermento_mvd', 'fermento_fast', 'fermento_1', 'fermento_2' => 'g',
             'coalho', 'cloreto_calcio', 'corante' => 'ml',
@@ -360,9 +433,10 @@ class OrdemProducaoService
                     'slug' => $slug,
                     'codigo_balanca' => (string) ($queijo->codigo_balanca ?? ''),
                     'op_rotulo' => $this->rotuloCampo($this->campoQueijo($slug !== '' ? $slug : $nome)),
+                    'precisa_formato' => $this->isMussarela($slug !== '' ? $slug : $nome),
                 ];
             })
-            ->filter(fn (array $queijo): bool => $queijo['nome'] !== '' && $queijo['op_rotulo'] !== null)
+            ->filter(fn (array $queijo): bool => $queijo['nome'] !== '' && ($queijo['op_rotulo'] !== null || $queijo['precisa_formato']))
             ->values()
             ->all();
     }
@@ -386,12 +460,27 @@ class OrdemProducaoService
                     'id' => (int) ($insumo->id ?? 0),
                     'nome' => $nome,
                     'unidade' => (string) ($insumo->un_base ?? ''),
-                    'op_rotulo' => $this->rotuloCampo($campo),
+                    'op_rotulo' => $this->rotuloInsumo($campo, $nome),
                 ];
             })
             ->filter(fn (array $insumo): bool => $insumo['nome'] !== '' && $insumo['op_rotulo'] !== null)
             ->values()
             ->all();
+    }
+
+    private function rotuloInsumo(?string $chave, string $nome): ?string
+    {
+        if ($chave === null) {
+            return null;
+        }
+
+        if (str_starts_with($chave, 'fermento_extra_')) {
+            $nome = trim($nome);
+
+            return $nome !== '' ? mb_strtoupper($nome, 'UTF-8') : 'FERMENTO';
+        }
+
+        return $this->rotuloCampo($chave);
     }
 
     private function rotuloCampo(?string $chave): ?string
@@ -407,6 +496,62 @@ class OrdemProducaoService
         }
 
         return null;
+    }
+
+    private function campoFormatoMussarela(string $formato): ?string
+    {
+        return match ($this->normalizar($formato)) {
+            'f1' => 'pecas_f1',
+            'f4' => 'pecas_f4',
+            'f6' => 'pecas_f6',
+            default => null,
+        };
+    }
+
+    private function isMussarela(string $tipoQueijo): bool
+    {
+        return str_contains($this->normalizar($tipoQueijo), 'mussarela');
+    }
+
+    private function camposComFormatoMussarela(array $campos, string $campoPecas): array
+    {
+        $rotulo = $this->rotuloCampo($campoPecas);
+        if ($rotulo === null) {
+            return $campos;
+        }
+
+        $campos = collect($campos)
+            ->reject(function (array $campo): bool {
+                $rotulo = $this->normalizar((string) ($campo['rotulo'] ?? ''));
+
+                return in_array($rotulo, ['pecas f1', 'pecas f4', 'pecas f6'], true);
+            })
+            ->values()
+            ->all();
+
+        $novoCampo = ['rotulo' => $rotulo, 'valor' => ''];
+        $indiceInsercao = null;
+
+        foreach ($campos as $indice => $campo) {
+            $rotuloAtual = $this->normalizar((string) ($campo['rotulo'] ?? ''));
+            if ($rotuloAtual === 'lote do queijo') {
+                $indiceInsercao = $indice;
+                break;
+            }
+            if ($rotuloAtual === 'lts produzidos total') {
+                $indiceInsercao = $indice;
+            }
+        }
+
+        if ($indiceInsercao === null) {
+            $campos[] = $novoCampo;
+
+            return $campos;
+        }
+
+        array_splice($campos, $indiceInsercao + 1, 0, [$novoCampo]);
+
+        return $campos;
     }
 
     private function buscarQueijo(ProducaoFormulacaoQueijo $formulacao): ?array
@@ -506,7 +651,30 @@ class OrdemProducaoService
         $produto = preg_replace('/[^a-z0-9]/', '', strtolower((string) ($queijo['codigo_balanca'] ?? '0')));
         $lote = preg_replace('/[^a-z0-9]/', '', strtolower((string) $formulacao->lote_queijo));
 
-        return 'op' . $produto . ($lote !== '' ? $lote : (string) $formulacao->id);
+        $base = 'op' . $produto . ($lote !== '' ? $lote : (string) $formulacao->id);
+
+        return $this->codigoUnicoDaFormulacao($base, $formulacao);
+    }
+
+    private function codigoUnicoDaFormulacao(string $base, ProducaoFormulacaoQueijo $formulacao): string
+    {
+        $existente = ProducaoOrdemProducao::query()
+            ->where('codigo_ordem', $base)
+            ->first();
+
+        if ($existente === null || (int) $existente->formulacao_queijo_id === (int) $formulacao->id) {
+            return $base;
+        }
+
+        $codigo = $base . (string) $formulacao->id;
+        $tentativa = 2;
+
+        while (ProducaoOrdemProducao::query()->where('codigo_ordem', $codigo)->exists()) {
+            $codigo = $base . (string) $formulacao->id . (string) $tentativa;
+            $tentativa++;
+        }
+
+        return $codigo;
     }
 
     private function normalizarCodigo(string $codigo): string

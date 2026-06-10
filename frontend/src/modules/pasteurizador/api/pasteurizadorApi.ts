@@ -1,4 +1,4 @@
-import { apiGet } from '../../../api/http'
+import { apiGet, apiPost } from '../../../api/http'
 
 export type Overview = {
   totais: {
@@ -59,6 +59,13 @@ export const pasteurizadorApi = {
     apiGet<Amostra[]>(`/api/pasteurizador/coletas/${coletaId}/amostras?canal=${encodeURIComponent(canal)}&limit=20000`),
   amostrasPeriodo: (inicio = '', fim = '', horaInicio = '', horaFim = '', canal = 'Todos') =>
     apiGet<Amostra[]>(`/api/pasteurizador/amostras?inicio=${encodeURIComponent(inicio)}&fim=${encodeURIComponent(fim)}&hora_inicio=${encodeURIComponent(horaInicio)}&hora_fim=${encodeURIComponent(horaFim)}&canal=${encodeURIComponent(canal)}&limit=50000`),
+  coletarAgora: (inicio: string, fim: string, horaInicio = '00:00:00', horaFim = '23:59:59') =>
+    apiPost<ColetaAgoraResult>('/api/pasteurizador/coletar-agora', {
+      inicio,
+      fim,
+      hora_inicio: horaInicio,
+      hora_fim: horaFim,
+    }),
   exportCsvUrl: (coletaId: number, canal = 'Temp.Pasteuriza') =>
     `/api/pasteurizador/coletas/${coletaId}/exportar.csv?canal=${encodeURIComponent(canal)}`,
   exportCsvPeriodoUrl: (inicio = '', fim = '', horaInicio = '', horaFim = '', canal = 'Todos') =>

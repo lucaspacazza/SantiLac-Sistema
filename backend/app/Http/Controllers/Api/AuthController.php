@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -30,40 +31,49 @@ class AuthController extends Controller
 
     public function login(Request $request): JsonResponse
     {
+        $request->merge([
+            'login' => trim((string) ($request->input('login') ?? $request->input('email') ?? '')),
+        ]);
+
         $credentials = $request->validate([
-            'email' => ['required', 'email'],
+            'login' => ['required', 'string', 'max:100'],
             'password' => ['required', 'string'],
         ]);
 
+        $login = (string) $credentials['login'];
         $user = User::query()
-            ->where('email', mb_strtolower((string) $credentials['email']))
+            ->where('usuario', $login)
+            ->when(Schema::hasColumn('usuarios', 'email'), function ($query) use ($login) {
+                $query->orWhere('email', mb_strtolower($login));
+            })
             ->first();
 
-        if (! $user || ! $user->ativo || ! Hash::check((string) $credentials['password'], $user->password)) {
+        if (! $user || ! $user->ativo || ! $this->senhaConfere((string) $credentials['password'], (string) $user->senha)) {
             $this->auditLog->registrar(
                 $request,
                 'autenticacao',
                 'login_falhou',
-                'Tentativa de entrada não autorizada.',
-                ['email' => mb_strtolower((string) $credentials['email'])],
+                'Tentativa de entrada nao autorizada.',
+                ['login' => $login],
                 422,
                 $user
             );
 
             throw ValidationException::withMessages([
-                'email' => 'E-mail ou senha inválidos.',
+                'login' => 'Usuario ou senha invalidos.',
             ]);
         }
 
-        Auth::login($user, (bool) $request->boolean('remember'));
+        Auth::login($user, false);
         $request->session()->regenerate();
+        $user->forceFill(['ultimo_login' => now()])->save();
 
         $this->auditLog->registrar(
             $request,
             'autenticacao',
             'login',
-            'Entrada do usuário no sistema.',
-            ['remember' => (bool) $request->boolean('remember')],
+            'Entrada do usuario no sistema.',
+            ['remember' => false],
             200,
             $user
         );
@@ -94,7 +104,7 @@ class AuthController extends Controller
             $request,
             'autenticacao',
             'logout',
-            'Saída do usuário do sistema.',
+            'Saida do usuario do sistema.',
             [],
             200,
             $user
@@ -108,7 +118,7 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'message' => 'Sessão encerrada.',
+                'message' => 'Sessao encerrada.',
             ],
         ]);
     }
@@ -122,8 +132,24 @@ class AuthController extends Controller
         return [
             'id' => $user->id,
             'nome' => $user->nome,
+            'usuario' => $user->usuario,
             'email' => $user->email,
             'niveis' => $user->niveis ?? [],
+            'admin' => (bool) $user->admin,
         ];
+    }
+
+    private function senhaConfere(string $plain, string $stored): bool
+    {
+        $stored = trim($stored);
+        if ($plain === '' || $stored === '') {
+            return false;
+        }
+
+        if (strlen($stored) === 32 && ctype_xdigit($stored)) {
+            return hash_equals(strtolower($stored), md5($plain));
+        }
+
+        return Hash::check($plain, $stored);
     }
 }

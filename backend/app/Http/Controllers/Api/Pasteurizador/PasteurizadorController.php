@@ -42,7 +42,9 @@ class PasteurizadorController extends Controller
             'raw_file_path' => ['nullable', 'string', 'max:255'],
             'downloaded_at' => ['required', 'date'],
             'bytes_downloaded' => ['required', 'integer', 'min:0'],
-            'samples' => ['required', 'array'],
+            'status' => ['nullable', 'string', 'max:40'],
+            'mensagem_erro' => ['nullable', 'string'],
+            'samples' => ['present', 'array'],
         ]);
 
         return response()->json([

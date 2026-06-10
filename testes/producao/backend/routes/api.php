@@ -18,6 +18,8 @@ Route::prefix('producao')->group(function (): void {
     Route::get('/ordens-producao/{id}/exportar/{formato}', [OrdemProducaoController::class, 'exportar'])
         ->whereNumber('id')
         ->whereIn('formato', ['xlsx', 'pdf']);
+    Route::patch('/ordens-producao/{id}/definir-formato', [OrdemProducaoController::class, 'definirFormato'])
+        ->whereNumber('id');
     Route::get('/ordens-producao/{id}', [OrdemProducaoController::class, 'show'])->whereNumber('id');
     Route::post('/ordens-producao', [OrdemProducaoController::class, 'store']);
     Route::post('/formulacoes-queijo/{id}/gerar-op', [OrdemProducaoController::class, 'gerarDaFormulacao']);

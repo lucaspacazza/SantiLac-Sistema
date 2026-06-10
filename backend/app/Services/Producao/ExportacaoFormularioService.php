@@ -2,6 +2,7 @@
 
 namespace App\Services\Producao;
 
+use Illuminate\Support\Facades\Http;
 use Symfony\Component\Process\Process;
 
 class ExportacaoFormularioService
@@ -35,6 +36,11 @@ class ExportacaoFormularioService
         $baseDir = storage_path('app/producao-exportacoes');
         if (! is_dir($baseDir)) {
             mkdir($baseDir, 0775, true);
+        }
+
+        $httpResult = $this->processarViaHttp($config['processor'], $registro, $formato, $baseDir);
+        if ($httpResult !== null) {
+            return $httpResult;
         }
 
         $payloadPath = $baseDir.'/payload-'.$tipo.'-'.$id.'-'.uniqid().'.json';
@@ -101,5 +107,80 @@ class ExportacaoFormularioService
     private function pythonBinary(): string
     {
         return env('PYTHON_BINARY', PHP_OS_FAMILY === 'Windows' ? 'python' : 'python3');
+    }
+
+    private function processarViaHttp(string $tipo, array $payload, string $formato, string $baseDir): ?array
+    {
+        $processorUrl = rtrim((string) config('services.processor.url', ''), '/');
+        if ($processorUrl === '') {
+            return null;
+        }
+
+        try {
+            $request = Http::timeout(120);
+            $token = (string) config('services.processor.token', '');
+            if ($token !== '') {
+                $request = $request->withHeaders(['X-Processor-Token' => $token]);
+            }
+
+            $response = $request->post($processorUrl.'/producao/exportar', [
+                'tipo' => $tipo,
+                'formato' => $formato,
+                'payload' => $payload,
+            ]);
+        } catch (\Throwable $exc) {
+            return [
+                'processor' => [
+                    'success' => false,
+                    'errors' => [[
+                        'code' => 'PROD_EXPORT_HTTP',
+                        'message' => 'Falha ao conectar ao processor.',
+                        'details' => ['error' => $exc->getMessage()],
+                    ]],
+                ],
+            ];
+        }
+
+        $decoded = $response->json();
+        if (! $response->successful() || ! is_array($decoded) || ! ($decoded['success'] ?? false)) {
+            return [
+                'processor' => [
+                    'success' => false,
+                    'errors' => [[
+                        'code' => 'PROD_EXPORT_HTTP',
+                        'message' => 'Falha ao gerar documento no processor.',
+                        'details' => [
+                            'status' => $response->status(),
+                            'body' => $response->body(),
+                        ],
+                    ]],
+                ],
+            ];
+        }
+
+        $content = base64_decode((string) ($decoded['file_base64'] ?? ''), true);
+        if ($content === false || $content === '') {
+            return [
+                'processor' => [
+                    'success' => false,
+                    'errors' => [[
+                        'code' => 'PROD_EXPORT_HTTP',
+                        'message' => 'Processor nao retornou arquivo valido.',
+                    ]],
+                ],
+            ];
+        }
+
+        $processor = is_array($decoded['processor'] ?? null) ? $decoded['processor'] : ['success' => true];
+        $arquivo = (string) ($processor['arquivo'] ?? ('producao_exportacao_'.uniqid().'.'.$formato));
+        $caminho = rtrim($baseDir, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.uniqid('producao_').'-'.$arquivo;
+        file_put_contents($caminho, $content);
+
+        return [
+            'processor' => $processor,
+            'arquivo' => $arquivo,
+            'caminho' => $caminho,
+            'formato' => $formato,
+        ];
     }
 }

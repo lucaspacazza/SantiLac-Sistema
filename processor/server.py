@@ -112,6 +112,10 @@ class ProcessorHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if self.path == "/producao/exportar":
+            self.handle_producao_export(payload)
+            return
+
         self.respond_json(404, error("PROCESSOR_404", "Rota nao encontrada."))
 
     def authorized(self) -> bool:
@@ -210,6 +214,56 @@ class ProcessorHandler(BaseHTTPRequestHandler):
         finally:
             input_path.unlink(missing_ok=True)
             output_path.unlink(missing_ok=True)
+
+    def handle_producao_export(self, payload: dict[str, Any]) -> None:
+        data = payload.get("payload")
+        tipo = str(payload.get("tipo") or "")
+        formato = str(payload.get("formato") or "")
+
+        tipos_validos = {
+            "formulacao_queijo",
+            "soro_refrigerado",
+            "formulacao_creme",
+            "producao_creme",
+            "ordem_producao",
+        }
+        if tipo not in tipos_validos or formato not in {"docx", "pdf", "xlsx"} or not isinstance(data, dict):
+            self.respond_json(400, error("PROCESSOR_415", "Payload de producao invalido."))
+            return
+
+        script = BASE_DIR / "modules" / "producao" / "producao_processor.py"
+        with tempfile.TemporaryDirectory(prefix="santilac_producao_") as temp_dir_name:
+            temp_dir = Path(temp_dir_name)
+            input_path = temp_dir / "payload.json"
+            input_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+            result = run_json_script([
+                sys.executable,
+                str(script),
+                "--tipo",
+                tipo,
+                "--payload",
+                str(input_path),
+                "--out-dir",
+                str(temp_dir),
+                "--format",
+                formato,
+            ])
+
+            if not isinstance(result, dict) or not result.get("success"):
+                self.respond_json(500, result)
+                return
+
+            output_path = Path(str(result.get("caminho") or ""))
+            if not output_path.exists():
+                self.respond_json(500, error("PROCESSOR_416", "Arquivo de producao nao foi gerado."))
+                return
+
+            self.respond_json(200, {
+                "success": True,
+                "processor": result,
+                "file_base64": base64.b64encode(output_path.read_bytes()).decode("ascii"),
+            })
 
     def respond_json(self, status: int, payload: dict[str, Any]) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")

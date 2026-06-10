@@ -86,7 +86,8 @@ class PasteurizadorService
                 'coletado_em' => $payload['downloaded_at'] ?? now('America/Sao_Paulo')->toDateTimeString(),
                 'bytes_baixados' => (int) ($payload['bytes_downloaded'] ?? 0),
                 'total_amostras' => count($samples),
-                'status' => 'processada',
+                'status' => $payload['status'] ?? 'processada',
+                'mensagem_erro' => $payload['mensagem_erro'] ?? null,
             ]);
 
             $rows = [];

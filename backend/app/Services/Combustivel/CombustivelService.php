@@ -6,6 +6,7 @@ use App\Models\Combustivel\CombustivelLog;
 use App\Models\Combustivel\CombustivelMovimentacao;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class CombustivelService
 {
@@ -27,7 +28,7 @@ class CombustivelService
 
     public function registrarEntrada(array $payload, ?int $usuarioId = null): array
     {
-        $usuarioId = $this->usuarioResponsavel($payload['usuario_id'] ?? $usuarioId);
+        $usuarioId = $this->usuarioResponsavel($usuarioId);
         $quantidade = $this->quantidade($payload['quantidade_litros'] ?? null);
         $observacao = $this->textoOpcional($payload['observacao'] ?? null);
 
@@ -89,7 +90,7 @@ class CombustivelService
 
     public function registrarSaida(array $payload, ?int $usuarioId = null): array
     {
-        $usuarioId = $this->usuarioResponsavel($payload['usuario_id'] ?? $usuarioId);
+        $usuarioId = $this->usuarioResponsavel($usuarioId);
         $motoristaNome = $this->motoristaNome($payload['motorista_nome'] ?? $payload['motorista'] ?? null);
         $caminhao = $this->caminhao($payload['caminhao_id'] ?? $payload['caminhao'] ?? null);
         $quantidade = $this->quantidade($payload['quantidade_litros'] ?? null);
@@ -244,16 +245,21 @@ class CombustivelService
     public function usuarios(Request $request): array
     {
         $perPage = $this->perPage($request);
+        $hasEmail = Schema::hasColumn('usuarios', 'email');
         $query = DB::table('usuarios')
-            ->select(['id', 'nome', 'email'])
+            ->select(array_filter(['id', 'nome', 'usuario', $hasEmail ? 'email' : null]))
             ->where('ativo', true)
             ->orderBy('nome');
 
         if ($request->filled('q')) {
             $search = trim((string) $request->query('q'));
-            $query->where(function ($inner) use ($search): void {
+            $query->where(function ($inner) use ($search, $hasEmail): void {
                 $inner->where('nome', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('usuario', 'like', "%{$search}%");
+
+                if ($hasEmail) {
+                    $inner->orWhere('email', 'like', "%{$search}%");
+                }
             });
         }
 
@@ -263,7 +269,8 @@ class CombustivelService
             'items' => collect($page->items())->map(fn ($row): array => [
                 'id' => (int) $row->id,
                 'nome' => (string) $row->nome,
-                'email' => (string) $row->email,
+                'usuario' => (string) ($row->usuario ?? ''),
+                'email' => (string) ($row->email ?? ''),
             ])->values()->all(),
             'pagination' => [
                 'current_page' => $page->currentPage(),
@@ -430,8 +437,8 @@ class CombustivelService
     {
         $usuarioId = (int) $value;
 
-        if ($usuarioId <= 0 || ! DB::table('usuarios')->where('id', $usuarioId)->where('ativo', true)->exists()) {
-            throw new CombustivelException('COMBUSTIVEL_USUARIO_INVALIDO', 'Selecione um usuario responsavel valido.', ['field' => 'usuario_id']);
+        if ($usuarioId <= 0) {
+            throw new CombustivelException('COMBUSTIVEL_SESSAO_INVALIDA', 'Sessao expirada. Entre novamente no sistema.', ['field' => 'auth']);
         }
 
         return $usuarioId;
