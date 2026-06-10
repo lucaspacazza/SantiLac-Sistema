@@ -17,7 +17,7 @@ class MobileAuthService
 
         $usuario = DB::connection('raw')
             ->table('usuarios')
-            ->select('id', 'codigo', 'nome', 'usuario', 'senha', 'ativo', 'app_coletas')
+            ->select('id', 'codigo', 'nome', 'usuario', 'senha', 'ativo', 'admin', 'app_coletas')
             ->where('ativo', 1)
             ->where('usuario', $login)
             ->first();
@@ -26,7 +26,8 @@ class MobileAuthService
             return MobileResponse::fail('Usuário ou senha inválidos');
         }
 
-        if ((int) ($usuario->app_coletas ?? 0) !== 1) {
+        $isAdmin = (int) ($usuario->admin ?? 0) === 1;
+        if (! $isAdmin && (int) ($usuario->app_coletas ?? 0) !== 1) {
             return MobileResponse::fail('Usuário sem acesso ao app de coletas');
         }
 
