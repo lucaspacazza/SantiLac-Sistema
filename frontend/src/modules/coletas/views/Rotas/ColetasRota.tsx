@@ -1,4 +1,4 @@
-import { ArrowLeft, MapPinned, RefreshCcw } from 'lucide-react'
+﻿import { ArrowLeft, MapPinned, RefreshCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { rotasApi, type ColetaRota, type RotaResumo } from '../../api/rotasApi'
 import { LoadingOverlay } from '../../components/LoadingOverlay'
@@ -38,7 +38,7 @@ export function ColetasRota({ uuid, onBack, onOpenMapa, onOpenColeta }: Props) {
       setRota(result.rota)
       setColetas(result.coletas)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível carregar as coletas.')
+      setError(err instanceof Error ? err.message : 'NÃ£o foi possÃ­vel carregar as coletas.')
     } finally {
       setLoading(false)
     }
@@ -59,7 +59,7 @@ export function ColetasRota({ uuid, onBack, onOpenMapa, onOpenColeta }: Props) {
             Voltar
           </button>
           <h1>Coletas da rota</h1>
-          <p>{rota ? `Rota ${rota.rota_nome} · ${formatLitros(rota.total_litros)}` : 'Registros enviados pelo app mobile.'}</p>
+          <p>{rota ? `Rota ${rota.rota_nome} Â· ${formatLitros(rota.total_litros)}` : 'Registros enviados pelo app mobile.'}</p>
         </div>
         <div className="actions">
           <button className="icon-btn" type="button" onClick={carregar} title="Atualizar">
@@ -73,9 +73,9 @@ export function ColetasRota({ uuid, onBack, onOpenMapa, onOpenColeta }: Props) {
       </div>
 
       <div className="filters single">
-        <label className="field search-field">
+        <label className="field coletas-search-field">
           <span>Busca</span>
-          <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Produtor, código ou usuário" />
+          <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Produtor, cÃ³digo ou usuÃ¡rio" />
         </label>
       </div>
 
@@ -92,8 +92,8 @@ export function ColetasRota({ uuid, onBack, onOpenMapa, onOpenColeta }: Props) {
               <th>Data e hora</th>
               <th className="num">Litros</th>
               <th className="num">Temperatura</th>
-              <th>Usuário</th>
-              <th>Observação</th>
+              <th>UsuÃ¡rio</th>
+              <th>ObservaÃ§Ã£o</th>
             </tr>
           </thead>
           <tbody>
@@ -113,11 +113,11 @@ export function ColetasRota({ uuid, onBack, onOpenMapa, onOpenColeta }: Props) {
               >
                 <td>
                   <strong>{coleta.produtor_nome || '-'}</strong>
-                  <small>Código {coleta.produtor_codigo}</small>
+                  <small>CÃ³digo {coleta.produtor_codigo}</small>
                 </td>
                 <td>{formatDateTime(coleta.datahora)}</td>
                 <td className="num">{formatLitros(coleta.litros)}</td>
-                <td className="num">{coleta.temperatura === null ? '-' : `${formatNumber(coleta.temperatura, 1)} °C`}</td>
+                <td className="num">{coleta.temperatura === null ? '-' : `${formatNumber(coleta.temperatura, 1)} Â°C`}</td>
                 <td>{coleta.usuario || '-'}</td>
                 <td>{coleta.observacoes || '-'}</td>
               </tr>

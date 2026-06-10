@@ -56,9 +56,9 @@ export function ListagemRotas({ onOpen }: Props) {
           void carregar()
         }}
       >
-        <label className="field search-field">
+        <label className="field coletas-search-field">
           <span>Busca</span>
-          <div className="input-with-icon">
+          <div className="coletas-input-with-icon">
             <Search size={15} />
             <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Rota ou motorista" />
           </div>

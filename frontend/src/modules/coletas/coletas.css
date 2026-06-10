@@ -110,7 +110,7 @@
   outline: none;
 }
 
-.coletas-module .input-with-icon {
+.coletas-module .coletas-input-with-icon {
   position: relative;
   min-height: 0;
   border: 0;
@@ -121,7 +121,7 @@
   color: inherit;
 }
 
-.coletas-module .input-with-icon svg {
+.coletas-module .coletas-input-with-icon svg {
   position: absolute;
   left: 11px;
   top: 50%;
@@ -129,7 +129,7 @@
   color: var(--muted);
 }
 
-.coletas-module .input-with-icon input {
+.coletas-module .coletas-input-with-icon input {
   padding-left: 34px;
   box-sizing: border-box;
 }
