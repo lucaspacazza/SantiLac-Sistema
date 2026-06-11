@@ -13,3 +13,4 @@ pct exec "$FRONTEND_CT" -- sh -lc "set -e; mkdir -p \"$FRONTEND_PATH\"; cd \"$FR
 if [ -n "${FRONTEND_HEALTH_URL:-}" ]; then
   curl -fsS "$FRONTEND_HEALTH_URL" >/dev/null
 fi
+

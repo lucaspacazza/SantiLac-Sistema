@@ -14,3 +14,4 @@ pct exec "$BACKEND_CT" -- sh -lc "set -e; rm -rf \"$REMOTE_STAGE\"; mkdir -p \"$
 if [ -n "${BACKEND_HEALTH_URL:-}" ]; then
   curl -fsS "$BACKEND_HEALTH_URL" >/dev/null
 fi
+

@@ -14,3 +14,5 @@ pct exec "$PROCESSOR_CT" -- sh -lc "set -e; rm -rf \"$REMOTE_STAGE\"; mkdir -p \
 if [ -n "${PROCESSOR_HEALTH_URL:-}" ]; then
   curl -fsS "$PROCESSOR_HEALTH_URL" >/dev/null
 fi
+
+

@@ -13,7 +13,7 @@ on:
       backend:
         description: Deploy backend
         type: boolean
-        default: false
+        default: false 
       processor:
         description: Deploy processor
         type: boolean

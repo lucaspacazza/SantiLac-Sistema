@@ -70,7 +70,7 @@ export function LoginPage({
       <section className="login-side">
         <div className="login-panel">
           <div>
-            <span className="eyebrow">Santi'Lac Core</span>
+            <span className="eyebrow">Santi'Lac</span>
             <h1>Entrar no sistema</h1>
             <p>Acesse a operação central da empresa com seu usuário autorizado.</p>
           </div>

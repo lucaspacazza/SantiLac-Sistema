@@ -15,3 +15,4 @@ tar -czf "$PACKAGE_PATH" \
   processor
 
 echo "PROCESSOR_PACKAGE=$PACKAGE_PATH" >> "${GITHUB_ENV:-/dev/null}"
+

@@ -22,7 +22,7 @@ CREATE TABLE produtores (
   cep varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   cpf_cnpj varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   celular varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  ativo tinyint(1) DEFAULT 1,
+  ativo tinyint(1) DEFAULT 1,  
   novo tinyint(1) DEFAULT 1,
   data_cadastro datetime DEFAULT CURRENT_TIMESTAMP,
   data_inativacao datetime DEFAULT NULL,
