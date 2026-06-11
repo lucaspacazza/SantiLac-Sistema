@@ -42,3 +42,4 @@ database/
 !deploy/
 !deploy/**
 !deploy/*.md
+!.md
