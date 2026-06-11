@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\Coletas\Mobile\RotasStartController;
 use App\Http\Controllers\Api\Coletas\Mobile\RotasStopsBatchController;
 use App\Http\Controllers\Api\Coletas\ColetasGestaoController;
 use App\Http\Controllers\Api\Combustivel\CombustivelController;
+use App\Http\Controllers\Api\Embalagem\EmbalagemController;
 use App\Http\Controllers\Api\Estoque\EstoqueController;
 use App\Http\Controllers\Api\Pasteurizador\PasteurizadorController;
 use App\Http\Controllers\Api\ProdutorController;
@@ -51,6 +52,17 @@ Route::middleware('coletas.mobile.key')->prefix('api')->group(function (): void 
 
 Route::post('/api/pasteurizador/coletas', [PasteurizadorController::class, 'criarColeta'])
     ->middleware('throttle:6,1');
+
+Route::prefix('api/embalagem')->group(function (): void {
+    Route::post('/ordens/validar', [EmbalagemController::class, 'validarOrdem']);
+    Route::get('/lotes/{loteId}', [EmbalagemController::class, 'estado'])->whereNumber('loteId');
+    Route::post('/lotes/{loteId}/caixas', [EmbalagemController::class, 'registrarCaixa'])->whereNumber('loteId');
+    Route::post('/lotes/{loteId}/finalizar', [EmbalagemController::class, 'finalizar'])->whereNumber('loteId');
+    Route::get('/etiquetas/pendentes', [EmbalagemController::class, 'etiquetasPendentes']);
+    Route::post('/paletes/{paleteId}/etiqueta', [EmbalagemController::class, 'marcarEtiqueta'])->whereNumber('paleteId');
+    Route::get('/paletes/{token}/resumo', [EmbalagemController::class, 'resumoPalete']);
+    Route::get('/paletes/{token}/visualizar', [EmbalagemController::class, 'visualizarPalete']);
+});
 
 Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): void {
     Route::prefix('produtores')->group(function (): void {
