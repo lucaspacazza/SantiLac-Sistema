@@ -1,0 +1,346 @@
+import { useEffect, useRef, useState } from 'react'
+import { embalagemApi, type OperacaoEmbalagem } from './api/embalagemApi'
+import { HistoricoCaixas } from './views/HistoricoCaixas'
+import { IniciarEmbalagem } from './views/IniciarEmbalagem'
+import { OperacaoLote } from './views/OperacaoLote'
+
+type Status = 'idle' | 'loading' | 'ok' | 'error'
+type Tela = 'operacao' | 'historico'
+
+export function App() {
+  const [codigoOrdem, setCodigoOrdem] = useState('')
+  const [codigoBarra, setCodigoBarra] = useState('')
+  const [pecasAvulsas, setPecasAvulsas] = useState(0)
+  const [modalAvulsasAberto, setModalAvulsasAberto] = useState(false)
+  const [codigoAvulsas, setCodigoAvulsas] = useState('')
+  const [pesoAvulsas, setPesoAvulsas] = useState('')
+  const [erroAvulsas, setErroAvulsas] = useState('')
+  const [status, setStatus] = useState<Status>('idle')
+  const [mensagem, setMensagem] = useState('Digite uma OP para iniciar.')
+  const [operacao, setOperacao] = useState<OperacaoEmbalagem | null>(null)
+  const [tela, setTela] = useState<Tela>('operacao')
+  const [ultimoCodigo, setUltimoCodigo] = useState('')
+  const operacaoRef = useRef<OperacaoEmbalagem | null>(null)
+  const registrandoRef = useRef(false)
+  const filaCodigosRef = useRef<string[]>([])
+
+  useEffect(() => {
+    // @ts-expect-error Vite carrega CSS por import lateral no chunk da embalagem.
+    void import('./styles.css')
+  }, [])
+
+  useEffect(() => {
+    operacaoRef.current = operacao
+  }, [operacao])
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const telaState = (event.state as { embalagemTela?: Tela } | null)?.embalagemTela
+      setTela(telaState === 'historico' ? 'historico' : 'operacao')
+    }
+
+    if (!window.history.state?.embalagemTela) {
+      window.history.replaceState({ ...window.history.state, embalagemTela: 'operacao' }, '')
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  useEffect(() => {
+    const loteId = Number(window.localStorage.getItem('embalagem-lote-id') || 0)
+    if (!loteId) return
+
+    setStatus('loading')
+    setMensagem('Carregando lote em andamento.')
+    embalagemApi.estado(loteId)
+      .then((data) => {
+        setOperacao(data)
+        setUltimoCodigo(data.historico[0]?.codigo_barra ?? '')
+        setStatus('ok')
+        setMensagem('Lote carregado.')
+      })
+      .catch(() => {
+        window.localStorage.removeItem('embalagem-lote-id')
+        setStatus('idle')
+        setMensagem('Digite uma OP para iniciar.')
+      })
+  }, [])
+
+  async function validarOrdem() {
+    setStatus('loading')
+    setMensagem('Validando OP.')
+
+    try {
+      const data = await embalagemApi.validarOrdem(codigoOrdem)
+      setOperacao(data)
+      setCodigoBarra('')
+      setUltimoCodigo(data.historico[0]?.codigo_barra ?? '')
+      navegarOperacao(true)
+      setPecasAvulsas(0)
+      setStatus('ok')
+      setMensagem('OP validada.')
+      window.localStorage.setItem('embalagem-lote-id', String(data.lote.id))
+    } catch (error) {
+      setStatus('error')
+      setMensagem(error instanceof Error ? error.message : 'Não foi possível validar a OP.')
+    }
+  }
+
+  async function registrarCaixa(codigo: string) {
+    const operacaoAtual = operacaoRef.current
+    if (!operacaoAtual) return
+
+    setStatus('loading')
+    setMensagem('Registrando caixa.')
+
+    try {
+      const data = await embalagemApi.registrarCaixa(operacaoAtual.lote.id, codigo)
+      setOperacao(data)
+      operacaoRef.current = data
+      setUltimoCodigo(codigo)
+      setCodigoBarra('')
+      setStatus('ok')
+      setMensagem('Caixa registrada.')
+    } catch (error) {
+      setStatus('error')
+      setMensagem(error instanceof Error ? error.message : 'Não foi possível registrar a caixa.')
+    }
+  }
+
+  async function processarFilaCodigos() {
+    if (registrandoRef.current) return
+    registrandoRef.current = true
+
+    try {
+      while (filaCodigosRef.current.length > 0) {
+        const codigo = filaCodigosRef.current.shift()
+        if (codigo) {
+          await registrarCaixa(codigo)
+        }
+      }
+    } finally {
+      registrandoRef.current = false
+    }
+  }
+
+  function atualizarCodigoBarra(value: string) {
+    const operacaoAtual = operacaoRef.current
+    if (!operacaoAtual || operacaoAtual.lote.status === 'finalizado') return
+
+    const tamanho = operacaoAtual.barcode.length
+    const digits = value.replace(/\D/g, '')
+    const codigos: string[] = []
+    let index = 0
+
+    while (index + tamanho <= digits.length) {
+      codigos.push(digits.slice(index, index + tamanho))
+      index += tamanho
+    }
+
+    const resto = digits.slice(index)
+    setCodigoBarra(resto)
+
+    if (codigos.length > 0) {
+      filaCodigosRef.current.push(...codigos)
+      void processarFilaCodigos()
+    }
+  }
+
+  async function finalizar(pesoPecasAvulsas = 0, confirmar = true) {
+    if (!operacao) return
+    if (confirmar) {
+      const confirmou = window.confirm('Finalizar a embalagem desta OP?')
+      if (!confirmou) return
+    }
+
+    setStatus('loading')
+    setMensagem('Finalizando OP.')
+
+    try {
+      const data = await embalagemApi.finalizar(operacao.lote.id, pecasAvulsas, pesoPecasAvulsas)
+      setOperacao(data)
+      setStatus('ok')
+      setMensagem('OP finalizada.')
+      window.localStorage.removeItem('embalagem-lote-id')
+      fecharModalAvulsas()
+    } catch (error) {
+      setStatus('error')
+      setMensagem(error instanceof Error ? error.message : 'Não foi possível finalizar a OP.')
+    }
+  }
+
+  function solicitarFinalizacao() {
+    if (pecasAvulsas > 0) {
+      setCodigoAvulsas('')
+      setPesoAvulsas('')
+      setErroAvulsas('')
+      setModalAvulsasAberto(true)
+      return
+    }
+
+    void finalizar(0)
+  }
+
+  function atualizarCodigoAvulsas(value: string) {
+    setCodigoAvulsas(value)
+    setErroAvulsas('')
+
+    if (!operacao) return
+    const peso = extrairPesoCodigo(value, operacao.barcode)
+    if (peso !== null) {
+      setPesoAvulsas(formatPesoInput(peso))
+    }
+  }
+
+  function confirmarAvulsas() {
+    const peso = parsePesoInput(pesoAvulsas)
+    if (peso <= 0) {
+      setErroAvulsas('Informe o peso das peças avulsas.')
+      return
+    }
+
+    void finalizar(peso, false)
+  }
+
+  function fecharModalAvulsas() {
+    setModalAvulsasAberto(false)
+    setCodigoAvulsas('')
+    setPesoAvulsas('')
+    setErroAvulsas('')
+  }
+
+  function novaOp() {
+    setOperacao(null)
+    setCodigoBarra('')
+    setUltimoCodigo('')
+    navegarOperacao(true)
+    setPecasAvulsas(0)
+    setStatus('idle')
+    setMensagem('Digite uma OP para iniciar.')
+    window.localStorage.removeItem('embalagem-lote-id')
+  }
+
+  function abrirHistorico() {
+    if (tela === 'historico') return
+    window.history.pushState({ ...window.history.state, embalagemTela: 'historico' }, '')
+    setTela('historico')
+  }
+
+  function navegarOperacao(replace = false) {
+    const state = { ...window.history.state, embalagemTela: 'operacao' }
+    if (replace) {
+      window.history.replaceState(state, '')
+    } else if (tela === 'historico') {
+      window.history.back()
+    } else {
+      window.history.replaceState(state, '')
+      setTela('operacao')
+    }
+  }
+
+  return (
+    <main className="page">
+      <div className={`status-line is-${status}`}>
+        <span />
+        {mensagem}
+      </div>
+
+      {!operacao ? (
+        <IniciarEmbalagem
+          codigo={codigoOrdem}
+          carregando={status === 'loading'}
+          onCodigoChange={setCodigoOrdem}
+          onSubmit={validarOrdem}
+        />
+      ) : tela === 'historico' ? (
+        <HistoricoCaixas
+          operacao={operacao}
+          onVoltar={() => navegarOperacao()}
+        />
+      ) : (
+        <OperacaoLote
+          operacao={operacao}
+          codigoBarra={codigoBarra}
+          ultimoCodigo={ultimoCodigo}
+          pecasAvulsas={pecasAvulsas}
+          processando={status === 'loading'}
+          onCodigoChange={atualizarCodigoBarra}
+          onPecasAvulsasChange={setPecasAvulsas}
+          onFinalizar={solicitarFinalizacao}
+          onAbrirHistorico={abrirHistorico}
+          onNovaOp={novaOp}
+        />
+      )}
+
+      {operacao && modalAvulsasAberto ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="avulsas-title">
+            <div>
+              <span className="section-kicker">Peças avulsas</span>
+              <h2 id="avulsas-title">Pesar {pecasAvulsas} peças avulsas</h2>
+            </div>
+
+            <label className="field">
+              <span>Código da balança</span>
+              <input
+                autoFocus
+                className="control scan-input"
+                inputMode="numeric"
+                placeholder="Escaneie a etiqueta"
+                value={codigoAvulsas}
+                onChange={(event) => atualizarCodigoAvulsas(event.target.value)}
+              />
+            </label>
+
+            <label className="field">
+              <span>Peso manual</span>
+              <input
+                className="control scan-input"
+                inputMode="decimal"
+                placeholder="0,000"
+                value={pesoAvulsas}
+                onChange={(event) => {
+                  setPesoAvulsas(event.target.value)
+                  setErroAvulsas('')
+                }}
+              />
+            </label>
+
+            {erroAvulsas ? <p className="modal-error">{erroAvulsas}</p> : null}
+
+            <div className="modal-actions">
+              <button className="btn secondary" disabled={status === 'loading'} type="button" onClick={fecharModalAvulsas}>
+                Cancelar
+              </button>
+              <button className="btn primary" disabled={status === 'loading'} type="button" onClick={confirmarAvulsas}>
+                Salvar peso e finalizar
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </main>
+  )
+}
+
+function extrairPesoCodigo(codigo: string, barcode: OperacaoEmbalagem['barcode']): number | null {
+  const digits = codigo.replace(/\D/g, '')
+  if (digits.length < barcode.weight_start + barcode.weight_length - 1) return null
+  const raw = digits.slice(barcode.weight_start - 1, barcode.weight_start - 1 + barcode.weight_length)
+  if (!/^\d+$/.test(raw)) return null
+  return Number(raw) / barcode.weight_divisor
+}
+
+function parsePesoInput(value: string) {
+  const decimalValue = value.includes(',')
+    ? value.replace(/\./g, '').replace(',', '.')
+    : value
+  const normalized = decimalValue.replace(/[^\d.]/g, '')
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? Math.round(parsed * 1000) / 1000 : 0
+}
+
+function formatPesoInput(value: number) {
+  return Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3, useGrouping: false })
+}

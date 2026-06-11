@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { authApi, type AuthUser } from './api/authApi'
 import { CadastrosModule } from './modules/cadastros/CadastrosModule'
 import { ColetasModule } from './modules/coletas/ColetasModule'
@@ -15,6 +15,9 @@ import { allowedSidebarModules, canAccessModuleSlug, isSystemModule, type Module
 
 type AppState = 'booting' | 'guest' | 'authenticated'
 
+const EmbalagemApp = lazy(() => import('./modules/embalagem/App').then((module) => ({ default: module.App })))
+const isEmbalagemHost = window.location.hostname.toLowerCase() === 'embalagem.santilac.com.br'
+
 function moduleFromHash(user: ModuleAccessUser | null): SystemModule | null {
   const firstPart = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean)[0]
   let module: SystemModule | null = null
@@ -29,6 +32,14 @@ function moduleFromHash(user: ModuleAccessUser | null): SystemModule | null {
 }
 
 export function App() {
+  if (isEmbalagemHost) {
+    return (
+      <Suspense fallback={null}>
+        <EmbalagemApp />
+      </Suspense>
+    )
+  }
+
   const [state, setState] = useState<AppState>('booting')
   const [user, setUser] = useState<AuthUser | null>(null)
   const [activeModule, setActiveModule] = useState<SystemModule | null>(null)
