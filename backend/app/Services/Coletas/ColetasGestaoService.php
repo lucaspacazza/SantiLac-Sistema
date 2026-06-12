@@ -296,7 +296,7 @@ class ColetasGestaoService
              INNER JOIN rotas r ON r.id = gp.rota_id_server
              WHERE r.uuid = :uuid
              ORDER BY gp.ts ASC, gp.id ASC
-             LIMIT 5000',
+             LIMIT 100000',
             ['uuid' => $uuid]
         );
 

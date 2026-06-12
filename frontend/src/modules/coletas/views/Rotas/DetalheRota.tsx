@@ -77,7 +77,7 @@ export function DetalheRota({ uuid, onBack, onOpenMapa, onOpenColetas }: Props) 
             <Metric label="Litros coletados" value={formatLitros(rota.total_litros)} />
             <Metric label="Coletas" value={rota.total_coletas.toLocaleString('pt-BR')} />
             <Metric label="Km da rota" value={formatKm(rota.km_rodado)} />
-            <Metric label="Pontos GPS" value={gps.length.toLocaleString('pt-BR')} />
+            <Metric label="Pontos GPS" value={rota.total_pontos_gps.toLocaleString('pt-BR')} />
           </div>
 
           <div className="detail-grid">
