@@ -182,7 +182,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
 
       <div className={`status-line ${error ? 'is-error' : loading ? 'is-loading' : 'is-live'}`}>
         <span className="status-dot" />
-        <span>{error ?? (loading ? 'Carregando GPS...' : `${gps.length.toLocaleString('pt-BR')} ponto(s) GPS · ${coletasComPonto.length.toLocaleString('pt-BR')} casa(s) no mapa · ${formatKm(rota?.km_rodado ?? null)}`)}</span>
+        <span>{error ?? (loading ? 'Carregando GPS...' : `${formatGpsCount(rota?.total_pontos_gps, gps.length)} ponto(s) GPS · ${coletasComPonto.length.toLocaleString('pt-BR')} casa(s) no mapa · ${formatKm(rota?.km_rodado ?? null)}`)}</span>
       </div>
 
       <div className="map-shell">
@@ -206,6 +206,14 @@ function escapeHtml(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
+}
+
+function formatGpsCount(total: number | undefined, loaded: number) {
+  if (!total || total <= 0) return loaded.toLocaleString('pt-BR')
+  if (loaded > 0 && loaded < total) {
+    return `${loaded.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')}`
+  }
+  return total.toLocaleString('pt-BR')
 }
 
 function addRouteHover(layer: L.LayerGroup, map: L.Map, gps: GpsPonto[], points: L.LatLng[]) {
