@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Cadastros\CadastrosController;
 use App\Http\Controllers\Api\Coletas\Mobile\AppLogsController;
+use App\Http\Controllers\Api\Coletas\Mobile\AppVersionController;
 use App\Http\Controllers\Api\Coletas\Mobile\CatalogoController;
 use App\Http\Controllers\Api\Coletas\Mobile\ProdutorEndpointController;
 use App\Http\Controllers\Api\Coletas\Mobile\ProdutoresController as MobileProdutoresController;
@@ -39,6 +40,7 @@ Route::prefix('api/auth')->group(function (): void {
 Route::middleware('coletas.mobile.key')->prefix('api')->group(function (): void {
     Route::get('/catalogo', CatalogoController::class);
     Route::post('/produtores/endpoint', ProdutorEndpointController::class);
+    Route::get('/app/version', AppVersionController::class);
     Route::post('/app/logs', AppLogsController::class);
 
     Route::get('/rotas/open-route', RotasOpenRouteController::class);

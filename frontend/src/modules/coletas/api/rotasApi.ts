@@ -48,6 +48,7 @@ export type ColetaRota = {
   produtor_nome: string
   litros: number
   temperatura: number | null
+  tanque: number | null
   usuario: string
   device_id: string
   datahora: string

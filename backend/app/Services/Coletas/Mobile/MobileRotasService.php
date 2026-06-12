@@ -304,14 +304,14 @@ class MobileRotasService
             DB::connection('raw')->statement(
                 'INSERT INTO coletas_canceladas (
                     coleta_id_original, rota_id_server, rota_id_local, cancelado_device_id, cancelado_at,
-                    produtor_codigo, produtor_nome, litros, temperatura,
+                    produtor_codigo, produtor_nome, litros, temperatura, tanque,
                     rota_uuid, rota_nome, motorista_nome, caminhao_nome, placa,
                     km_ini, km_fim, inicio_rota, fim_rota,
                     usuario, device_id, datahora, coleta_created_at
                  )
                  SELECT
                     c.id, ?, ?, ?, NOW(),
-                    c.produtor_codigo, c.produtor_nome, c.litros, c.temperatura,
+                    c.produtor_codigo, c.produtor_nome, c.litros, c.temperatura, c.tanque,
                     c.rota_uuid, c.rota_nome, c.motorista_nome, c.caminhao_nome, c.placa,
                     c.km_ini, c.km_fim, c.inicio_rota, c.fim_rota,
                     c.usuario, c.device_id, c.datahora, c.created_at

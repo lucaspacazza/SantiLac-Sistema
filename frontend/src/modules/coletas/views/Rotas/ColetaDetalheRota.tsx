@@ -65,6 +65,7 @@ export function ColetaDetalheRota({ id, onBack, onOpenColeta }: Props) {
           <div className="summary-grid coleta-summary">
             <Metric label="Produtor" value={coleta.produtor_nome || '-'} />
             <Metric label="Litros" value={formatLitros(coleta.litros)} />
+            <Metric label="Tanque" value={coleta.tanque === null ? '-' : String(coleta.tanque)} />
             <Metric label="Temperatura" value={coleta.temperatura === null ? '-' : `${formatNumber(coleta.temperatura, 1)} °C`} />
             <Metric label="Usuário" value={coleta.usuario || '-'} />
           </div>
@@ -76,6 +77,7 @@ export function ColetaDetalheRota({ id, onBack, onOpenColeta }: Props) {
                 <Row label="Código" value={coleta.produtor_codigo} />
                 <Row label="Data" value={formatDateTime(coleta.datahora)} />
                 <Row label="Rota" value={coleta.rota_nome || '-'} />
+                <Row label="Tanque" value={coleta.tanque === null ? '-' : String(coleta.tanque)} />
                 <Row label="Observação" value={coleta.observacoes || '-'} />
               </dl>
             </section>
@@ -98,6 +100,7 @@ export function ColetaDetalheRota({ id, onBack, onOpenColeta }: Props) {
                 >
                   <span>{formatDateTime(item.datahora)}</span>
                   <strong>{formatLitros(item.litros)}</strong>
+                  <span>{item.tanque === null ? '-' : `Tanque ${item.tanque}`}</span>
                   <span>{item.temperatura === null ? '-' : `${formatNumber(item.temperatura, 1)} °C`}</span>
                 </button>
               ))}

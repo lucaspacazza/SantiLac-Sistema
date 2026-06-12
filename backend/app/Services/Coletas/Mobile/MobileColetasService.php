@@ -33,6 +33,7 @@ class MobileColetasService
                     'produtor_nome' => $payload['produtor_nome'] ?? null,
                     'litros' => $payload['litros'],
                     'temperatura' => $payload['temperatura'] ?? null,
+                    'tanque' => $payload['tanque'] ?? null,
                     'ts' => $payload['ts'],
                     'usuario' => $payload['usuario'] ?? null,
                     'observacoes' => $payload['observacoes'] ?? null,
@@ -158,6 +159,7 @@ class MobileColetasService
             'produtor_nome' => $produtorNome,
             'litros' => (float) $coleta['litros'],
             'temperatura' => isset($coleta['temperatura']) && is_numeric($coleta['temperatura']) ? (float) $coleta['temperatura'] : null,
+            'tanque' => $this->tanque($coleta['tanque'] ?? null),
             'rota_uuid' => (string) $route->uuid,
             'rota_nome' => (string) $route->rota_nome,
             'motorista_nome' => (string) $route->motorista_nome,
@@ -218,5 +220,15 @@ class MobileColetasService
     {
         $row = DB::connection('raw')->table('produtores')->select('nome')->where('codigo', $codigo)->first();
         return $row ? (string) $row->nome : null;
+    }
+
+    private function tanque(mixed $value): ?int
+    {
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $tanque = (int) $value;
+        return $tanque >= 1 && $tanque <= 3 ? $tanque : null;
     }
 }

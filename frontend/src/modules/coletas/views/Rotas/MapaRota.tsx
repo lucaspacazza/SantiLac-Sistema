@@ -145,7 +145,8 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
         .bindPopup(`
           <strong>${escapeHtml(coleta.produtor_nome || 'Produtor')}</strong>
           <span>Código ${escapeHtml(coleta.produtor_codigo)}</span>
-          <span>${formatLitros(coleta.litros)} · ${formatDateTime(coleta.datahora)}</span>
+          <span>${formatLitros(coleta.litros)} · Tanque ${coleta.tanque ?? '-'}</span>
+          <span>${formatDateTime(coleta.datahora)}</span>
           <span>Precisão ${coleta.casa_accuracy_m === null ? '-' : `${formatNumber(coleta.casa_accuracy_m, 1)} m`}</span>
         `)
         .addTo(layer)
