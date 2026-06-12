@@ -439,17 +439,27 @@ class ColetasGestaoService
     private function coletaPontoJoinSql(string $alias): string
     {
         return "
-            LEFT JOIN produtor_casa_pontos pcm_exact
+            LEFT JOIN (
+                SELECT
+                    coleta_id_server,
+                    CAST(SUBSTRING_INDEX(GROUP_CONCAT(lat ORDER BY {$this->pontoCasaOrderSql()} SEPARATOR '||'), '||', 1) AS DECIMAL(10,7)) AS lat,
+                    CAST(SUBSTRING_INDEX(GROUP_CONCAT(lng ORDER BY {$this->pontoCasaOrderSql()} SEPARATOR '||'), '||', 1) AS DECIMAL(10,7)) AS lng,
+                    CAST(SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(accuracy_m, 99999.999) ORDER BY {$this->pontoCasaOrderSql()} SEPARATOR '||'), '||', 1) AS DECIMAL(8,3)) AS accuracy_m,
+                    SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(captured_at, created_at) ORDER BY {$this->pontoCasaOrderSql()} SEPARATOR '||'), '||', 1) AS captured_at
+                FROM produtor_casa_pontos
+                WHERE coleta_id_server IS NOT NULL
+                GROUP BY coleta_id_server
+            ) pcm_exact
                 ON pcm_exact.coleta_id_server = {$alias}.id
             LEFT JOIN (
                 SELECT
                     c2.produtor_codigo,
                     c2.rota_uuid,
                     c2.datahora,
-                    MAX(pcp.lat) AS lat,
-                    MAX(pcp.lng) AS lng,
-                    MAX(pcp.accuracy_m) AS accuracy_m,
-                    MAX(pcp.captured_at) AS captured_at
+                    CAST(SUBSTRING_INDEX(GROUP_CONCAT(pcp.lat ORDER BY {$this->pontoCasaOrderSql('pcp')} SEPARATOR '||'), '||', 1) AS DECIMAL(10,7)) AS lat,
+                    CAST(SUBSTRING_INDEX(GROUP_CONCAT(pcp.lng ORDER BY {$this->pontoCasaOrderSql('pcp')} SEPARATOR '||'), '||', 1) AS DECIMAL(10,7)) AS lng,
+                    CAST(SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(pcp.accuracy_m, 99999.999) ORDER BY {$this->pontoCasaOrderSql('pcp')} SEPARATOR '||'), '||', 1) AS DECIMAL(8,3)) AS accuracy_m,
+                    SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(pcp.captured_at, pcp.created_at) ORDER BY {$this->pontoCasaOrderSql('pcp')} SEPARATOR '||'), '||', 1) AS captured_at
                 FROM produtor_casa_pontos pcp
                 INNER JOIN coletas c2 ON c2.id = pcp.coleta_id_server
                 WHERE c2.rota_uuid IS NOT NULL
@@ -459,6 +469,15 @@ class ColetasGestaoService
                AND pcm_same.produtor_codigo COLLATE utf8mb4_unicode_ci = {$alias}.produtor_codigo COLLATE utf8mb4_unicode_ci
                AND pcm_same.rota_uuid = {$alias}.rota_uuid
                AND pcm_same.datahora = {$alias}.datahora";
+    }
+
+    private function pontoCasaOrderSql(string $alias = ''): string
+    {
+        $prefix = $alias !== '' ? "{$alias}." : '';
+
+        return "CASE WHEN {$prefix}lat BETWEEN -31.0 AND -25.0 AND {$prefix}lng BETWEEN -55.5 AND -49.0 THEN 0 ELSE 1 END ASC,
+                COALESCE({$prefix}accuracy_m, 99999.999) ASC,
+                {$prefix}id DESC";
     }
 
     private function rotaParaApi(array $row): array

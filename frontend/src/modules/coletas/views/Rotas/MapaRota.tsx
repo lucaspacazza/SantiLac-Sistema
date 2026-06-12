@@ -12,6 +12,12 @@ type Props = {
   onOpenColetas: () => void
 }
 
+type RouteItem = {
+  gps: GpsPonto
+  point: L.LatLng
+  cumulativeKm: number
+}
+
 export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
   const mapNode = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<L.Map | null>(null)
@@ -79,7 +85,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
     L.control.layers(
       {
         Mapa: streetLayer,
-        Satélite: satelliteLayer,
+        'Sat?lite': satelliteLayer,
       },
       undefined,
       {
@@ -98,34 +104,41 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
     if (!map || !layer) return
 
     layer.clearLayers()
-    const points = gps.map((point) => L.latLng(point.lat, point.lng))
+    const routeItems = buildRouteItems(gps)
+    const routeSegments = buildRouteSegments(routeItems)
     const coletaPoints = coletasComPonto.map((coleta) => ({
       coleta,
       point: L.latLng(coleta.casa_lat as number, coleta.casa_lng as number),
     }))
 
-    if (points.length === 0 && coletaPoints.length === 0) {
+    if (routeItems.length === 0 && coletaPoints.length === 0) {
       map.setView([-24.9555, -53.4552], 12)
       return
     }
 
     const bounds = L.latLngBounds([])
 
-    if (points.length > 0) {
-      L.polyline(points, { color: '#000', weight: 8, opacity: 0.55 }).addTo(layer)
-      const line = L.polyline(points, { color: '#21c37a', weight: 4, opacity: 0.95 })
-      line.addTo(layer)
-      addRouteHover(layer, map, gps, points)
-      points.forEach((point) => bounds.extend(point))
+    if (routeSegments.length > 0) {
+      routeSegments.forEach((segment) => {
+        const points = segment.map((item) => item.point)
+        L.polyline(points, { color: '#000', weight: 8, opacity: 0.55 }).addTo(layer)
+        L.polyline(points, { color: '#21c37a', weight: 4, opacity: 0.95 }).addTo(layer)
+        addRouteHover(layer, map, segment)
+        points.forEach((point) => bounds.extend(point))
+      })
 
-      L.circleMarker(points[0], {
+      const firstPoint = routeSegments[0][0].point
+      const lastSegment = routeSegments[routeSegments.length - 1]
+      const lastPoint = lastSegment[lastSegment.length - 1].point
+
+      L.circleMarker(firstPoint, {
         radius: 6,
         color: '#21c37a',
         fillColor: '#21c37a',
         fillOpacity: 1,
       }).bindTooltip('Início').addTo(layer)
 
-      L.circleMarker(points[points.length - 1], {
+      L.circleMarker(lastPoint, {
         radius: 6,
         color: '#ff4d65',
         fillColor: '#ff4d65',
@@ -182,7 +195,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
 
       <div className={`status-line ${error ? 'is-error' : loading ? 'is-loading' : 'is-live'}`}>
         <span className="status-dot" />
-        <span>{error ?? (loading ? 'Carregando GPS...' : `${formatGpsCount(rota?.total_pontos_gps, gps.length)} ponto(s) GPS · ${coletasComPonto.length.toLocaleString('pt-BR')} casa(s) no mapa · ${formatKm(rota?.km_rodado ?? null)}`)}</span>
+        <span>{error ?? (loading ? 'Carregando GPS...' : `${formatGpsCount(rota?.total_pontos_gps, gps.length)} ponto(s) GPS ? ${coletasComPonto.length.toLocaleString('pt-BR')} casa(s) no mapa ? ${formatKm(rota?.km_rodado ?? null)}`)}</span>
       </div>
 
       <div className="map-shell">
@@ -216,8 +229,73 @@ function formatGpsCount(total: number | undefined, loaded: number) {
   return total.toLocaleString('pt-BR')
 }
 
-function addRouteHover(layer: L.LayerGroup, map: L.Map, gps: GpsPonto[], points: L.LatLng[]) {
-  const cumulativeKm = buildCumulativeKm(points)
+function buildRouteItems(gps: GpsPonto[]) {
+  const items: RouteItem[] = []
+  let previous: RouteItem | null = null
+  let cumulativeKm = 0
+
+  gps.forEach((point) => {
+    if (!isUsableGpsPoint(point)) return
+
+    const item: RouteItem = {
+      gps: point,
+      point: L.latLng(point.lat, point.lng),
+      cumulativeKm,
+    }
+
+    if (previous && !shouldBreakRoute(previous.gps, point, previous.point, item.point)) {
+      cumulativeKm += haversineKm(previous.point, item.point)
+      item.cumulativeKm = cumulativeKm
+    }
+
+    items.push(item)
+    previous = item
+  })
+
+  return items
+}
+
+function buildRouteSegments(items: RouteItem[]) {
+  const segments: RouteItem[][] = []
+  let current: RouteItem[] = []
+  let previous: RouteItem | null = null
+
+  items.forEach((item) => {
+    if (previous && shouldBreakRoute(previous.gps, item.gps, previous.point, item.point)) {
+      if (current.length > 1) segments.push(current)
+      current = []
+    }
+
+    current.push(item)
+    previous = item
+  })
+
+  if (current.length > 1) segments.push(current)
+  return segments
+}
+
+function isUsableGpsPoint(point: GpsPonto) {
+  if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return false
+  if (point.lat < -31 || point.lat > -25 || point.lng < -55.5 || point.lng > -49) return false
+  if (point.accuracy_m !== null && point.accuracy_m > 30) return false
+  return true
+}
+
+function shouldBreakRoute(previous: GpsPonto, current: GpsPonto, previousPoint: L.LatLng, currentPoint: L.LatLng) {
+  const previousTime = new Date(previous.ts.replace(' ', 'T')).getTime()
+  const currentTime = new Date(current.ts.replace(' ', 'T')).getTime()
+  if (Number.isNaN(previousTime) || Number.isNaN(currentTime) || currentTime <= previousTime) return true
+
+  const seconds = (currentTime - previousTime) / 1000
+  if (seconds > 300) return true
+
+  const distanceKm = haversineKm(previousPoint, currentPoint)
+  const speedKmh = (distanceKm / seconds) * 3600
+  return speedKmh > 140
+}
+
+function addRouteHover(layer: L.LayerGroup, map: L.Map, segment: RouteItem[]) {
+  const points = segment.map((item) => item.point)
   const hoverLine = L.polyline(points, {
     color: '#fff',
     weight: 22,
@@ -243,12 +321,12 @@ function addRouteHover(layer: L.LayerGroup, map: L.Map, gps: GpsPonto[], points:
 
   hoverLine.on('mousemove', (event: L.LeafletMouseEvent) => {
     const index = nearestPointIndex(map, event.latlng, points)
-    const point = points[index]
-    marker.setLatLng(point)
+    const item = segment[index]
+    marker.setLatLng(item.point)
     marker.setStyle({ opacity: 1 })
     tooltip
-      .setLatLng(point)
-      .setContent(routeHoverContent(gps, cumulativeKm, index))
+      .setLatLng(item.point)
+      .setContent(routeHoverContent(segment, index))
       .openOn(map)
   })
 
@@ -258,22 +336,14 @@ function addRouteHover(layer: L.LayerGroup, map: L.Map, gps: GpsPonto[], points:
   })
 }
 
-function routeHoverContent(gps: GpsPonto[], cumulativeKm: number[], index: number) {
-  const point = gps[index]
-  const speed = speedKmhAt(gps, index)
+function routeHoverContent(segment: RouteItem[], index: number) {
+  const item = segment[index]
+  const speed = speedKmhAt(segment, index)
   return `
-    <strong>${formatKm(cumulativeKm[index])}</strong>
+    <strong>${formatKm(item.cumulativeKm)}</strong>
     <span>Velocidade ${formatKmh(speed)}</span>
-    <span>${formatDateTime(point?.ts)}</span>
+    <span>${formatDateTime(item.gps.ts)}</span>
   `
-}
-
-function buildCumulativeKm(points: L.LatLng[]) {
-  const cumulative = [0]
-  for (let index = 1; index < points.length; index += 1) {
-    cumulative[index] = cumulative[index - 1] + haversineKm(points[index - 1], points[index])
-  }
-  return cumulative
 }
 
 function nearestPointIndex(map: L.Map, latlng: L.LatLng, points: L.LatLng[]) {
@@ -292,20 +362,20 @@ function nearestPointIndex(map: L.Map, latlng: L.LatLng, points: L.LatLng[]) {
   return nearestIndex
 }
 
-function speedKmhAt(gps: GpsPonto[], index: number) {
-  const current = gps[index]
+function speedKmhAt(segment: RouteItem[], index: number) {
+  const current = segment[index]?.gps
   if (current?.speed_mps !== null && current?.speed_mps !== undefined) {
     return current.speed_mps * 3.6
   }
 
-  const previous = gps[index - 1]
+  const previous = segment[index - 1]?.gps
   if (!previous || !current) return null
 
   const previousTime = new Date(previous.ts.replace(' ', 'T')).getTime()
   const currentTime = new Date(current.ts.replace(' ', 'T')).getTime()
   if (Number.isNaN(previousTime) || Number.isNaN(currentTime) || currentTime <= previousTime) return null
 
-  const distanceKm = haversineKm(L.latLng(previous.lat, previous.lng), L.latLng(current.lat, current.lng))
+  const distanceKm = haversineKm(segment[index - 1].point, segment[index].point)
   return (distanceKm / ((currentTime - previousTime) / 1000)) * 3600
 }
 

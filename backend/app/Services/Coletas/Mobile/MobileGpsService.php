@@ -40,9 +40,9 @@ class MobileGpsService
                     return MobileResponse::fail('Rota não encontrada para chunk de GPS');
                 }
 
-                $inserted = $this->insertPoints($routeId, $payload['points']);
+                $result = $this->insertPoints($routeId, $payload['points']);
                 $response = MobileResponse::ok(
-                    ['pontos_inseridos' => $inserted],
+                    $result,
                     [['id_local' => $rotaLocal, 'id_server' => $routeId]]
                 );
                 $this->idempotency->save($endpoint, $deviceId, $chunkId, $response);
@@ -53,7 +53,7 @@ class MobileGpsService
         }
     }
 
-    private function insertPoints(int $routeId, array $points): int
+    private function insertPoints(int $routeId, array $points): array
     {
         $route = $this->rotas->getRotaById($routeId);
         if (! $route) {
@@ -61,21 +61,39 @@ class MobileGpsService
         }
 
         $inserted = 0;
+        $ignored = 0;
+        $seen = [];
         foreach ($points as $point) {
             if (! is_array($point) || ! isset($point['ts'], $point['lat'], $point['lng'])) {
+                $ignored++;
                 continue;
             }
 
             $ts = MobileTime::toMysql((string) $point['ts']);
             if ($route->fim !== null && $ts > (string) $route->fim) {
+                $ignored++;
                 continue;
             }
+
+            $lat = round((float) $point['lat'], 7);
+            $lng = round((float) $point['lng'], 7);
+            if (! $this->isUsablePoint($lat, $lng, $point)) {
+                $ignored++;
+                continue;
+            }
+
+            $key = $ts . '|' . number_format($lat, 7, '.', '') . '|' . number_format($lng, 7, '.', '');
+            if (isset($seen[$key]) || $this->pointExists($routeId, $ts, $lat, $lng)) {
+                $ignored++;
+                continue;
+            }
+            $seen[$key] = true;
 
             DB::connection('raw')->table('gps_pontos')->insert([
                 'rota_id_server' => $routeId,
                 'ts' => $ts,
-                'lat' => (float) $point['lat'],
-                'lng' => (float) $point['lng'],
+                'lat' => $lat,
+                'lng' => $lng,
                 'speed_mps' => isset($point['speed_mps']) && is_numeric($point['speed_mps']) ? (float) $point['speed_mps'] : null,
                 'accuracy_m' => isset($point['accuracy_m']) && is_numeric($point['accuracy_m']) ? (float) $point['accuracy_m'] : null,
                 'bearing' => isset($point['bearing']) && is_numeric($point['bearing']) ? (float) $point['bearing'] : null,
@@ -85,6 +103,32 @@ class MobileGpsService
             $inserted++;
         }
 
-        return $inserted;
+        return [
+            'pontos_inseridos' => $inserted,
+            'pontos_ignorados' => $ignored,
+        ];
+    }
+
+    private function isUsablePoint(float $lat, float $lng, array $point): bool
+    {
+        if ($lat < -31.0 || $lat > -25.0 || $lng < -55.5 || $lng > -49.0) {
+            return false;
+        }
+
+        if (isset($point['accuracy_m']) && is_numeric($point['accuracy_m']) && (float) $point['accuracy_m'] > 30.0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function pointExists(int $routeId, string $ts, float $lat, float $lng): bool
+    {
+        return DB::connection('raw')->table('gps_pontos')
+            ->where('rota_id_server', $routeId)
+            ->where('ts', $ts)
+            ->where('lat', number_format($lat, 7, '.', ''))
+            ->where('lng', number_format($lng, 7, '.', ''))
+            ->exists();
     }
 }
