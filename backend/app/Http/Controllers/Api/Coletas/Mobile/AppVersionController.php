@@ -13,8 +13,8 @@ class AppVersionController extends Controller
         $defaultApkUrl = rtrim((string) config('app.url'), '/') . '/downloads/SantiLac-Coletas-Release.apk';
 
         return response()->json(MobileResponse::ok([
-            'version_code' => (int) env('APP_COLETAS_VERSION_CODE', 8),
-            'version_name' => (string) env('APP_COLETAS_VERSION_NAME', '1.0.7'),
+            'version_code' => (int) env('APP_COLETAS_VERSION_CODE', 9),
+            'version_name' => (string) env('APP_COLETAS_VERSION_NAME', '1.0.8'),
             'apk_url' => (string) env('APP_COLETAS_APK_URL', $defaultApkUrl),
             'required' => filter_var(env('APP_COLETAS_UPDATE_REQUIRED', false), FILTER_VALIDATE_BOOLEAN),
             'message' => (string) env('APP_COLETAS_UPDATE_MESSAGE', 'Nova versão disponível.'),
