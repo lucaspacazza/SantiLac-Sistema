@@ -26,6 +26,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
   const coletasComPonto = useMemo(() => {
     return coletas.filter((coleta) => coleta.casa_lat !== null && coleta.casa_lng !== null)
   }, [coletas])
+  const gpsSegments = useMemo(() => splitGpsSegments(gps), [gps])
 
   async function carregar() {
     setLoading(true)
@@ -98,34 +99,46 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
     if (!map || !layer) return
 
     layer.clearLayers()
-    const points = gps.map((point) => L.latLng(point.lat, point.lng))
+    const routeSegments = gpsSegments
+      .map((segment) => ({
+        gps: segment,
+        points: segment.map((point) => L.latLng(point.lat, point.lng)),
+      }))
+      .filter((segment) => segment.points.length > 0)
+    const routePoints = routeSegments.flatMap((segment) => segment.points)
     const coletaPoints = coletasComPonto.map((coleta) => ({
       coleta,
       point: L.latLng(coleta.casa_lat as number, coleta.casa_lng as number),
     }))
 
-    if (points.length === 0 && coletaPoints.length === 0) {
+    if (routePoints.length === 0 && coletaPoints.length === 0) {
       map.setView([-24.9555, -53.4552], 12)
       return
     }
 
     const bounds = L.latLngBounds([])
 
-    if (points.length > 0) {
-      L.polyline(points, { color: '#000', weight: 8, opacity: 0.55 }).addTo(layer)
-      const line = L.polyline(points, { color: '#21c37a', weight: 4, opacity: 0.95 })
-      line.addTo(layer)
-      addRouteHover(layer, map, gps, points)
-      points.forEach((point) => bounds.extend(point))
+    if (routePoints.length > 0) {
+      routeSegments.forEach((segment) => {
+        if (segment.points.length < 2) {
+          bounds.extend(segment.points[0])
+          return
+        }
 
-      L.circleMarker(points[0], {
+        L.polyline(segment.points, { color: '#000', weight: 8, opacity: 0.55 }).addTo(layer)
+        L.polyline(segment.points, { color: '#21c37a', weight: 4, opacity: 0.95 }).addTo(layer)
+        addRouteHover(layer, map, segment.gps, segment.points)
+        segment.points.forEach((point) => bounds.extend(point))
+      })
+
+      L.circleMarker(routePoints[0], {
         radius: 6,
         color: '#21c37a',
         fillColor: '#21c37a',
         fillOpacity: 1,
       }).bindTooltip('Início').addTo(layer)
 
-      L.circleMarker(points[points.length - 1], {
+      L.circleMarker(routePoints[routePoints.length - 1], {
         radius: 6,
         color: '#ff4d65',
         fillColor: '#ff4d65',
@@ -145,7 +158,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
         .bindPopup(`
           <strong>${escapeHtml(coleta.produtor_nome || 'Produtor')}</strong>
           <span>Código ${escapeHtml(coleta.produtor_codigo)}</span>
-          <span>${formatLitros(coleta.litros)} · Tanque ${coleta.tanque ?? '-'}</span>
+          <span>${formatLitros(coleta.litros)}  -  Tanque ${coleta.tanque ?? '-'}</span>
           <span>${formatDateTime(coleta.datahora)}</span>
           <span>Precisão ${coleta.casa_accuracy_m === null ? '-' : `${formatNumber(coleta.casa_accuracy_m, 1)} m`}</span>
         `)
@@ -155,7 +168,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [28, 28] })
     }
-  }, [gps, coletasComPonto])
+  }, [gpsSegments, coletasComPonto])
 
   return (
     <section className="page map-page">
@@ -168,7 +181,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
             Voltar
           </button>
           <h1>Mapa da rota</h1>
-          <p>{rota ? `Rota ${rota.rota_nome} · ${formatDateTime(rota.inicio)}` : 'Traçado GPS da rota.'}</p>
+          <p>{rota ? `Rota ${rota.rota_nome}  -  ${formatDateTime(rota.inicio)}` : 'Traçado GPS da rota.'}</p>
         </div>
         <div className="actions">
           <button className="icon-btn" type="button" onClick={carregar} title="Atualizar">
@@ -183,7 +196,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
 
       <div className={`status-line ${error ? 'is-error' : loading ? 'is-loading' : 'is-live'}`}>
         <span className="status-dot" />
-        <span>{error ?? (loading ? 'Carregando GPS...' : `${formatGpsCount(rota?.total_pontos_gps, gps.length)} ponto(s) GPS · ${coletasComPonto.length.toLocaleString('pt-BR')} casa(s) no mapa · ${formatKm(rota?.km_rodado ?? null)}`)}</span>
+        <span>{error ?? (loading ? 'Carregando GPS...' : `${formatGpsCount(rota?.total_pontos_gps, gps.length)} ponto(s) GPS  -  ${coletasComPonto.length.toLocaleString('pt-BR')} casa(s) no mapa  -  ${formatKm(rota?.km_rodado ?? null)}`)}</span>
       </div>
 
       <div className="map-shell">
@@ -215,6 +228,63 @@ function formatGpsCount(total: number | undefined, loaded: number) {
     return `${loaded.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')}`
   }
   return total.toLocaleString('pt-BR')
+}
+
+function splitGpsSegments(gps: GpsPonto[]) {
+  const segments: GpsPonto[][] = []
+  let current: GpsPonto[] = []
+  let previous: GpsPonto | null = null
+  const seen = new Set<string>()
+
+  gps.forEach((point) => {
+    if (!isValidGpsPoint(point)) return
+
+    const key = `${point.ts}:${point.lat.toFixed(7)}:${point.lng.toFixed(7)}`
+    if (seen.has(key)) return
+    seen.add(key)
+
+    if (previous) {
+      const decision = routePointDecision(previous, point)
+      if (decision === 'drop') return
+      if (decision === 'split') {
+        if (current.length > 0) segments.push(current)
+        current = []
+      }
+    }
+
+    current.push(point)
+    previous = point
+  })
+
+  if (current.length > 0) segments.push(current)
+  return segments
+}
+
+function isValidGpsPoint(point: GpsPonto) {
+  if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return false
+  if (point.lat < -31 || point.lat > -25 || point.lng < -55.5 || point.lng > -49) return false
+  if (point.accuracy_m === null || point.accuracy_m === undefined) return false
+  return point.accuracy_m <= 30
+}
+
+function routePointDecision(previous: GpsPonto, current: GpsPonto): 'keep' | 'split' | 'drop' {
+  const previousTime = parseGpsTime(previous.ts)
+  const currentTime = parseGpsTime(current.ts)
+  if (previousTime === null || currentTime === null || currentTime <= previousTime) return 'drop'
+
+  const seconds = (currentTime - previousTime) / 1000
+  const distanceKm = haversineKm(L.latLng(previous.lat, previous.lng), L.latLng(current.lat, current.lng))
+  const speedKmh = (distanceKm / seconds) * 3600
+
+  if (seconds < 10 || distanceKm < 0.025) return 'drop'
+  if (distanceKm > 0.03 && speedKmh > 120) return 'drop'
+  if (seconds > 180 || distanceKm > 2.5) return 'split'
+  return 'keep'
+}
+
+function parseGpsTime(value: string) {
+  const parsed = new Date(value.replace(' ', 'T')).getTime()
+  return Number.isNaN(parsed) ? null : parsed
 }
 
 function addRouteHover(layer: L.LayerGroup, map: L.Map, gps: GpsPonto[], points: L.LatLng[]) {

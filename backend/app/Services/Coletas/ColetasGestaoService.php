@@ -214,8 +214,10 @@ class ColetasGestaoService
     private function gpsResumoSql(?string $routeFilter = null): string
     {
         $where = [
-            'gp.lat BETWEEN -34.0 AND 6.0',
-            'gp.lng BETWEEN -74.0 AND -34.0',
+            'gp.lat BETWEEN -31.0 AND -25.0',
+            'gp.lng BETWEEN -55.5 AND -49.0',
+            'gp.accuracy_m IS NOT NULL',
+            'gp.accuracy_m <= 30',
         ];
 
         if ($routeFilter !== null) {
@@ -244,7 +246,8 @@ class ColetasGestaoService
                     END AS distance_km,
                     CASE
                         WHEN gps_ordered.prev_lat IS NULL THEN 1
-                        WHEN gps_ordered.seconds_between <= 0 THEN 1
+                        WHEN gps_ordered.seconds_between <= 0 THEN 0
+                        WHEN gps_ordered.seconds_between < 10 THEN 0
                         WHEN (
                             6371 * 2 * ASIN(SQRT(
                                 POWER(SIN(RADIANS(gps_ordered.lat - gps_ordered.prev_lat) / 2), 2)
@@ -252,7 +255,15 @@ class ColetasGestaoService
                                 * COS(RADIANS(gps_ordered.lat))
                                 * POWER(SIN(RADIANS(gps_ordered.lng - gps_ordered.prev_lng) / 2), 2)
                             ))
-                        ) > 5.0
+                        ) < 0.025 THEN 0
+                        WHEN (
+                            6371 * 2 * ASIN(SQRT(
+                                POWER(SIN(RADIANS(gps_ordered.lat - gps_ordered.prev_lat) / 2), 2)
+                                + COS(RADIANS(gps_ordered.prev_lat))
+                                * COS(RADIANS(gps_ordered.lat))
+                                * POWER(SIN(RADIANS(gps_ordered.lng - gps_ordered.prev_lng) / 2), 2)
+                            ))
+                        ) > 0.03
                         AND (
                             (
                                 6371 * 2 * ASIN(SQRT(
@@ -262,7 +273,7 @@ class ColetasGestaoService
                                     * POWER(SIN(RADIANS(gps_ordered.lng - gps_ordered.prev_lng) / 2), 2)
                                 ))
                             ) / gps_ordered.seconds_between * 3600
-                        ) > 140.0 THEN 0
+                        ) > 120.0 THEN 0
                         ELSE 1
                     END AS accepted
                 FROM (
@@ -295,12 +306,15 @@ class ColetasGestaoService
              FROM gps_pontos gp
              INNER JOIN rotas r ON r.id = gp.rota_id_server
              WHERE r.uuid = :uuid
+               AND gp.lat BETWEEN -31.0 AND -25.0
+               AND gp.lng BETWEEN -55.5 AND -49.0
+               AND (gp.accuracy_m IS NOT NULL AND gp.accuracy_m <= 30)
              ORDER BY gp.ts ASC, gp.id ASC
              LIMIT 100000',
             ['uuid' => $uuid]
         );
 
-        return collect($rows)
+        $points = collect($rows)
             ->map(fn ($row): array => [
                 'ts' => (string) $row->ts,
                 'lat' => (float) $row->lat,
@@ -310,6 +324,62 @@ class ColetasGestaoService
                 'low_accuracy' => (int) ($row->low_accuracy ?? 0) === 1,
             ])
             ->all();
+
+        return $this->filterGpsPoints($points);
+    }
+
+    private function filterGpsPoints(array $points): array
+    {
+        $filtered = [];
+        $previous = null;
+        $seen = [];
+
+        foreach ($points as $point) {
+            $key = $point['ts'] . ':' . round((float) $point['lat'], 7) . ':' . round((float) $point['lng'], 7);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            if (! $this->isPlausibleGpsTransition($previous, $point)) {
+                continue;
+            }
+
+            $filtered[] = $point;
+            $previous = $point;
+        }
+
+        return $filtered;
+    }
+
+    private function isPlausibleGpsTransition(?array $previous, array $current): bool
+    {
+        if ($previous === null) {
+            return true;
+        }
+
+        $previousTs = strtotime((string) ($previous['ts'] ?? ''));
+        $currentTs = strtotime((string) ($current['ts'] ?? ''));
+        if ($previousTs === false || $currentTs === false || $currentTs <= $previousTs) {
+            return false;
+        }
+
+        $distanceKm = $this->haversineKm(
+            (float) $previous['lat'],
+            (float) $previous['lng'],
+            (float) $current['lat'],
+            (float) $current['lng']
+        );
+
+        if (($currentTs - $previousTs) < 10 || $distanceKm < 0.025) {
+            return false;
+        }
+
+        if ($distanceKm <= 0.03) {
+            return true;
+        }
+
+        return ($distanceKm / ($currentTs - $previousTs)) * 3600 <= 120;
     }
 
     private function paradas(string $uuid): array
