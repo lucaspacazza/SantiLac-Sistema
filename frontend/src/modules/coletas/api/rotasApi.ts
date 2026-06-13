@@ -29,6 +29,7 @@ export type GpsPonto = {
   ts: string
   lat: number
   lng: number
+  segment?: number
   speed_mps: number | null
   accuracy_m: number | null
   low_accuracy: boolean

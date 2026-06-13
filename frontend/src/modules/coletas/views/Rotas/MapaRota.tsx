@@ -234,6 +234,7 @@ function splitGpsSegments(gps: GpsPonto[]) {
   const segments: GpsPonto[][] = []
   let current: GpsPonto[] = []
   let previous: GpsPonto | null = null
+  let previousSegment: number | null = null
   const seen = new Set<string>()
 
   gps.forEach((point) => {
@@ -243,17 +244,29 @@ function splitGpsSegments(gps: GpsPonto[]) {
     if (seen.has(key)) return
     seen.add(key)
 
+    const currentSegment = Number.isFinite(point.segment) ? Number(point.segment) : null
+
     if (previous) {
-      const decision = routePointDecision(previous, point)
-      if (decision === 'drop') return
-      if (decision === 'split') {
+      let separatedByServerSegment = false
+      if (currentSegment !== null && previousSegment !== null && currentSegment !== previousSegment) {
         if (current.length > 0) segments.push(current)
         current = []
+        separatedByServerSegment = true
+      }
+
+      if (!separatedByServerSegment) {
+        const decision = routePointDecision(previous, point)
+        if (decision === 'drop') return
+        if (decision === 'split') {
+          if (current.length > 0) segments.push(current)
+          current = []
+        }
       }
     }
 
     current.push(point)
     previous = point
+    previousSegment = currentSegment
   })
 
   if (current.length > 0) segments.push(current)
@@ -278,7 +291,7 @@ function routePointDecision(previous: GpsPonto, current: GpsPonto): 'keep' | 'sp
 
   if (seconds < 10 || distanceKm < 0.025) return 'drop'
   if (distanceKm > 0.03 && speedKmh > 120) return 'drop'
-  if (seconds > 180 || distanceKm > 2.5) return 'split'
+  if (seconds > 45 || distanceKm > 0.8) return 'split'
   return 'keep'
 }
 

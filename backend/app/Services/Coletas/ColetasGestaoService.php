@@ -7,6 +7,14 @@ use Illuminate\Support\Facades\DB;
 
 class ColetasGestaoService
 {
+    private const MIN_SECONDS_BETWEEN_GPS_POINTS = 10;
+    private const MIN_DISTANCE_KM_BETWEEN_GPS_POINTS = 0.025;
+    private const MAX_GPS_ACCURACY_M = 30;
+    private const MAX_TRUCK_SPEED_KMH = 120;
+    private const GPS_JITTER_KM = 0.03;
+    private const MAX_SEGMENT_GAP_SECONDS = 45;
+    private const MAX_SEGMENT_GAP_KM = 0.8;
+
     public function rotas(Request $request): array
     {
         $where = ['r.uuid IS NOT NULL', "TRIM(r.uuid) != ''"];
@@ -217,7 +225,7 @@ class ColetasGestaoService
             'gp.lat BETWEEN -31.0 AND -25.0',
             'gp.lng BETWEEN -55.5 AND -49.0',
             'gp.accuracy_m IS NOT NULL',
-            'gp.accuracy_m <= 30',
+            'gp.accuracy_m <= ' . self::MAX_GPS_ACCURACY_M,
         ];
 
         if ($routeFilter !== null) {
@@ -247,7 +255,8 @@ class ColetasGestaoService
                     CASE
                         WHEN gps_ordered.prev_lat IS NULL THEN 1
                         WHEN gps_ordered.seconds_between <= 0 THEN 0
-                        WHEN gps_ordered.seconds_between < 10 THEN 0
+                        WHEN gps_ordered.seconds_between < " . self::MIN_SECONDS_BETWEEN_GPS_POINTS . " THEN 0
+                        WHEN gps_ordered.seconds_between > " . self::MAX_SEGMENT_GAP_SECONDS . " THEN 0
                         WHEN (
                             6371 * 2 * ASIN(SQRT(
                                 POWER(SIN(RADIANS(gps_ordered.lat - gps_ordered.prev_lat) / 2), 2)
@@ -255,7 +264,7 @@ class ColetasGestaoService
                                 * COS(RADIANS(gps_ordered.lat))
                                 * POWER(SIN(RADIANS(gps_ordered.lng - gps_ordered.prev_lng) / 2), 2)
                             ))
-                        ) < 0.025 THEN 0
+                        ) < " . self::MIN_DISTANCE_KM_BETWEEN_GPS_POINTS . " THEN 0
                         WHEN (
                             6371 * 2 * ASIN(SQRT(
                                 POWER(SIN(RADIANS(gps_ordered.lat - gps_ordered.prev_lat) / 2), 2)
@@ -263,7 +272,15 @@ class ColetasGestaoService
                                 * COS(RADIANS(gps_ordered.lat))
                                 * POWER(SIN(RADIANS(gps_ordered.lng - gps_ordered.prev_lng) / 2), 2)
                             ))
-                        ) > 0.03
+                        ) > " . self::MAX_SEGMENT_GAP_KM . " THEN 0
+                        WHEN (
+                            6371 * 2 * ASIN(SQRT(
+                                POWER(SIN(RADIANS(gps_ordered.lat - gps_ordered.prev_lat) / 2), 2)
+                                + COS(RADIANS(gps_ordered.prev_lat))
+                                * COS(RADIANS(gps_ordered.lat))
+                                * POWER(SIN(RADIANS(gps_ordered.lng - gps_ordered.prev_lng) / 2), 2)
+                            ))
+                        ) > " . self::GPS_JITTER_KM . "
                         AND (
                             (
                                 6371 * 2 * ASIN(SQRT(
@@ -273,7 +290,7 @@ class ColetasGestaoService
                                     * POWER(SIN(RADIANS(gps_ordered.lng - gps_ordered.prev_lng) / 2), 2)
                                 ))
                             ) / gps_ordered.seconds_between * 3600
-                        ) > 120.0 THEN 0
+                        ) > " . self::MAX_TRUCK_SPEED_KMH . " THEN 0
                         ELSE 1
                     END AS accepted
                 FROM (
@@ -308,7 +325,7 @@ class ColetasGestaoService
              WHERE r.uuid = :uuid
                AND gp.lat BETWEEN -31.0 AND -25.0
                AND gp.lng BETWEEN -55.5 AND -49.0
-               AND (gp.accuracy_m IS NOT NULL AND gp.accuracy_m <= 30)
+               AND (gp.accuracy_m IS NOT NULL AND gp.accuracy_m <= ' . self::MAX_GPS_ACCURACY_M . ')
              ORDER BY gp.ts ASC, gp.id ASC
              LIMIT 100000',
             ['uuid' => $uuid]
@@ -333,6 +350,7 @@ class ColetasGestaoService
         $filtered = [];
         $previous = null;
         $seen = [];
+        $segment = 0;
 
         foreach ($points as $point) {
             $key = $point['ts'] . ':' . round((float) $point['lat'], 7) . ':' . round((float) $point['lng'], 7);
@@ -341,10 +359,15 @@ class ColetasGestaoService
             }
             $seen[$key] = true;
 
-            if (! $this->isPlausibleGpsTransition($previous, $point)) {
+            $decision = $this->gpsTransitionDecision($previous, $point);
+            if ($decision === 'drop') {
                 continue;
             }
+            if ($decision === 'split') {
+                $segment++;
+            }
 
+            $point['segment'] = $segment;
             $filtered[] = $point;
             $previous = $point;
         }
@@ -354,14 +377,19 @@ class ColetasGestaoService
 
     private function isPlausibleGpsTransition(?array $previous, array $current): bool
     {
+        return $this->gpsTransitionDecision($previous, $current) !== 'drop';
+    }
+
+    private function gpsTransitionDecision(?array $previous, array $current): string
+    {
         if ($previous === null) {
-            return true;
+            return 'keep';
         }
 
         $previousTs = strtotime((string) ($previous['ts'] ?? ''));
         $currentTs = strtotime((string) ($current['ts'] ?? ''));
         if ($previousTs === false || $currentTs === false || $currentTs <= $previousTs) {
-            return false;
+            return 'drop';
         }
 
         $distanceKm = $this->haversineKm(
@@ -371,15 +399,20 @@ class ColetasGestaoService
             (float) $current['lng']
         );
 
-        if (($currentTs - $previousTs) < 10 || $distanceKm < 0.025) {
-            return false;
+        $seconds = $currentTs - $previousTs;
+        if ($seconds < self::MIN_SECONDS_BETWEEN_GPS_POINTS || $distanceKm < self::MIN_DISTANCE_KM_BETWEEN_GPS_POINTS) {
+            return 'drop';
         }
 
-        if ($distanceKm <= 0.03) {
-            return true;
+        if ($distanceKm > self::GPS_JITTER_KM && ($distanceKm / $seconds) * 3600 > self::MAX_TRUCK_SPEED_KMH) {
+            return 'drop';
         }
 
-        return ($distanceKm / ($currentTs - $previousTs)) * 3600 <= 120;
+        if ($seconds > self::MAX_SEGMENT_GAP_SECONDS || $distanceKm > self::MAX_SEGMENT_GAP_KM) {
+            return 'split';
+        }
+
+        return 'keep';
     }
 
     private function paradas(string $uuid): array
