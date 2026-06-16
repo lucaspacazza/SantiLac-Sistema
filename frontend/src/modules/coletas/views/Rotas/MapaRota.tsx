@@ -24,7 +24,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
   const loadingOverlayVisible = useLoadingOverlayVisible(loading)
 
   const coletasComPonto = useMemo(() => {
-    return coletas.filter((coleta) => coleta.casa_lat !== null && coleta.casa_lng !== null)
+    return coletas.filter((coleta) => coleta.ponto_lat !== null && coleta.ponto_lng !== null)
   }, [coletas])
   const gpsSegments = useMemo(() => splitGpsSegments(gps), [gps])
 
@@ -108,7 +108,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
     const routePoints = routeSegments.flatMap((segment) => segment.points)
     const coletaPoints = coletasComPonto.map((coleta) => ({
       coleta,
-      point: L.latLng(coleta.casa_lat as number, coleta.casa_lng as number),
+      point: L.latLng(coleta.ponto_lat as number, coleta.ponto_lng as number),
     }))
 
     if (routePoints.length === 0 && coletaPoints.length === 0) {
@@ -160,7 +160,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
           <span>Código ${escapeHtml(coleta.produtor_codigo)}</span>
           <span>${formatLitros(coleta.litros)}  -  Tanque ${coleta.tanque ?? '-'}</span>
           <span>${formatDateTime(coleta.datahora)}</span>
-          <span>Precisão ${coleta.casa_accuracy_m === null ? '-' : `${formatNumber(coleta.casa_accuracy_m, 1)} m`}</span>
+          <span>Precisão ${coleta.ponto_accuracy_m === null ? '-' : `${formatNumber(coleta.ponto_accuracy_m, 1)} m`}</span>
         `)
         .addTo(layer)
     })
@@ -196,7 +196,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
 
       <div className={`status-line ${error ? 'is-error' : loading ? 'is-loading' : 'is-live'}`}>
         <span className="status-dot" />
-        <span>{error ?? (loading ? 'Carregando GPS...' : `${formatGpsCount(rota?.total_pontos_gps, gps.length)} ponto(s) GPS  -  ${coletasComPonto.length.toLocaleString('pt-BR')} casa(s) no mapa  -  ${formatKm(rota?.km_rodado ?? null)}`)}</span>
+        <span>{error ?? (loading ? 'Carregando GPS...' : `${formatGpsCount(rota?.total_pontos_gps, gps.length)} ponto(s) GPS  -  ${coletasComPonto.length.toLocaleString('pt-BR')} coleta(s) no mapa  -  ${formatKm(rota?.km_rodado ?? null)}`)}</span>
       </div>
 
       <div className="map-shell">
@@ -204,7 +204,7 @@ export function MapaRota({ uuid, onBack, onOpenColetas }: Props) {
           <span><i className="legend-line" /> Rota</span>
           <span><i className="legend-start" /> Início</span>
           <span><i className="legend-end" /> Fim</span>
-          <span><i className="legend-home" /> Casa do produtor</span>
+          <span><i className="legend-home" /> Ponto da coleta</span>
         </div>
         <div ref={mapNode} className="route-map" />
         {!loading && gps.length === 0 && coletasComPonto.length === 0 && <div className="map-empty">Nenhum ponto GPS gravado para esta rota.</div>}

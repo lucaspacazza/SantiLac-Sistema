@@ -122,9 +122,9 @@ function ColetaMiniMapa({ coleta }: { coleta: ColetaRota }) {
       mapRef.current = null
     }
 
-    if (!mapNode.current || coleta.casa_lat === null || coleta.casa_lng === null) return
+    if (!mapNode.current || coleta.ponto_lat === null || coleta.ponto_lng === null) return
 
-    const point = L.latLng(coleta.casa_lat, coleta.casa_lng)
+    const point = L.latLng(coleta.ponto_lat, coleta.ponto_lng)
     const map = L.map(mapNode.current, {
       maxZoom: 21,
       zoomControl: false,
@@ -164,9 +164,9 @@ function ColetaMiniMapa({ coleta }: { coleta: ColetaRota }) {
         mapRef.current = null
       }
     }
-  }, [coleta.casa_lat, coleta.casa_lng])
+  }, [coleta.ponto_lat, coleta.ponto_lng])
 
-  if (coleta.casa_lat === null || coleta.casa_lng === null) {
+  if (coleta.ponto_lat === null || coleta.ponto_lng === null) {
     return <div className="mini-map-empty">Sem ponto registrado para esta coleta.</div>
   }
 
@@ -174,8 +174,8 @@ function ColetaMiniMapa({ coleta }: { coleta: ColetaRota }) {
     <div className="mini-map-wrap">
       <div ref={mapNode} className="mini-map" />
       <div className="mini-map-caption">
-        {formatNumber(coleta.casa_lat, 6)}, {formatNumber(coleta.casa_lng, 6)}
-        {coleta.casa_accuracy_m !== null ? ` · Precisão ${formatNumber(coleta.casa_accuracy_m, 1)} m` : ''}
+        {formatNumber(coleta.ponto_lat, 6)}, {formatNumber(coleta.ponto_lng, 6)}
+        {coleta.ponto_accuracy_m !== null ? ` · Precisão ${formatNumber(coleta.ponto_accuracy_m, 1)} m` : ''}
       </div>
     </div>
   )

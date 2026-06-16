@@ -35,6 +35,10 @@ class MobileColetasService
                     'temperatura' => $payload['temperatura'] ?? null,
                     'tanque' => $payload['tanque'] ?? null,
                     'ts' => $payload['ts'],
+                    'coleta_lat' => $payload['coleta_lat'] ?? null,
+                    'coleta_lng' => $payload['coleta_lng'] ?? null,
+                    'coleta_accuracy_m' => $payload['coleta_accuracy_m'] ?? null,
+                    'coleta_location_source' => $payload['coleta_location_source'] ?? null,
                     'usuario' => $payload['usuario'] ?? null,
                     'observacoes' => $payload['observacoes'] ?? null,
                 ]];
@@ -131,7 +135,7 @@ class MobileColetasService
         $coletaId = (int) DB::connection('raw')->table('coletas')->insertGetId($data);
         $this->linkColetaLocal($deviceId, $idLocal, $coletaId);
         $this->upsertMeta($coletaId, $coleta['observacoes'] ?? null);
-        $this->linkCasaPonto($deviceId, $idLocal, $coletaId);
+        $this->upsertColetaPonto($deviceId, $idLocal, $routeId, $coletaId, $coleta);
         $this->rotas->recalculateTotalLitros($routeId);
 
         return $coletaId;
@@ -146,7 +150,7 @@ class MobileColetasService
 
         DB::connection('raw')->table('coletas')->where('id', $coletaId)->update($this->coletaData($route, $deviceId, $coleta));
         $this->upsertMeta($coletaId, $coleta['observacoes'] ?? null);
-        $this->linkCasaPonto($deviceId, (string) $coleta['id_local'], $coletaId);
+        $this->upsertColetaPonto($deviceId, (string) $coleta['id_local'], $routeId, $coletaId, $coleta);
     }
 
     private function coletaData(object $route, string $deviceId, array $coleta): array
@@ -200,20 +204,71 @@ class MobileColetasService
         );
     }
 
-    private function linkCasaPonto(string $deviceId, string $coletaIdLocal, int $coletaId): void
+    private function upsertColetaPonto(string $deviceId, string $coletaIdLocal, int $routeId, int $coletaId, array $coleta): void
     {
-        DB::connection('raw')
-            ->table('produtor_casa_pontos')
-            ->where('device_id', $deviceId)
-            ->where('coleta_id_local', $coletaIdLocal)
-            ->where(function ($query): void {
-                $query->whereNull('coleta_id_server')->orWhere('coleta_id_server', 0);
-            })
-            ->update([
-                'coleta_id_server' => $coletaId,
-                'confirmed_by_coleta' => 1,
-                'updated_at' => now('America/Sao_Paulo')->format('Y-m-d H:i:s'),
-            ]);
+        if (! is_numeric($coleta['coleta_lat'] ?? null) || ! is_numeric($coleta['coleta_lng'] ?? null)) {
+            return;
+        }
+
+        $lat = (float) $coleta['coleta_lat'];
+        $lng = (float) $coleta['coleta_lng'];
+        $accuracy = isset($coleta['coleta_accuracy_m']) && is_numeric($coleta['coleta_accuracy_m'])
+            ? (float) $coleta['coleta_accuracy_m']
+            : null;
+
+        if (! $this->isValidColetaPoint($lat, $lng, $accuracy)) {
+            return;
+        }
+
+        $produtorCodigo = trim((string) ($coleta['produtor_codigo'] ?? $coleta['produtor_id'] ?? ''));
+        $produtorNome = trim((string) ($coleta['produtor_nome'] ?? '')) ?: $this->produtorNome($produtorCodigo);
+        $capturedAt = MobileTime::toMysql((string) ($coleta['ts'] ?? now('America/Sao_Paulo')->format('Y-m-d H:i:s')));
+
+        DB::connection('raw')->statement(
+            'INSERT INTO coleta_pontos (
+                device_id, id_local, rota_id_local, rota_id_server,
+                coleta_id_local, coleta_id_server, produtor_codigo, produtor_nome,
+                lat, lng, accuracy_m, source, captured_at, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE
+                rota_id_local = VALUES(rota_id_local),
+                rota_id_server = VALUES(rota_id_server),
+                coleta_id_server = VALUES(coleta_id_server),
+                produtor_codigo = VALUES(produtor_codigo),
+                produtor_nome = VALUES(produtor_nome),
+                lat = VALUES(lat),
+                lng = VALUES(lng),
+                accuracy_m = VALUES(accuracy_m),
+                source = VALUES(source),
+                captured_at = VALUES(captured_at),
+                updated_at = NOW()',
+            [
+                $deviceId,
+                $coletaIdLocal,
+                trim((string) ($coleta['rota_id_local'] ?? '')) ?: null,
+                $routeId,
+                $coletaIdLocal,
+                $coletaId,
+                $produtorCodigo,
+                $produtorNome ?: null,
+                $lat,
+                $lng,
+                $accuracy,
+                trim((string) ($coleta['coleta_location_source'] ?? 'COLETA')) ?: 'COLETA',
+                $capturedAt,
+            ]
+        );
+    }
+
+    private function isValidColetaPoint(float $lat, float $lng, ?float $accuracy): bool
+    {
+        if (! is_finite($lat) || ! is_finite($lng)) {
+            return false;
+        }
+        if ($lat < -31.0 || $lat > -25.0 || $lng < -55.5 || $lng > -49.0) {
+            return false;
+        }
+        return $accuracy !== null && $accuracy <= 30.0;
     }
 
     private function produtorNome(string $codigo): ?string

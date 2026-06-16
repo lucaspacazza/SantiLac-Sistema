@@ -53,10 +53,10 @@ export type ColetaRota = {
   usuario: string
   device_id: string
   datahora: string
-  casa_lat: number | null
-  casa_lng: number | null
-  casa_accuracy_m: number | null
-  casa_captured_at?: string | null
+  ponto_lat: number | null
+  ponto_lng: number | null
+  ponto_accuracy_m: number | null
+  ponto_captured_at?: string | null
   rota_uuid?: string | null
   rota_nome?: string | null
   observacoes: string | null

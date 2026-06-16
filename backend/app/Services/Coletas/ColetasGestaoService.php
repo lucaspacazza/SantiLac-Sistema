@@ -536,35 +536,17 @@ class ColetasGestaoService
     private function coletaPontoSelectSql(): string
     {
         return "
-            COALESCE(pcm_exact.lat, pcm_same.lat) AS casa_lat,
-            COALESCE(pcm_exact.lng, pcm_same.lng) AS casa_lng,
-            COALESCE(pcm_exact.accuracy_m, pcm_same.accuracy_m) AS casa_accuracy_m,
-            COALESCE(pcm_exact.captured_at, pcm_same.captured_at) AS casa_captured_at";
+            cp.lat AS ponto_lat,
+            cp.lng AS ponto_lng,
+            cp.accuracy_m AS ponto_accuracy_m,
+            cp.captured_at AS ponto_captured_at";
     }
 
     private function coletaPontoJoinSql(string $alias): string
     {
         return "
-            LEFT JOIN produtor_casa_pontos pcm_exact
-                ON pcm_exact.coleta_id_server = {$alias}.id
-            LEFT JOIN (
-                SELECT
-                    c2.produtor_codigo,
-                    c2.rota_uuid,
-                    c2.datahora,
-                    MAX(pcp.lat) AS lat,
-                    MAX(pcp.lng) AS lng,
-                    MAX(pcp.accuracy_m) AS accuracy_m,
-                    MAX(pcp.captured_at) AS captured_at
-                FROM produtor_casa_pontos pcp
-                INNER JOIN coletas c2 ON c2.id = pcp.coleta_id_server
-                WHERE c2.rota_uuid IS NOT NULL
-                GROUP BY c2.produtor_codigo, c2.rota_uuid, c2.datahora
-            ) pcm_same
-                ON pcm_exact.id IS NULL
-               AND pcm_same.produtor_codigo COLLATE utf8mb4_unicode_ci = {$alias}.produtor_codigo COLLATE utf8mb4_unicode_ci
-               AND pcm_same.rota_uuid = {$alias}.rota_uuid
-               AND pcm_same.datahora = {$alias}.datahora";
+            LEFT JOIN coleta_pontos cp
+                ON cp.coleta_id_server = {$alias}.id";
     }
 
     private function rotaParaApi(array $row): array
@@ -618,10 +600,10 @@ class ColetasGestaoService
             'datahora' => (string) $row['datahora'],
             'rota_uuid' => $row['rota_uuid'] ?? null,
             'rota_nome' => $row['rota_nome'] ?? null,
-            'casa_lat' => $row['casa_lat'] !== null ? (float) $row['casa_lat'] : null,
-            'casa_lng' => $row['casa_lng'] !== null ? (float) $row['casa_lng'] : null,
-            'casa_accuracy_m' => $row['casa_accuracy_m'] !== null ? (float) $row['casa_accuracy_m'] : null,
-            'casa_captured_at' => $row['casa_captured_at'] !== null ? (string) $row['casa_captured_at'] : null,
+            'ponto_lat' => $row['ponto_lat'] !== null ? (float) $row['ponto_lat'] : null,
+            'ponto_lng' => $row['ponto_lng'] !== null ? (float) $row['ponto_lng'] : null,
+            'ponto_accuracy_m' => $row['ponto_accuracy_m'] !== null ? (float) $row['ponto_accuracy_m'] : null,
+            'ponto_captured_at' => $row['ponto_captured_at'] !== null ? (string) $row['ponto_captured_at'] : null,
             'observacoes' => $row['observacoes'] !== null ? (string) $row['observacoes'] : null,
         ];
     }
