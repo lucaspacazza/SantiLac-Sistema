@@ -291,7 +291,7 @@ function routePointDecision(previous: GpsPonto, current: GpsPonto): 'keep' | 'sp
 
   if (seconds < 10 || distanceKm < 0.025) return 'drop'
   if (distanceKm > 0.03 && speedKmh > 120) return 'drop'
-  if (seconds > 45 || distanceKm > 0.8) return 'split'
+  if (seconds > 300 || distanceKm > 3) return 'split'
   return 'keep'
 }
 

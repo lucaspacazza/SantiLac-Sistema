@@ -12,8 +12,8 @@ class ColetasGestaoService
     private const MAX_GPS_ACCURACY_M = 30;
     private const MAX_TRUCK_SPEED_KMH = 120;
     private const GPS_JITTER_KM = 0.03;
-    private const MAX_SEGMENT_GAP_SECONDS = 45;
-    private const MAX_SEGMENT_GAP_KM = 0.8;
+    private const MAX_SEGMENT_GAP_SECONDS = 300;
+    private const MAX_SEGMENT_GAP_KM = 3.0;
 
     public function rotas(Request $request): array
     {
