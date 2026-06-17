@@ -60,15 +60,16 @@ class ProdutorAppController extends Controller
     public function version(): JsonResponse
     {
         $defaultApkUrl = rtrim((string) config('app.url'), '/') . '/downloads/SantiLac-Produtor-Release.apk';
+        $apkUrl = (string) (config('services.produtor_app.apk_url') ?: $defaultApkUrl);
 
         return response()->json([
             'ok' => true,
             'data' => [
-                'version_code' => (int) env('APP_PRODUTOR_VERSION_CODE', 1),
-                'version_name' => (string) env('APP_PRODUTOR_VERSION_NAME', '0.1.0'),
-                'apk_url' => (string) env('APP_PRODUTOR_APK_URL', $defaultApkUrl),
-                'required' => filter_var(env('APP_PRODUTOR_UPDATE_REQUIRED', false), FILTER_VALIDATE_BOOLEAN),
-                'message' => (string) env('APP_PRODUTOR_UPDATE_MESSAGE', 'Nova versão disponível.'),
+                'version_code' => (int) config('services.produtor_app.version_code', 1),
+                'version_name' => (string) config('services.produtor_app.version_name', '0.1.0'),
+                'apk_url' => $apkUrl,
+                'required' => (bool) config('services.produtor_app.update_required', false),
+                'message' => (string) config('services.produtor_app.update_message', 'Nova versão disponível.'),
             ],
         ]);
     }

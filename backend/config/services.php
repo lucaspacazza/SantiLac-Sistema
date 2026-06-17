@@ -44,4 +44,12 @@ return [
         'api_key' => env('SANTILAC_API_KEY'),
     ],
 
+    'produtor_app' => [
+        'version_code' => (int) env('APP_PRODUTOR_VERSION_CODE', 1),
+        'version_name' => env('APP_PRODUTOR_VERSION_NAME', '0.1.0'),
+        'apk_url' => env('APP_PRODUTOR_APK_URL'),
+        'update_required' => filter_var(env('APP_PRODUTOR_UPDATE_REQUIRED', false), FILTER_VALIDATE_BOOLEAN),
+        'update_message' => env('APP_PRODUTOR_UPDATE_MESSAGE', 'Nova versão disponível.'),
+    ],
+
 ];
