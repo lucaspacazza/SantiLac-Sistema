@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\ProdutorApp\ProdutorAppService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProdutorAppController extends Controller
 {
@@ -59,7 +60,7 @@ class ProdutorAppController extends Controller
 
     public function version(): JsonResponse
     {
-        $defaultApkUrl = rtrim((string) config('app.url'), '/') . '/downloads/SantiLac-Produtor-Release.apk';
+        $defaultApkUrl = rtrim((string) config('app.url'), '/') . '/api/produtor-app/download';
         $apkUrl = (string) (config('services.produtor_app.apk_url') ?: $defaultApkUrl);
 
         return response()->json([
@@ -71,6 +72,21 @@ class ProdutorAppController extends Controller
                 'required' => (bool) config('services.produtor_app.update_required', false),
                 'message' => (string) config('services.produtor_app.update_message', 'Nova versão disponível.'),
             ],
+        ]);
+    }
+
+    public function download(): JsonResponse|BinaryFileResponse
+    {
+        $path = public_path('downloads/SantiLac-Produtor-Release.apk');
+        if (! is_file($path)) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'APK não encontrado.',
+            ], 404);
+        }
+
+        return response()->download($path, 'SantiLac-Produtor-Release.apk', [
+            'Content-Type' => 'application/vnd.android.package-archive',
         ]);
     }
 
