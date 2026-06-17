@@ -278,9 +278,11 @@ class ProdutorAppService
             return $this->fail('Senha ainda não criada para este produtor.', 403, 'password_missing');
         }
 
+        $select = array_values(array_unique(array_merge(['id', 'ativo', 'senha_hash'], $this->selectProdutorPerfil())));
+
         $produtor = DB::connection('raw')
             ->table('produtores')
-            ->select('id', 'codigo', 'nome', 'ativo', 'senha_hash')
+            ->select($select)
             ->when(Schema::connection('raw')->hasColumn('produtores', 'senha_bloqueada'), fn ($query) => $query->addSelect('senha_bloqueada'))
             ->whereRaw("REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', '') = ?", [$documento])
             ->first();
@@ -297,11 +299,7 @@ class ProdutorAppService
             return $this->fail('CPF/CNPJ ou senha incorretos.', 401);
         }
 
-        $data = [
-            'codigo' => (string) $produtor->codigo,
-            'nome' => (string) $produtor->nome,
-            'role' => 'produtor',
-        ];
+        $data = $this->produtorPayload($produtor);
         session()->forget(self::SESSION_ADMIN);
         session([self::SESSION_PRODUTOR => $data]);
 
@@ -345,7 +343,7 @@ class ProdutorAppService
     {
         $row = DB::connection('raw')
             ->table('produtores')
-            ->select('codigo', 'nome')
+            ->select($this->selectProdutorPerfil())
             ->where('ativo', 1)
             ->where('codigo', trim($codigo))
             ->first();
@@ -354,9 +352,30 @@ class ProdutorAppService
             return null;
         }
 
+        return $this->produtorPayload($row);
+    }
+
+    private function selectProdutorPerfil(): array
+    {
+        $campos = ['codigo', 'nome', 'cidade', 'rota', 'endereco', 'cep', 'cpf_cnpj', 'celular'];
+
+        return array_values(array_filter(
+            $campos,
+            fn (string $campo): bool => Schema::connection('raw')->hasColumn('produtores', $campo)
+        ));
+    }
+
+    private function produtorPayload(object $produtor): array
+    {
         return [
-            'codigo' => (string) $row->codigo,
-            'nome' => (string) $row->nome,
+            'codigo' => (string) ($produtor->codigo ?? ''),
+            'nome' => (string) ($produtor->nome ?? ''),
+            'cidade' => (string) ($produtor->cidade ?? ''),
+            'rota' => (string) ($produtor->rota ?? ''),
+            'endereco' => (string) ($produtor->endereco ?? ''),
+            'cep' => (string) ($produtor->cep ?? ''),
+            'cpf_cnpj' => (string) ($produtor->cpf_cnpj ?? ''),
+            'celular' => (string) ($produtor->celular ?? ''),
             'role' => 'produtor',
         ];
     }
