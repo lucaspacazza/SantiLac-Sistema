@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\Embalagem\EmbalagemController;
 use App\Http\Controllers\Api\Estoque\EstoqueController;
 use App\Http\Controllers\Api\Pasteurizador\PasteurizadorController;
 use App\Http\Controllers\Api\ProdutorController;
+use App\Http\Controllers\Api\ProdutorApp\ProdutorAppController;
 use App\Http\Controllers\Api\Producao\FormulacaoCremeController;
 use App\Http\Controllers\Api\Producao\FormulacaoQueijoController;
 use App\Http\Controllers\Api\Producao\OrdemProducaoController;
@@ -54,6 +55,17 @@ Route::middleware('coletas.mobile.key')->prefix('api')->group(function (): void 
 
 Route::post('/api/pasteurizador/coletas', [PasteurizadorController::class, 'criarColeta'])
     ->middleware('throttle:6,1');
+
+Route::prefix('api/produtor-app')->group(function (): void {
+    Route::post('/login', [ProdutorAppController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('/logout', [ProdutorAppController::class, 'logout']);
+    Route::get('/me', [ProdutorAppController::class, 'me']);
+    Route::get('/coletas', [ProdutorAppController::class, 'coletas']);
+    Route::get('/analises', [ProdutorAppController::class, 'analises']);
+    Route::get('/notas', [ProdutorAppController::class, 'notas']);
+    Route::get('/admin/produtores', [ProdutorAppController::class, 'adminProdutores']);
+    Route::post('/admin/impersonate', [ProdutorAppController::class, 'adminImpersonate']);
+});
 
 Route::prefix('api/embalagem')->group(function (): void {
     Route::post('/ordens/validar', [EmbalagemController::class, 'validarOrdem']);
