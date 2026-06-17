@@ -63,6 +63,7 @@ Route::prefix('api/produtor-app')->group(function (): void {
     Route::get('/coletas', [ProdutorAppController::class, 'coletas']);
     Route::get('/analises', [ProdutorAppController::class, 'analises']);
     Route::get('/notas', [ProdutorAppController::class, 'notas']);
+    Route::get('/version', [ProdutorAppController::class, 'version']);
     Route::get('/admin/produtores', [ProdutorAppController::class, 'adminProdutores']);
     Route::post('/admin/impersonate', [ProdutorAppController::class, 'adminImpersonate']);
 });
