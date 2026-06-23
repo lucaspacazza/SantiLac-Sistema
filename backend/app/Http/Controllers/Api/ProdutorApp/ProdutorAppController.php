@@ -72,7 +72,8 @@ class ProdutorAppController extends Controller
                 'required' => (bool) config('services.produtor_app.update_required', false),
                 'message' => (string) config('services.produtor_app.update_message', 'Nova versão disponível.'),
             ],
-        ]);
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache');
     }
 
     public function download(): JsonResponse|BinaryFileResponse
