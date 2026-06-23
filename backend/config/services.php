@@ -40,6 +40,10 @@ return [
         'token' => env('PROCESSOR_TOKEN'),
     ],
 
+    'pasteurizador' => [
+        'processor_url' => env('PASTEURIZADOR_PROCESSOR_URL', 'http://192.168.0.203:8095'),
+    ],
+
     'santilac' => [
         'api_key' => env('SANTILAC_API_KEY'),
     ],

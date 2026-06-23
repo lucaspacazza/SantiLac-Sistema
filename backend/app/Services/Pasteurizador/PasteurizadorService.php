@@ -118,7 +118,7 @@ class PasteurizadorService
 
     public function coletarAgora(?Request $request = null): array
     {
-        $url = rtrim((string) env('PASTEURIZADOR_PROCESSOR_URL', 'http://192.168.0.209:8095'), '/') . '/collect';
+        $url = rtrim((string) config('services.pasteurizador.processor_url', 'http://192.168.0.203:8095'), '/') . '/collect';
         $payload = [
             'timezone' => 'America/Sao_Paulo',
         ];
@@ -361,7 +361,7 @@ class PasteurizadorService
 
     private function executarExportadorGraficoPdf(array $payload, string $outputPath): array
     {
-        $processorUrl = rtrim((string) env('PASTEURIZADOR_PROCESSOR_URL', 'http://192.168.0.209:8095'), '/');
+        $processorUrl = rtrim((string) config('services.pasteurizador.processor_url', 'http://192.168.0.203:8095'), '/');
         if ($processorUrl !== '') {
             $response = Http::timeout(120)
                 ->accept('application/pdf')
