@@ -26,7 +26,9 @@ def normalize_time(value, fallback):
 def command_from_payload(payload):
     command = BASE_COMMAND.copy()
 
-    if payload.get("previous_day"):
+    if payload.get("catch_up"):
+        command.append("--catch-up")
+    elif payload.get("previous_day"):
         command.append("--previous-day")
     else:
         start = payload.get("start")
