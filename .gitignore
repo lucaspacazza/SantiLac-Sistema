@@ -43,3 +43,6 @@ database/
 !deploy/**
 !deploy/*.md
 !.md
+
+.docx
+docs/
