@@ -327,7 +327,7 @@ def main():
     port = int(env.get("FIELDLOGGER_PORT", DEFAULT_PORT))
     unit_id = int(env.get("FIELDLOGGER_UNIT_ID", DEFAULT_UNIT_ID))
     equipment = env.get("EQUIPMENT_NAME", "pasteurizador")
-    max_bytes = int(env.get("FIELDLOGGER_MAX_BYTES", "2000000"))
+    max_bytes = int(env.get("FIELDLOGGER_MAX_BYTES", "8000000"))
     api_url = env.get("SANTILAC_API_URL", "").strip()
     api_token = env.get("SANTILAC_API_TOKEN", "").strip()
     http_timeout = int(env.get("SANTILAC_HTTP_TIMEOUT", "240"))
@@ -359,11 +359,16 @@ def main():
         return 2
 
     started = time.time()
-    print(f"[{APP_NAME}] coletando historico {equipment} em {host}:{port} unit={unit_id}")
+    print(f"[{APP_NAME}] coletando historico {equipment} em {host}:{port} unit={unit_id} max_bytes={max_bytes}")
     result = download_history_file(host=host, port=port, unit_id=unit_id, max_bytes=max_bytes)
     all_samples, channels = extract_history_samples(result["data"])
     samples = filter_samples_by_period(all_samples, period_start, period_end)
     _, raw_path = write_outbox(out_dir, {"status": "raw_downloaded"}, result["data"])
+    size_hint = result.get("directory_size_hint")
+    if size_hint is not None:
+        print(f"[{APP_NAME}] size_hint={size_hint} bytes_baixados={len(result['data'])}")
+        if size_hint > max_bytes:
+            print(f"[{APP_NAME}] download truncado no limite FIELDLOGGER_MAX_BYTES={max_bytes}.")
 
     if args.catch_up:
         target = previous_production_day(args.timezone)
