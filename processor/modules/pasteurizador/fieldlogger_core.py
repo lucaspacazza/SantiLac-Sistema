@@ -12,6 +12,8 @@ DEFAULT_UNIT_ID = 1
 REMOTE_HISTORY_DIR = "2:/24085425"
 REMOTE_HISTORY_FILE = f"{REMOTE_HISTORY_DIR}/MemFlash.fl"
 DOWNLOAD_CHUNK_SIZE = 1232
+DOWNLOAD_PAUSE_EVERY_CHUNKS = 50
+DOWNLOAD_PAUSE_SECONDS = 0.35
 RECORD_START = 420
 RECORD_STRIDE = 36
 
@@ -202,7 +204,11 @@ def list_history_file(link, remote_dir=REMOTE_HISTORY_DIR):
     words = link.read_words(0x05AB, 13)
     raw = _words_to_little_bytes(words)
     name = raw[:16].split(b"\x00", 1)[0].decode("ascii", errors="replace")
-    size_hint = int.from_bytes(raw[16:20], "little", signed=False)
+    # The directory entry text is word-swapped, but the file size is exposed as
+    # two big-endian Modbus words. Reading it from the swapped byte string turns
+    # sizes like 0x000CC9DC into nonsense such as 0x0C00DCC9, making the
+    # downloader ignore the real end of MemFlash.fl.
+    size_hint = ((words[8] & 0xFFFF) << 16) | (words[9] & 0xFFFF)
     return name, size_hint
 
 
@@ -211,25 +217,22 @@ def download_history_file(host=DEFAULT_HOST, port=DEFAULT_PORT, unit_id=DEFAULT_
     try:
         link.connect()
         link.write_single(0x035C, 3)
-        size_hint = 0
+        name, size_hint = list_history_file(link)
+        if name.lower() != "memflash.fl":
+            raise RuntimeError(f"Arquivo interno inesperado: {name!r}")
         link.write_path(REMOTE_HISTORY_FILE)
         data = bytearray()
-        # Keep one TCP session open while reading MemFlash.fl; the equipment
-        # serves newer blocks only while the file context stays alive.
-        target_size = max_bytes
+        target_size = min(size_hint or max_bytes, max_bytes)
+        chunk_index = 0
         while len(data) < target_size:
             requested = min(DOWNLOAD_CHUNK_SIZE, target_size - len(data))
-            chunk = b""
-            for attempt in range(4):
-                chunk = link.read_file(len(data), requested)
-                if chunk:
-                    break
-                time.sleep(0.2 * (attempt + 1))
+            chunk = link.read_file(len(data), requested)
             if not chunk:
                 break
             data.extend(chunk)
-            if len(chunk) < requested:
-                break
+            chunk_index += 1
+            if DOWNLOAD_PAUSE_EVERY_CHUNKS > 0 and chunk_index % DOWNLOAD_PAUSE_EVERY_CHUNKS == 0:
+                time.sleep(DOWNLOAD_PAUSE_SECONDS)
         return {
             "remote_file": REMOTE_HISTORY_FILE,
             "directory_size_hint": size_hint,

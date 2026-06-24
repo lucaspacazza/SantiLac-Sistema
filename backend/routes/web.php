@@ -56,6 +56,9 @@ Route::middleware('coletas.mobile.key')->prefix('api')->group(function (): void 
 Route::post('/api/pasteurizador/coletas', [PasteurizadorController::class, 'criarColeta'])
     ->middleware('throttle:6,1');
 
+Route::get('/api/pasteurizador/sync-state', [PasteurizadorController::class, 'syncState'])
+    ->middleware('coletas.mobile.key');
+
 Route::prefix('api/produtor-app')->group(function (): void {
     Route::post('/login', [ProdutorAppController::class, 'login'])->middleware('throttle:10,1');
     Route::post('/logout', [ProdutorAppController::class, 'logout']);
