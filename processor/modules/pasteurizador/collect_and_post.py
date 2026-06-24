@@ -364,8 +364,8 @@ def main():
     parser.add_argument("--start", help="Inicio do periodo no horario local do equipamento. Ex: 2026-06-01 00:00:00")
     parser.add_argument("--end", help="Fim do periodo no horario local do equipamento. Ex: 2026-06-01 23:59:59")
     parser.add_argument("--previous-day", action="store_true", help="Coleta somente o dia anterior no horario de Brasilia.")
-    parser.add_argument("--previous-production-day", action="store_true", help="Coleta o ultimo dia de producao. Segunda-feira busca sabado.")
-    parser.add_argument("--catch-up", action="store_true", help="Coleta todos os dias de producao pendentes desde o ultimo sucesso registrado.")
+    parser.add_argument("--previous-production-day", action="store_true", help="Coleta o ultimo dia de produção. Segunda-feira busca sábado.")
+    parser.add_argument("--catch-up", action="store_true", help="Coleta todos os dias de produção pendentes desde o ultimo sucesso registrado.")
     parser.add_argument("--timezone", default=os.environ.get("PASTEURIZADOR_TIMEZONE", "America/Sao_Paulo"))
     args = parser.parse_args()
 
