@@ -46,3 +46,6 @@ database/
 
 .docx
 docs/
+.codex-tmp/
+.agents/
+.continue/
