@@ -17,6 +17,10 @@ APP_NAME = "santilac-pasteurizador"
 DEFAULT_ENV_FILE = "/etc/santilac-pasteurizador/processor.env"
 DEFAULT_STATE_FILE = "/var/lib/santilac-pasteurizador/state.json"
 DATE_FORMAT = "%Y-%m-%d"
+PERIOD_POSTED = "posted"
+PERIOD_SKIPPED = "skipped"
+PERIOD_PENDING = "pending"
+PERIOD_FAILED = "failed"
 
 
 def load_env(path):
@@ -189,6 +193,27 @@ def post_json(url, token, payload, timeout):
         return response.status, body
 
 
+def post_json_with_retry(url, token, payload, timeout, attempts=4, base_delay=5.0):
+    for attempt in range(1, max(attempts, 1) + 1):
+        try:
+            return post_json(url, token, payload, timeout)
+        except urllib.error.HTTPError as exc:
+            retryable = exc.code == 429 or 500 <= exc.code < 600
+            if not retryable or attempt >= attempts:
+                raise
+
+            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            try:
+                delay = max(float(retry_after), 0.0) if retry_after else base_delay * attempt
+            except ValueError:
+                delay = base_delay * attempt
+            print(
+                f"[{APP_NAME}] POST recebeu HTTP {exc.code}; "
+                f"nova tentativa {attempt + 1}/{attempts} em {delay:.1f}s."
+            )
+            time.sleep(delay)
+
+
 def write_outbox(out_dir, payload, raw_data):
     path = Path(out_dir)
     path.mkdir(parents=True, exist_ok=True)
@@ -227,7 +252,8 @@ def process_period(result, all_samples, channels, raw_path, env, period_start, p
     api_url = env["api_url"]
     api_token = env["api_token"]
     http_timeout = env["http_timeout"]
-    post_empty_periods = env["post_empty_periods"]
+    post_retry_attempts = env["post_retry_attempts"]
+    post_retry_base_delay = env["post_retry_base_delay"]
 
     samples = filter_samples_by_period(all_samples, period_start, period_end)
     status, mensagem_erro = resolve_period_status(all_samples, period_start, period_end)
@@ -252,25 +278,36 @@ def process_period(result, all_samples, channels, raw_path, env, period_start, p
     print(f"[{APP_NAME}] outbox json={json_path}")
     print(f"[{APP_NAME}] outbox raw={raw_path}")
 
-    if api_url and (payload["samples"] or post_empty_periods):
+    if not payload["samples"]:
+        if status == "erro":
+            print(f"[{APP_NAME}] periodo ainda nao disponivel no FieldLogger; estado nao sera avancado.")
+        else:
+            print(f"[{APP_NAME}] periodo coberto, mas sem registros decodificados; estado nao sera avancado.")
+        return PERIOD_PENDING
+
+    if api_url:
         try:
-            http_status, body = post_json(api_url, api_token, payload, http_timeout)
+            http_status, body = post_json_with_retry(
+                api_url,
+                api_token,
+                payload,
+                http_timeout,
+                attempts=post_retry_attempts,
+                base_delay=post_retry_base_delay,
+            )
             print(f"[{APP_NAME}] POST {api_url} -> HTTP {http_status}")
             if body:
                 print(body[:1000])
-            return True
+            return PERIOD_POSTED
         except urllib.error.HTTPError as exc:
             print(f"[{APP_NAME}] erro HTTP {exc.code}: {exc.read().decode('utf-8', 'replace')[:1000]}", file=sys.stderr)
-            return False
+            return PERIOD_FAILED
         except Exception as exc:
             print(f"[{APP_NAME}] erro ao enviar para API: {exc}", file=sys.stderr)
-            return False
-    if api_url:
-        print(f"[{APP_NAME}] nenhum registro no período filtrado; POST ignorado porque POST_EMPTY_PERIODS=0.")
-    else:
-        print(f"[{APP_NAME}] SANTILAC_API_URL vazio; payload ficou salvo no outbox.")
+            return PERIOD_FAILED
 
-    return True
+    print(f"[{APP_NAME}] SANTILAC_API_URL vazio; payload ficou salvo no outbox e o estado nao sera avancado.")
+    return PERIOD_FAILED
 
 
 def main():
@@ -299,12 +336,16 @@ def main():
     state_file = env.get("PASTEURIZADOR_STATE_FILE", DEFAULT_STATE_FILE)
     catchup_lookback_days = int(env.get("PASTEURIZADOR_CATCHUP_LOOKBACK_DAYS", "14"))
     catchup_start_date = parse_state_date(env.get("PASTEURIZADOR_CATCHUP_START_DATE"))
+    catchup_post_interval = float(env.get("PASTEURIZADOR_CATCHUP_POST_INTERVAL_SECONDS", "11"))
+    post_retry_attempts = int(env.get("SANTILAC_POST_RETRY_ATTEMPTS", "4"))
+    post_retry_base_delay = float(env.get("SANTILAC_POST_RETRY_BASE_DELAY_SECONDS", "5"))
     runtime_env = {
         "equipment": equipment,
         "api_url": api_url,
         "api_token": api_token,
         "http_timeout": http_timeout,
-        "post_empty_periods": post_empty_periods,
+        "post_retry_attempts": post_retry_attempts,
+        "post_retry_base_delay": post_retry_base_delay,
     }
 
     period_start = parse_local_datetime(args.start) if args.start else None
@@ -337,22 +378,25 @@ def main():
             f"periodo={pending_dates[0]:%Y-%m-%d}..{pending_dates[-1]:%Y-%m-%d} "
             f"state={state_file}"
         )
-        for target_date in pending_dates:
+        for index, target_date in enumerate(pending_dates):
             day_start, day_end = day_range(target_date)
-            ok = process_period(result, all_samples, channels, raw_path, runtime_env, day_start, day_end, args.timezone)
-            if not ok:
+            outcome = process_period(result, all_samples, channels, raw_path, runtime_env, day_start, day_end, args.timezone)
+            if outcome in {PERIOD_PENDING, PERIOD_FAILED}:
                 print(f"[{APP_NAME}] catch-up interrompido em {target_date:%Y-%m-%d}; estado nao avancado.", file=sys.stderr)
                 return 2
             write_state(state_file, target_date, equipment)
             print(f"[{APP_NAME}] catch-up estado atualizado: {target_date:%Y-%m-%d}")
+            if outcome == PERIOD_POSTED and index < len(pending_dates) - 1 and catchup_post_interval > 0:
+                print(f"[{APP_NAME}] aguardando {catchup_post_interval:.1f}s para respeitar o limite da API.")
+                time.sleep(catchup_post_interval)
 
         print(f"[{APP_NAME}] finalizado em {time.time() - started:.1f}s")
         return 0
 
     if period_start is not None and period_end is not None:
-        ok = process_period(result, all_samples, channels, raw_path, runtime_env, period_start, period_end, args.timezone)
+        outcome = process_period(result, all_samples, channels, raw_path, runtime_env, period_start, period_end, args.timezone)
         print(f"[{APP_NAME}] finalizado em {time.time() - started:.1f}s")
-        return 0 if ok else 2
+        return 0 if outcome in {PERIOD_POSTED, PERIOD_SKIPPED} else 2
 
     status = "processada"
     mensagem_erro = None
@@ -398,7 +442,14 @@ def main():
 
     if api_url and (payload["samples"] or post_empty_periods):
         try:
-            status, body = post_json(api_url, api_token, payload, http_timeout)
+            status, body = post_json_with_retry(
+                api_url,
+                api_token,
+                payload,
+                http_timeout,
+                attempts=post_retry_attempts,
+                base_delay=post_retry_base_delay,
+            )
             print(f"[{APP_NAME}] POST {api_url} -> HTTP {status}")
             if body:
                 print(body[:1000])
