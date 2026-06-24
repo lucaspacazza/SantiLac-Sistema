@@ -81,6 +81,16 @@ def production_dates(start_date, end_date):
         current += timedelta(days=1)
 
 
+def is_full_day_range(period_start, period_end):
+    if period_start is None or period_end is None:
+        return False
+    return (
+        period_start.time() == datetime_time(0, 0, 0)
+        and period_end.time() == datetime_time(23, 59, 59)
+        and period_start.date() <= period_end.date()
+    )
+
+
 def read_state(path):
     state_path = Path(path)
     if not state_path.exists():
@@ -465,6 +475,39 @@ def main():
             write_state(state_file, target_date, equipment)
             print(f"[{APP_NAME}] catch-up estado atualizado: {target_date:%Y-%m-%d}")
             if outcome == PERIOD_POSTED and index < len(pending_dates) - 1 and catchup_post_interval > 0:
+                print(f"[{APP_NAME}] aguardando {catchup_post_interval:.1f}s para respeitar o limite da API.")
+                time.sleep(catchup_post_interval)
+
+        print(f"[{APP_NAME}] finalizado em {time.time() - started:.1f}s")
+        return 0
+
+    if is_full_day_range(period_start, period_end) and period_start.date() < period_end.date():
+        remote_sync = fetch_remote_sync_state(api_url, api_token, http_timeout, sync_state_url)
+        remote_last_sample_date = remote_sync.get("last_sample_date") if remote_sync else None
+        requested_dates = list(production_dates(period_start.date(), period_end.date()))
+        if remote_last_sample_date is not None:
+            requested_dates = [target_date for target_date in requested_dates if target_date > remote_last_sample_date]
+            print(
+                f"[{APP_NAME}] intervalo diario remoto="
+                f"{remote_sync['url'] if remote_sync else 'n/a'} "
+                f"last_sample_date={remote_last_sample_date:%Y-%m-%d}"
+            )
+        if not requested_dates:
+            print(f"[{APP_NAME}] intervalo sem dias faltantes para gravar.")
+            print(f"[{APP_NAME}] finalizado em {time.time() - started:.1f}s")
+            return 0
+
+        print(
+            f"[{APP_NAME}] intervalo diario dias={len(requested_dates)} "
+            f"periodo={requested_dates[0]:%Y-%m-%d}..{requested_dates[-1]:%Y-%m-%d}"
+        )
+        for index, target_date in enumerate(requested_dates):
+            day_start, day_end = day_range(target_date)
+            outcome = process_period(result, all_samples, channels, raw_path, runtime_env, day_start, day_end, args.timezone)
+            if outcome in {PERIOD_PENDING, PERIOD_FAILED}:
+                print(f"[{APP_NAME}] intervalo interrompido em {target_date:%Y-%m-%d}.", file=sys.stderr)
+                return 2
+            if outcome == PERIOD_POSTED and index < len(requested_dates) - 1 and catchup_post_interval > 0:
                 print(f"[{APP_NAME}] aguardando {catchup_post_interval:.1f}s para respeitar o limite da API.")
                 time.sleep(catchup_post_interval)
 
