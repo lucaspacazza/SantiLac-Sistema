@@ -220,6 +220,7 @@ def download_history_file(host=DEFAULT_HOST, port=DEFAULT_PORT, unit_id=DEFAULT_
         link.write_path(REMOTE_HISTORY_FILE)
         data = bytearray()
         target_size = min(size_hint or max_bytes, max_bytes)
+        empty_reads = 0
         while len(data) < target_size:
             requested = min(DOWNLOAD_CHUNK_SIZE, target_size - len(data))
             chunk = b""
@@ -227,12 +228,21 @@ def download_history_file(host=DEFAULT_HOST, port=DEFAULT_PORT, unit_id=DEFAULT_
                 chunk = link.read_file(len(data), requested)
                 if chunk:
                     break
+                # O FieldLogger pode "perder" o contexto do arquivo entre leituras.
+                # Reposicionamos o arquivo e tentamos de novo antes de assumir EOF.
+                link.write_single(0x035C, 3)
+                link.write_path(REMOTE_HISTORY_FILE)
                 time.sleep(0.2 * (attempt + 1))
             if not chunk:
-                break
+                empty_reads += 1
+                if empty_reads >= 3:
+                    break
+                continue
+            empty_reads = 0
             data.extend(chunk)
+            # Bloco curto nao significa EOF neste equipamento; continua do proximo offset.
             if len(chunk) < requested:
-                break
+                time.sleep(0.05)
         return {
             "remote_file": REMOTE_HISTORY_FILE,
             "directory_size_hint": size_hint,
