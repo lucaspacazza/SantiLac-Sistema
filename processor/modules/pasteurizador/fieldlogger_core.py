@@ -12,6 +12,8 @@ DEFAULT_UNIT_ID = 1
 REMOTE_HISTORY_DIR = "2:/24085425"
 REMOTE_HISTORY_FILE = f"{REMOTE_HISTORY_DIR}/MemFlash.fl"
 DOWNLOAD_CHUNK_SIZE = 1232
+DOWNLOAD_PAUSE_EVERY_CHUNKS = 50
+DOWNLOAD_PAUSE_SECONDS = 0.35
 RECORD_START = 420
 RECORD_STRIDE = 36
 
@@ -213,6 +215,7 @@ def list_history_file(link, remote_dir=REMOTE_HISTORY_DIR):
 def download_history_file(host=DEFAULT_HOST, port=DEFAULT_PORT, unit_id=DEFAULT_UNIT_ID, max_bytes=2_000_000):
     link = FieldLoggerModbus(host, port, unit_id)
     try:
+        link.connect()
         link.write_single(0x035C, 3)
         name, size_hint = list_history_file(link)
         if name.lower() != "memflash.fl":
@@ -220,29 +223,16 @@ def download_history_file(host=DEFAULT_HOST, port=DEFAULT_PORT, unit_id=DEFAULT_
         link.write_path(REMOTE_HISTORY_FILE)
         data = bytearray()
         target_size = min(size_hint or max_bytes, max_bytes)
-        empty_reads = 0
+        chunk_index = 0
         while len(data) < target_size:
             requested = min(DOWNLOAD_CHUNK_SIZE, target_size - len(data))
-            chunk = b""
-            for attempt in range(4):
-                chunk = link.read_file(len(data), requested)
-                if chunk:
-                    break
-                # O FieldLogger pode "perder" o contexto do arquivo entre leituras.
-                # Reposicionamos o arquivo e tentamos de novo antes de assumir EOF.
-                link.write_single(0x035C, 3)
-                link.write_path(REMOTE_HISTORY_FILE)
-                time.sleep(0.2 * (attempt + 1))
+            chunk = link.read_file(len(data), requested)
             if not chunk:
-                empty_reads += 1
-                if empty_reads >= 3:
-                    break
-                continue
-            empty_reads = 0
+                break
             data.extend(chunk)
-            # Bloco curto nao significa EOF neste equipamento; continua do proximo offset.
-            if len(chunk) < requested:
-                time.sleep(0.05)
+            chunk_index += 1
+            if DOWNLOAD_PAUSE_EVERY_CHUNKS > 0 and chunk_index % DOWNLOAD_PAUSE_EVERY_CHUNKS == 0:
+                time.sleep(DOWNLOAD_PAUSE_SECONDS)
         return {
             "remote_file": REMOTE_HISTORY_FILE,
             "directory_size_hint": size_hint,
@@ -254,6 +244,7 @@ def download_history_file(host=DEFAULT_HOST, port=DEFAULT_PORT, unit_id=DEFAULT_
             link.write_single(0x035C, 0)
         except Exception:
             pass
+        link.close()
 
 
 def extract_channels(data):
