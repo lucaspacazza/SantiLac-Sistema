@@ -1,0 +1,131 @@
+name: Deploy testes
+
+on:
+  push:
+    branches:
+      - testes
+  workflow_dispatch:
+    inputs:
+      frontend:
+        description: Deploy frontend
+        type: boolean
+        default: false
+      backend:
+        description: Deploy backend
+        type: boolean
+        default: false
+      processor:
+        description: Deploy processor
+        type: boolean
+        default: false
+
+concurrency:
+  group: testes-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.detect.outputs.frontend }}
+      backend: ${{ steps.detect.outputs.backend }}
+      processor: ${{ steps.detect.outputs.processor }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "frontend=${{ inputs.frontend }}" >> "$GITHUB_OUTPUT"
+            echo "backend=${{ inputs.backend }}" >> "$GITHUB_OUTPUT"
+            echo "processor=${{ inputs.processor }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base="${{ github.event.before }}"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD^ 2>/dev/null || true)"
+          fi
+
+          if [ -n "$base" ]; then
+            changed="$(git diff --name-only "$base" HEAD)"
+          else
+            changed="$(git ls-files)"
+          fi
+          echo "$changed"
+
+          has_change() {
+            printf '%s\n' "$changed" | grep -E "$1" >/dev/null 2>&1
+          }
+
+          if has_change '^(frontend/)'; then echo "frontend=true" >> "$GITHUB_OUTPUT"; else echo "frontend=false" >> "$GITHUB_OUTPUT"; fi
+          if has_change '^(backend/)'; then echo "backend=true" >> "$GITHUB_OUTPUT"; else echo "backend=false" >> "$GITHUB_OUTPUT"; fi
+          if has_change '^(processor/)'; then echo "processor=true" >> "$GITHUB_OUTPUT"; else echo "processor=false" >> "$GITHUB_OUTPUT"; fi
+
+  deploy:
+    name: Deploy testes
+    needs: detect
+    if: |
+      needs.detect.outputs.frontend == 'true' ||
+      needs.detect.outputs.backend == 'true' ||
+      needs.detect.outputs.processor == 'true'
+    runs-on: [self-hosted, santilac-prod]
+    environment: testes
+    env:
+      FRONTEND_CT: "120"
+      FRONTEND_PATH: /var/www/santilac-front
+      BACKEND_CT: "121"
+      BACKEND_PATH: /var/www/santilac-backend
+      PROCESSOR_CT: "122"
+      PROCESSOR_PATH: /var/www/processor
+      PROCESSOR_INSTALL_REQUIREMENTS: "0"
+      PROCESSOR_SERVICES: ""
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        if: needs.detect.outputs.frontend == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Validate deploy configuration
+        run: bash deploy/scripts/validate-config.sh
+        env:
+          DEPLOY_FRONTEND: ${{ needs.detect.outputs.frontend }}
+          DEPLOY_BACKEND: ${{ needs.detect.outputs.backend }}
+          DEPLOY_PROCESSOR: ${{ needs.detect.outputs.processor }}
+
+      - name: Prepare backend
+        if: needs.detect.outputs.backend == 'true'
+        run: bash deploy/scripts/prepare-backend.sh
+
+      - name: Deploy backend
+        if: needs.detect.outputs.backend == 'true'
+        run: bash deploy/scripts/publish-backend.sh
+
+      - name: Prepare processor
+        if: needs.detect.outputs.processor == 'true'
+        run: bash deploy/scripts/prepare-processor.sh
+
+      - name: Deploy processor
+        if: needs.detect.outputs.processor == 'true'
+        run: bash deploy/scripts/publish-processor.sh
+
+      - name: Prepare frontend
+        if: needs.detect.outputs.frontend == 'true'
+        run: bash deploy/scripts/prepare-frontend.sh
+
+      - name: Deploy frontend
+        if: needs.detect.outputs.frontend == 'true'
+        run: bash deploy/scripts/publish-frontend.sh
