@@ -329,9 +329,9 @@ def process_period(result, all_samples, channels, raw_path, env, period_start, p
 
     if not payload["samples"]:
         if status == "erro":
-            print(f"[{APP_NAME}] periodo ainda nao disponivel no FieldLogger; estado nao sera avancado.")
+            print(f"[{APP_NAME}] período ainda não disponível no FieldLogger; estado não será avançado.")
         else:
-            print(f"[{APP_NAME}] periodo coberto, mas sem registros decodificados; estado nao sera avancado.")
+            print(f"[{APP_NAME}] período coberto, mas sem registros decodificados; estado não será avançado.")
         return PERIOD_PENDING
 
     if api_url:
@@ -355,7 +355,7 @@ def process_period(result, all_samples, channels, raw_path, env, period_start, p
             print(f"[{APP_NAME}] erro ao enviar para API: {exc}", file=sys.stderr)
             return PERIOD_FAILED
 
-    print(f"[{APP_NAME}] SANTILAC_API_URL vazio; payload ficou salvo no outbox e o estado nao sera avancado.")
+    print(f"[{APP_NAME}] SANTILAC_API_URL vazio; payload ficou salvo no outbox e o estado não será avançado.")
     return PERIOD_FAILED
 
 
