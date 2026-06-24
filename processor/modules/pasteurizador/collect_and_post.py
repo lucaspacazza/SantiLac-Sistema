@@ -114,10 +114,12 @@ def write_state(path, last_date, equipment):
     tmp_path.replace(state_path)
 
 
-def catch_up_dates(state_path, target_date, lookback_days, start_date_override=None):
+def catch_up_dates(state_path, target_date, lookback_days, start_date_override=None, authoritative_last_date=None):
     state = read_state(state_path)
     last_successful = parse_state_date(state.get("last_successful_production_date"))
-    if last_successful is not None:
+    if authoritative_last_date is not None:
+        start_date = authoritative_last_date + timedelta(days=1)
+    elif last_successful is not None:
         start_date = last_successful + timedelta(days=1)
     elif start_date_override is not None:
         start_date = start_date_override
@@ -193,6 +195,19 @@ def post_json(url, token, payload, timeout):
         return response.status, body
 
 
+def get_json(url, token, timeout):
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": f"{APP_NAME}/1.0",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(url, headers=headers, method="GET")
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        body = response.read().decode("utf-8", "replace")
+        return response.status, body
+
+
 def post_json_with_retry(url, token, payload, timeout, attempts=4, base_delay=5.0):
     for attempt in range(1, max(attempts, 1) + 1):
         try:
@@ -212,6 +227,40 @@ def post_json_with_retry(url, token, payload, timeout, attempts=4, base_delay=5.
                 f"nova tentativa {attempt + 1}/{attempts} em {delay:.1f}s."
             )
             time.sleep(delay)
+
+
+def derive_sync_state_url(api_url):
+    if not api_url:
+        return ""
+    suffix = "/api/pasteurizador/coletas"
+    if api_url.endswith(suffix):
+        return api_url[: -len(suffix)] + "/api/pasteurizador/sync-state"
+    if api_url.endswith("/coletas"):
+        return api_url[: -len("/coletas")] + "/sync-state"
+    return ""
+
+
+def fetch_remote_sync_state(api_url, token, timeout, explicit_url=""):
+    url = explicit_url.strip() or derive_sync_state_url(api_url)
+    if not url:
+        return None
+    try:
+        http_status, body = get_json(url, token, timeout)
+        payload = json.loads(body)
+        if http_status < 200 or http_status >= 300 or not isinstance(payload, dict):
+            return None
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            return None
+        last_sample_date = parse_state_date(data.get("last_sample_date"))
+        return {
+            "url": url,
+            "last_sample_date": last_sample_date,
+            "payload": data,
+        }
+    except Exception as exc:
+        print(f"[{APP_NAME}] aviso: nao foi possivel consultar sync-state remoto: {exc}", file=sys.stderr)
+        return None
 
 
 def write_outbox(out_dir, payload, raw_data):
@@ -330,6 +379,7 @@ def main():
     max_bytes = int(env.get("FIELDLOGGER_MAX_BYTES", "8000000"))
     api_url = env.get("SANTILAC_API_URL", "").strip()
     api_token = env.get("SANTILAC_API_TOKEN", "").strip()
+    sync_state_url = env.get("SANTILAC_SYNC_STATE_URL", "").strip()
     http_timeout = int(env.get("SANTILAC_HTTP_TIMEOUT", "240"))
     out_dir = env.get("OUTBOX_DIR", "/var/lib/santilac-pasteurizador/outbox")
     post_empty_periods = env.get("POST_EMPTY_PERIODS", "1").strip().lower() in {"1", "true", "yes", "sim"}
@@ -372,7 +422,30 @@ def main():
 
     if args.catch_up:
         target = previous_production_day(args.timezone)
-        pending_dates = catch_up_dates(state_file, target, catchup_lookback_days, catchup_start_date)
+        state = read_state(state_file)
+        state_last_successful = parse_state_date(state.get("last_successful_production_date"))
+        remote_sync = fetch_remote_sync_state(api_url, api_token, http_timeout, sync_state_url)
+        remote_last_sample_date = remote_sync.get("last_sample_date") if remote_sync else None
+        if remote_sync is not None:
+            print(
+                f"[{APP_NAME}] sync-state remoto={remote_sync['url']} "
+                f"last_sample_date={remote_last_sample_date or 'null'}"
+            )
+        if remote_last_sample_date is not None and remote_last_sample_date != state_last_successful:
+            write_state(state_file, remote_last_sample_date, equipment)
+            state_last_successful = remote_last_sample_date
+            print(
+                f"[{APP_NAME}] state sincronizado com backend: "
+                f"{remote_last_sample_date:%Y-%m-%d}"
+            )
+
+        pending_dates = catch_up_dates(
+            state_file,
+            target,
+            catchup_lookback_days,
+            catchup_start_date,
+            authoritative_last_date=remote_last_sample_date,
+        )
         if not pending_dates:
             print(f"[{APP_NAME}] catch-up sem dias pendentes ate {target:%Y-%m-%d}.")
             print(f"[{APP_NAME}] finalizado em {time.time() - started:.1f}s")

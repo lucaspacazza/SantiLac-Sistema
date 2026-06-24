@@ -74,6 +74,27 @@ class PasteurizadorService
         return $coleta ? $this->formatarColeta($coleta) : null;
     }
 
+    public function syncState(): array
+    {
+        $ultimaAmostra = PasteurizadorAmostra::query()
+            ->whereNotNull('timestamp_registro')
+            ->orderByDesc('timestamp_registro')
+            ->first();
+
+        $ultimaColetaComAmostras = PasteurizadorColeta::query()
+            ->where('total_amostras', '>', 0)
+            ->orderByDesc('coletado_em')
+            ->orderByDesc('id')
+            ->first();
+
+        return [
+            'last_sample_timestamp' => optional($ultimaAmostra?->timestamp_registro)->toDateTimeString(),
+            'last_sample_date' => optional($ultimaAmostra?->timestamp_registro)->format('Y-m-d'),
+            'last_collection_with_samples_at' => optional($ultimaColetaComAmostras?->coletado_em)->toDateTimeString(),
+            'last_collection_with_samples_id' => $ultimaColetaComAmostras?->id !== null ? (int) $ultimaColetaComAmostras->id : null,
+        ];
+    }
+
     public function criarColeta(array $payload): array
     {
         $id = DB::connection('raw')->transaction(function () use ($payload): int {

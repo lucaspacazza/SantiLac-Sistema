@@ -98,6 +98,14 @@ class PasteurizadorController extends Controller
         ]);
     }
 
+    public function syncState(): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $this->pasteurizador->syncState(),
+        ]);
+    }
+
     public function amostras(int $id, Request $request): JsonResponse
     {
         return response()->json([
