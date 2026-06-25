@@ -592,6 +592,6 @@ def main():
     print(f"[{APP_NAME}] finalizado em {time.time() - started:.1f}s")
     return 0
 
-
+   
 if __name__ == "__main__":
     raise SystemExit(main())

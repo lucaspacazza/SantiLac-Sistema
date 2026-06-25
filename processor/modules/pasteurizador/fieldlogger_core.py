@@ -38,7 +38,7 @@ class FieldLoggerModbus:
         self.port = port
         self.unit_id = unit_id
         self.timeout = timeout
-        self.tid = 1
+        self.tid = 1  
         self.sock = None
 
     def connect(self):

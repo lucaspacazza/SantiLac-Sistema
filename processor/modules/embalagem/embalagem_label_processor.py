@@ -33,7 +33,7 @@ def main() -> int:
     print(f"Dry-run: {'sim' if config.dry_run else 'nao'}")
 
     while True:
-        try:
+        try:    
             process_pending(config)
         except Exception as exc:  # noqa: BLE001 - processor precisa seguir vivo.
             print(f"[erro] {exc}", file=sys.stderr)
