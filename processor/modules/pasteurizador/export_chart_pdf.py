@@ -270,7 +270,7 @@ def main() -> int:
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--logo")
-    args = parser.parse_args()
+    args = parser.parse_args() 
 
     try:
         payload = json.loads(Path(args.input).read_text(encoding="utf-8-sig"))
