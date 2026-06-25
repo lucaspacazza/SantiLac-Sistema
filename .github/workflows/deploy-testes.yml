@@ -95,7 +95,7 @@ jobs:
       PROCESSOR_CT: "122"
       PROCESSOR_PATH: /var/www/processor
       PROCESSOR_INSTALL_REQUIREMENTS: "1"
-      PROCESSOR_SERVICES: ""
+      PROCESSOR_SERVICES: "santilac-processor.service"
     steps:
       - uses: actions/checkout@v5
 
