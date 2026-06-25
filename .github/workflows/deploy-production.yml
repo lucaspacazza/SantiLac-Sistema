@@ -80,6 +80,15 @@ jobs:
       needs.detect.outputs.processor == 'true'
     runs-on: [self-hosted, santilac-prod]
     environment: production
+    env:
+      FRONTEND_CT: "100"
+      FRONTEND_PATH: /var/www/santilac-front
+      BACKEND_CT: "101"
+      BACKEND_PATH: /var/www/santilac-backend
+      PROCESSOR_CT: "102"
+      PROCESSOR_PATH: /var/www/processor
+      PROCESSOR_INSTALL_REQUIREMENTS: "1"
+      PROCESSOR_SERVICES: "santilac-processor.service"
     steps:
       - uses: actions/checkout@v5
 
@@ -96,12 +105,6 @@ jobs:
           DEPLOY_FRONTEND: ${{ needs.detect.outputs.frontend }}
           DEPLOY_BACKEND: ${{ needs.detect.outputs.backend }}
           DEPLOY_PROCESSOR: ${{ needs.detect.outputs.processor }}
-          FRONTEND_CT: ${{ vars.FRONTEND_CT }}
-          FRONTEND_PATH: ${{ vars.FRONTEND_PATH }}
-          BACKEND_CT: ${{ vars.BACKEND_CT }}
-          BACKEND_PATH: ${{ vars.BACKEND_PATH }}
-          PROCESSOR_CT: ${{ vars.PROCESSOR_CT }}
-          PROCESSOR_PATH: ${{ vars.PROCESSOR_PATH }}
 
       - name: Prepare backend
         if: needs.detect.outputs.backend == 'true'
@@ -111,8 +114,6 @@ jobs:
         if: needs.detect.outputs.backend == 'true'
         run: bash deploy/scripts/publish-backend.sh
         env:
-          BACKEND_CT: ${{ vars.BACKEND_CT }}
-          BACKEND_PATH: ${{ vars.BACKEND_PATH }}
           BACKEND_HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL }}
 
       - name: Prepare processor
@@ -123,10 +124,6 @@ jobs:
         if: needs.detect.outputs.processor == 'true'
         run: bash deploy/scripts/publish-processor.sh
         env:
-          PROCESSOR_CT: ${{ vars.PROCESSOR_CT }}
-          PROCESSOR_PATH: ${{ vars.PROCESSOR_PATH }}
-          PROCESSOR_INSTALL_REQUIREMENTS: ${{ vars.PROCESSOR_INSTALL_REQUIREMENTS }}
-          PROCESSOR_SERVICES: ${{ vars.PROCESSOR_SERVICES }}
           PROCESSOR_HEALTH_URL: ${{ vars.PROCESSOR_HEALTH_URL }}
 
       - name: Prepare frontend
@@ -137,6 +134,4 @@ jobs:
         if: needs.detect.outputs.frontend == 'true'
         run: bash deploy/scripts/publish-frontend.sh
         env:
-          FRONTEND_CT: ${{ vars.FRONTEND_CT }}
-          FRONTEND_PATH: ${{ vars.FRONTEND_PATH }}
           FRONTEND_HEALTH_URL: ${{ vars.FRONTEND_HEALTH_URL }}
