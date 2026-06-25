@@ -578,7 +578,7 @@ def main():
             print(f"[{APP_NAME}] POST {api_url} -> HTTP {status}")
             if body:
                 print(body[:1000])
-        except urllib.error.HTTPError as exc:
+        except urllib.error.HTTPError as exc: 
             print(f"[{APP_NAME}] erro HTTP {exc.code}: {exc.read().decode('utf-8', 'replace')[:1000]}", file=sys.stderr)
             return 2
         except Exception as exc:

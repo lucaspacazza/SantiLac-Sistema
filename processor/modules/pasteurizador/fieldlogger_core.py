@@ -22,7 +22,7 @@ RECORD_STRIDE = 36
 class ChannelInfo:
     name: str
     unit: str
-
+ 
 
 @dataclass
 class HistorySample:
