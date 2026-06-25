@@ -16,3 +16,4 @@ export const authApi = {
     apiPost<{ user: AuthUser }>('/api/auth/login', { login, password, remember }),
   logout: () => apiPost<{ message: string }>('/api/auth/logout', {}),
 }
+

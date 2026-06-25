@@ -914,7 +914,7 @@ def build_ordem_pdf(data, out_dir):
 
 
 def run(args):
-    with open(args.payload, "r", encoding="utf-8") as handle:
+    with open(args.payload, "r", encoding="utf-8-sig") as handle:
         data = json.load(handle)
 
     tipo = args.tipo
@@ -932,6 +932,34 @@ def run(args):
         "caminho": str(final_path),
         "formato": formato,
         "errors": [],
+    }
+
+
+def format_exception(exc, formato):
+    if isinstance(exc, ModuleNotFoundError):
+        dependency = getattr(exc, "name", None) or str(exc).replace("No module named ", "").strip("'\"")
+        messages = {
+            "openpyxl": "Dependencia Python ausente no processor: openpyxl. Instale requirements.txt antes de exportar Excel.",
+            "reportlab": "Dependencia Python ausente no processor: reportlab. Instale requirements.txt antes de exportar PDF.",
+        }
+        return {
+            "success": False,
+            "arquivo": None,
+            "caminho": None,
+            "formato": formato,
+            "errors": [{
+                "code": "PROCESSOR_DEPENDENCY_MISSING",
+                "message": messages.get(dependency, f"Dependencia Python ausente no processor: {dependency}."),
+                "details": {"dependency": dependency},
+            }],
+        }
+
+    return {
+        "success": False,
+        "arquivo": None,
+        "caminho": None,
+        "formato": formato,
+        "errors": [str(exc)],
     }
 
 
@@ -1185,13 +1213,7 @@ def main():
     try:
         result = run(args)
     except Exception as exc:
-        result = {
-            "success": False,
-            "arquivo": None,
-            "caminho": None,
-            "formato": args.formato,
-            "errors": [str(exc)],
-        }
+        result = format_exception(exc, args.formato)
 
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result["success"] else 1

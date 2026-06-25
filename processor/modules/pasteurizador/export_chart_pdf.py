@@ -26,7 +26,7 @@ CHANNEL_ORDER = [
     "Bomba Leite",
     "Tan.Equilibrio",
     "Temp.Pasteuriza",
-    "Temp.Retardador",
+    "Temp.Retardador",   
     "Valvula Desvio",
     "Vazao",
 ]
