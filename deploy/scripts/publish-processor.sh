@@ -17,5 +17,3 @@ pct exec "$PROCESSOR_CT" -- sh -lc "set -e; if [ -d \"$PROCESSOR_PATH/modules/pa
 if [ -n "${PROCESSOR_HEALTH_URL:-}" ]; then
   curl -fsS "$PROCESSOR_HEALTH_URL" >/dev/null
 fi
-
-
