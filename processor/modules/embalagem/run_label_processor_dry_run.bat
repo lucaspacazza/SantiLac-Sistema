@@ -6,3 +6,4 @@ set ZEBRA_PRINTER_NAME=Zebra GC420t
 set EMBALAGEM_LABEL_INTERVAL=10
 set EMBALAGEM_LABEL_DRY_RUN=1
 python embalagem_label_processor.py --once
+   
