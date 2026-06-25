@@ -94,7 +94,7 @@ jobs:
       BACKEND_PATH: /var/www/santilac-backend
       PROCESSOR_CT: "122"
       PROCESSOR_PATH: /var/www/processor
-      PROCESSOR_INSTALL_REQUIREMENTS: "0"
+      PROCESSOR_INSTALL_REQUIREMENTS: "1"
       PROCESSOR_SERVICES: ""
     steps:
       - uses: actions/checkout@v5
