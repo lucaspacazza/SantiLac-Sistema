@@ -68,10 +68,7 @@ class OrdemProducaoExportacaoService
 
     private function processar(array $payload, string $formato): array
     {
-        $baseDir = storage_path('app/producao-exportacoes');
-        if (! is_dir($baseDir)) {
-            mkdir($baseDir, 0775, true);
-        }
+        $baseDir = ExportacaoTempDirectory::resolve();
 
         $httpResult = $this->processarViaHttp($payload, $formato, $baseDir);
         if ($httpResult !== null) {

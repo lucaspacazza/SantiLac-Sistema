@@ -33,10 +33,7 @@ class ExportacaoFormularioService
             return null;
         }
 
-        $baseDir = storage_path('app/producao-exportacoes');
-        if (! is_dir($baseDir)) {
-            mkdir($baseDir, 0775, true);
-        }
+        $baseDir = ExportacaoTempDirectory::resolve();
 
         $httpResult = $this->processarViaHttp($config['processor'], $registro, $formato, $baseDir);
         if ($httpResult !== null) {
@@ -184,4 +181,3 @@ class ExportacaoFormularioService
         ];
     }
 }
-
