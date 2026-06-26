@@ -3,6 +3,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   BarChart3,
+  CalendarDays,
   ClipboardList,
   FlaskConical,
   Fuel,
@@ -133,6 +134,8 @@ function iconForModule(icon: string): ReactNode {
     'fa-user': User,
     'fa-id-card': IdCard,
     'fa-chart-pie': BarChart3,
+    'fa-chart-line': BarChart3,
+    'fa-calendar-day': CalendarDays,
     'fa-exchange-alt': ArrowRightLeft,
     'fa-arrow-down': ArrowDownToLine,
     'fa-arrow-up': ArrowUpFromLine,
@@ -156,5 +159,6 @@ function isSubmoduleActive(currentHash: string, href: string): boolean {
 
 function normalizeHash(hash: string): string {
   const cleaned = hash || '#/inicio'
-  return cleaned.startsWith('#') ? cleaned : `#${cleaned}`
+  const normalized = cleaned.startsWith('#') ? cleaned : `#${cleaned}`
+  return normalized.split('?')[0]
 }

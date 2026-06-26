@@ -16,6 +16,18 @@ export type SidebarSubmodule = {
 
 export const sidebarModules = [
   {
+    slug: 'dashboard',
+    title: 'Dashboard',
+    desc: 'Resumo executivo da operacao.',
+    levels: ['7.0'],
+    icon: 'fa-chart-line',
+    href: '#/dashboard/inicio',
+    children: [
+      { title: 'Visao geral', icon: 'fa-home', href: '#/dashboard/inicio' },
+      { title: 'Resumo diario', icon: 'fa-calendar-day', href: '#/dashboard/resumo-diario' },
+    ],
+  },
+  {
     slug: 'qualidade',
     title: 'Qualidade',
     desc: 'Análises e qualidade.',

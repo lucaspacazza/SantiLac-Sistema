@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\Coletas\Mobile\RotasStartController;
 use App\Http\Controllers\Api\Coletas\Mobile\RotasStopsBatchController;
 use App\Http\Controllers\Api\Coletas\ColetasGestaoController;
 use App\Http\Controllers\Api\Combustivel\CombustivelController;
+use App\Http\Controllers\Api\Dashboard\DashboardResumoController;
 use App\Http\Controllers\Api\Embalagem\EmbalagemController;
 use App\Http\Controllers\Api\Estoque\EstoqueController;
 use App\Http\Controllers\Api\Pasteurizador\PasteurizadorController;
@@ -84,6 +85,12 @@ Route::prefix('api/embalagem')->group(function (): void {
 });
 
 Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): void {
+    Route::prefix('dashboard-resumo')->group(function (): void {
+        Route::get('/home', [DashboardResumoController::class, 'homeResumo']);
+        Route::get('/diario', [DashboardResumoController::class, 'resumoDiario']);
+        Route::get('/snapshot', [DashboardResumoController::class, 'snapshot']);
+    });
+
     Route::prefix('produtores')->group(function (): void {
         Route::get('/', [ProdutorController::class, 'index']);
         Route::get('/{codigo}', [ProdutorController::class, 'show']);
