@@ -110,13 +110,13 @@ export function PasteurizadorModule() {
       setStatusText('Dados carregados.')
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Nao foi possivel carregar o modulo.')
+      setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar o módulo.')
     }
   }
 
   async function loadAmostrasPeriodo(filtro = filtroAtual()) {
     setStatus('loading')
-    setStatusText('Carregando amostras por periodo...')
+    setStatusText('Carregando amostras por período...')
 
     try {
       const result = await pasteurizadorApi.amostrasPeriodo(
@@ -128,10 +128,10 @@ export function PasteurizadorModule() {
       )
       setAmostras(result)
       setStatus('live')
-      setStatusText(`${result.length.toLocaleString('pt-BR')} ponto(s) carregado(s) para o grafico.`)
+      setStatusText(`${result.length.toLocaleString('pt-BR')} ponto(s) carregado(s) para o gráfico.`)
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Nao foi possivel carregar o grafico por periodo.')
+      setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar o gráfico por período.')
     }
   }
 
@@ -170,7 +170,7 @@ export function PasteurizadorModule() {
       await loadAmostrasPeriodo(filtro)
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Nao foi possivel carregar as coletas.')
+      setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar as coletas.')
     }
   }
 
@@ -181,10 +181,10 @@ export function PasteurizadorModule() {
     try {
       setAmostras(await pasteurizadorApi.amostras(coletaId, nextCanal))
       setStatus('live')
-      setStatusText('Amostras da coleta carregadas para o grafico.')
+      setStatusText('Amostras da coleta carregadas para o gráfico.')
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Nao foi possivel carregar as amostras.')
+      setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar as amostras.')
     }
   }
 
@@ -192,7 +192,7 @@ export function PasteurizadorModule() {
     const filtro = filtroAtual()
     setSelectedColetaId(null)
     setStatus('loading')
-    setStatusText('Consultando periodo...')
+    setStatusText('Consultando período...')
 
     try {
       await loadColetasSalvas(filtro)
@@ -206,11 +206,11 @@ export function PasteurizadorModule() {
       }
       setStatus('live')
       setStatusText(result.length
-        ? `${result.length.toLocaleString('pt-BR')} ponto(s) carregado(s) para o grafico.`
-        : 'Nenhuma informacao encontrada para esse periodo.')
+        ? `${result.length.toLocaleString('pt-BR')} ponto(s) carregado(s) para o gráfico.`
+        : 'Nenhuma informação encontrada para esse período.')
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Nao foi possivel filtrar o periodo.')
+      setStatusText(error instanceof Error ? error.message : 'Não foi possível filtrar o período.')
     }
   }
 
@@ -286,10 +286,10 @@ export function PasteurizadorModule() {
     }
   }, [status])
 
-  const pageTitle = view === 'inicio' ? 'Pasteurizador' : 'Historico do pasteurizador'
+  const pageTitle = view === 'inicio' ? 'Pasteurizador' : 'Histórico do pasteurizador'
   const pageCopy = view === 'inicio'
-    ? 'Monitoramento das coletas automaticas feitas pelo processador do FieldLogger.'
-    : 'Consulta por periodo, grafico interativo e exportacao CSV.'
+    ? 'Monitoramento das coletas automáticas feitas pelo processador do FieldLogger.'
+    : 'Consulta por período, gráfico interativo e exportação CSV.'
   const exportPdfUrl = pasteurizadorApi.exportPdfPeriodoUrl(inicio, fim, horaInicio, horaFim, canal)
 
   return (

@@ -18,13 +18,14 @@ export const sidebarModules = [
   {
     slug: 'dashboard',
     title: 'Dashboard',
-    desc: 'Resumo executivo da operacao.',
+    desc: 'Leitura executiva e operacional da empresa.',
     levels: ['7.0'],
     icon: 'fa-chart-line',
-    href: '#/dashboard/resumo-diario',
+    href: '#/dashboard/visao-geral',
     children: [
-      { title: 'Resumo diario', icon: 'fa-calendar-day', href: '#/dashboard/resumo-diario' },
-      { title: 'Visao geral', icon: 'fa-home', href: '#/dashboard/inicio' },
+      { title: 'Visão geral', icon: 'fa-home', href: '#/dashboard/visao-geral' },
+      { title: 'Operação do dia', icon: 'fa-calendar-day', href: '#/dashboard/operacao' },
+      { title: 'Riscos e qualidade', icon: 'fa-chart-line', href: '#/dashboard/riscos' },
     ],
   },
   {
