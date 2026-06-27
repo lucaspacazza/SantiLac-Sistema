@@ -152,7 +152,7 @@
   gap: 12px;
 }
 .dashboard-module .dashboard-kpis.is-daily {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .dashboard-module .panel, .dashboard-module .metric-card {
   border: 1px solid var(--line);

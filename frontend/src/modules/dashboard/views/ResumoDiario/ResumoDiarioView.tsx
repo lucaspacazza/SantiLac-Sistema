@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarDays, Factory, Package, Route, Thermometer } from 'lucide-react'
+import { AlertTriangle, CalendarDays, Factory, Package, Route } from 'lucide-react'
 import type { DashboardResumoSnapshot } from '../../api/dashboardResumoTypes'
 import { ModuleShortcuts, SectionHeader, StatusRow } from '../../components/DashboardBlocks'
 import { KpiCard } from '../../components/KpiCard'
@@ -17,7 +17,6 @@ export function ResumoDiarioView({ snapshot }: { snapshot: DashboardResumoSnapsh
       <section className="dashboard-kpis is-daily">
         <KpiCard icon={<CalendarDays size={12} />} badge="Dia" tone="info" label="Data do resumo" value={formatDate(diario.data)} hint="dia ativo na dashboard" />
         <KpiCard icon={<Route size={12} />} badge="Coletas" tone="warn" label="Coleta do dia" value={formatNumber(diario.coletas.litros, ' L')} hint={diario.coletas.coletas > 0 ? `${diario.coletas.coletas} coleta(s)` : 'sem fechamento novo'} onClick={() => openHash(snapshot.rotas.coletas)} />
-        <KpiCard icon={<Thermometer size={12} />} badge="Hoje" tone="ok" label="Pasteurizador do dia" value={`${diario.pasteurizador.total_pontos.toLocaleString('pt-BR')} pts`} hint={diario.pasteurizador.media === null ? 'sem media' : `media ${diario.pasteurizador.media.toFixed(2)} C`} onClick={() => openHash(pasteurizadorDestino)} />
         <KpiCard icon={<Factory size={12} />} badge="Producao" tone="warn" label="Producao do dia" value={formatNumber(diario.producao.litros, ' L')} hint={diario.producao.total_lotes > 0 ? `${diario.producao.total_lotes} lote(s)` : 'sem producao nova'} onClick={() => openHash(snapshot.rotas.producao)} />
         <KpiCard icon={<Package size={12} />} badge="Estoque" tone="ok" label="Estoque no dia" value={`${diario.estoque.ativos} itens`} hint="base atual disponivel" onClick={() => openHash(snapshot.rotas.estoque)} />
         <KpiCard icon={<AlertTriangle size={12} />} badge="Agora" tone={alertas > 0 ? 'danger' : 'ok'} label="Alertas" value={`${alertas}`} hint={alertas > 0 ? 'estoque abaixo do minimo' : 'nenhum item critico'} onClick={() => openHash(snapshot.rotas.estoque)} />
