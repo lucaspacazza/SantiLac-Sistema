@@ -5,12 +5,12 @@ export function PasteurizadorResumoCard({ pasteurizador, large = false, onClick 
   return (
     <button className={`pasteurizador-summary ${large ? 'is-large' : ''}`} type="button" onClick={onClick}>
       <div className="pasteurizador-metrics">
-        <span><small>Média <em className="mini-status ok">OK</em></small><strong>{pasteurizador.media === null ? '-' : pasteurizador.media.toFixed(2)}</strong></span>
-        <span><small>Mín. <em className="mini-status warn">MIN</em></small><strong>{pasteurizador.minima === null ? '-' : pasteurizador.minima.toFixed(2)}</strong></span>
-        <span><small>Máx. <em className="mini-status warn">MAX</em></small><strong>{pasteurizador.maxima === null ? '-' : pasteurizador.maxima.toFixed(2)}</strong></span>
+        <span><small>Media <em className="mini-status ok">OK</em></small><strong>{pasteurizador.media === null ? '-' : pasteurizador.media.toFixed(2)}</strong></span>
+        <span><small>Min. <em className="mini-status warn">MIN</em></small><strong>{pasteurizador.minima === null ? '-' : pasteurizador.minima.toFixed(2)}</strong></span>
+        <span><small>Max. <em className="mini-status warn">MAX</em></small><strong>{pasteurizador.maxima === null ? '-' : pasteurizador.maxima.toFixed(2)}</strong></span>
       </div>
       <MiniTemperatureChart points={pasteurizador.pontos.map((item) => item.valor)} />
-      <em>abrir módulo: #/pasteurizador/historico</em>
+      <em>Abrir historico filtrado</em>
     </button>
   )
 }

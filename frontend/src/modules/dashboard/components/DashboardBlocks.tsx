@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { DashboardResumoSnapshot } from '../api/dashboardResumoTypes'
 import { formatDate, formatNumber } from '../shared/formatters'
-import { openHash, openResumoDiario } from '../shared/navigation'
+import { openHash, pasteurizadorHash } from '../shared/navigation'
 
 type Tone = 'info' | 'ok' | 'warn' | 'danger'
 
@@ -23,37 +23,33 @@ export function StatusRow({ tag, tone, children, onClick }: { tag: string; tone:
 export function ModuleShortcuts({ rotas }: { rotas: DashboardResumoSnapshot['rotas'] }) {
   return (
     <section className="panel module-shortcuts">
-      <span>Atalhos dos módulos reais</span>
-      <Shortcut label="Coletas" href={rotas.coletas} />
-      <Shortcut label="Produção" href={rotas.producao} />
-      <Shortcut label="Pasteurizador" href={rotas.pasteurizador} />
-      <Shortcut label="Estoque" href={rotas.estoque} />
-    </section>
-  )
-}
-
-export function ClickDestinations({ rotas }: { rotas: DashboardResumoSnapshot['rotas'] }) {
-  return (
-    <section className="panel destination-panel">
       <div>
-        <h2>Destino dos cliques deste resumo</h2>
-        <p>cada bloco continua sendo dashboard; os cliques levam ao módulo real ou a outro resumo</p>
+        <h2>Acessos rapidos</h2>
+        <p>atalhos limpos para abrir os modulos principais</p>
       </div>
-      <div className="destination-grid">
-        <Shortcut label="Coletas" href={rotas.coletas} large />
-        <Shortcut label="Produção" href={rotas.producao} large />
-        <Shortcut label="Pasteurizador histórico" href={rotas.pasteurizador} large />
-        <Shortcut label="Estoque" href={rotas.estoque} large />
-      </div>
+      <Shortcut label="Coletas" description="Abrir rotas" href={rotas.coletas} />
+      <Shortcut label="Producao" description="Abrir producao" href={rotas.producao} />
+      <Shortcut label="Pasteurizador" description="Abrir historico" href={rotas.pasteurizador} />
+      <Shortcut label="Estoque" description="Abrir estoque" href={rotas.estoque} />
     </section>
   )
 }
 
-export function Shortcut({ label, href, large = false }: { label: string; href: string; large?: boolean }) {
+export function Shortcut({
+  label,
+  href,
+  large = false,
+  description = 'Abrir modulo',
+}: {
+  label: string
+  href: string
+  large?: boolean
+  description?: string
+}) {
   return (
     <button className={`shortcut ${large ? 'is-large' : ''}`} type="button" onClick={() => openHash(href)}>
       <strong>{label}</strong>
-      <small>{href}</small>
+      <small>{description}</small>
     </button>
   )
 }
@@ -64,19 +60,19 @@ export function AvisosNotas({ snapshot }: { snapshot: DashboardResumoSnapshot })
 
   return (
     <article className="panel dashboard-section notes-panel">
-      <SectionHeader title="Avisos, lembretes e notas" subtitle="painel humano da operação" />
+      <SectionHeader title="Avisos, lembretes e notas" subtitle="leitura rapida do que precisa de atencao" />
       <div className="status-list">
         <StatusRow tag="Aviso" tone="warn" onClick={() => openHash(snapshot.rotas.coletas)}>
-          {home.coletas.ultima_data ? `último fechamento de coleta em ${formatDate(home.coletas.ultima_data)}` : 'sem fechamento de coleta encontrado'}
+          {home.coletas.ultima_data ? `ultimo fechamento de coleta em ${formatDate(home.coletas.ultima_data)}` : 'sem fechamento de coleta encontrado'}
         </StatusRow>
         <StatusRow tag="Lembrete" tone="warn" onClick={() => openHash(snapshot.rotas.producao)}>
-          {home.producao.ultima_data ? `última produção registrada em ${formatDate(home.producao.ultima_data)}` : 'sem produção registrada'}
+          {home.producao.ultima_data ? `ultima producao registrada em ${formatDate(home.producao.ultima_data)}` : 'sem producao registrada'}
         </StatusRow>
-        <StatusRow tag="Nota" tone="ok" onClick={() => openResumoDiario(snapshot.data)}>
+        <StatusRow tag="Nota" tone="ok" onClick={() => openHash(pasteurizadorHash(home.pasteurizador))}>
           {home.pasteurizador.total_pontos > 0 ? 'pasteurizador com amostras no dia' : 'sem amostras do pasteurizador no dia'}
         </StatusRow>
         <StatusRow tag="Nota" tone={estoqueOk ? 'ok' : 'danger'} onClick={() => openHash(snapshot.rotas.estoque)}>
-          {estoqueOk ? 'nenhum item crítico no estoque agora' : `${home.estoque.abaixo_minimo} item(ns) abaixo do mínimo`}
+          {estoqueOk ? 'nenhum item critico no estoque agora' : `${home.estoque.abaixo_minimo} item(ns) abaixo do minimo`}
         </StatusRow>
       </div>
     </article>

@@ -7,14 +7,48 @@ import { Inicio } from './views/Inicio/Inicio'
 type View = 'inicio' | 'historico'
 type LoadStatus = 'loading' | 'live' | 'error'
 
-function parseRoute(): View {
-  const parts = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean)
+type HistoricoFiltro = {
+  inicio: string
+  fim: string
+  horaInicio: string
+  horaFim: string
+  canal: string
+}
+
+type RouteState = {
+  view: View
+  filtro: HistoricoFiltro
+}
+
+const defaultHistoricoFiltro: HistoricoFiltro = {
+  inicio: '',
+  fim: '',
+  horaInicio: '00:00:00',
+  horaFim: '23:59:59',
+  canal: 'Todos',
+}
+
+function parseRoute(): RouteState {
+  const rawHash = window.location.hash.replace(/^#\/?/, '')
+  const [path, query = ''] = rawHash.split('?')
+  const parts = path.split('/').filter(Boolean)
 
   if (parts[0] !== 'pasteurizador') {
-    return 'inicio'
+    return { view: 'inicio', filtro: defaultHistoricoFiltro }
   }
 
-  return parts[1] === 'historico' ? 'historico' : 'inicio'
+  const params = new URLSearchParams(query)
+
+  return {
+    view: parts[1] === 'historico' ? 'historico' : 'inicio',
+    filtro: {
+      inicio: params.get('inicio') ?? '',
+      fim: params.get('fim') ?? '',
+      horaInicio: params.get('hora_inicio') ?? defaultHistoricoFiltro.horaInicio,
+      horaFim: params.get('hora_fim') ?? defaultHistoricoFiltro.horaFim,
+      canal: params.get('canal') ?? defaultHistoricoFiltro.canal,
+    },
+  }
 }
 
 function pushRoute(view: View): void {
@@ -26,7 +60,8 @@ function pushRoute(view: View): void {
 }
 
 export function PasteurizadorModule() {
-  const [view, setView] = useState<View>(() => parseRoute())
+  const initialRoute = parseRoute()
+  const [view, setView] = useState<View>(initialRoute.view)
   const [status, setStatus] = useState<LoadStatus>('loading')
   const [statusText, setStatusText] = useState('Carregando pasteurizador...')
   const [loadingOverlayVisible, setLoadingOverlayVisible] = useState(false)
@@ -34,11 +69,12 @@ export function PasteurizadorModule() {
   const [coletas, setColetas] = useState<Coleta[]>([])
   const [amostras, setAmostras] = useState<Amostra[]>([])
   const [selectedColetaId, setSelectedColetaId] = useState<number | null>(null)
-  const [inicio, setInicio] = useState('')
-  const [fim, setFim] = useState('')
-  const [horaInicio, setHoraInicio] = useState('00:00:00')
-  const [horaFim, setHoraFim] = useState('23:59:59')
-  const [canal, setCanal] = useState('Todos')
+  const [inicio, setInicio] = useState(initialRoute.filtro.inicio)
+  const [fim, setFim] = useState(initialRoute.filtro.fim)
+  const [horaInicio, setHoraInicio] = useState(initialRoute.filtro.horaInicio)
+  const [horaFim, setHoraFim] = useState(initialRoute.filtro.horaFim)
+  const [canal, setCanal] = useState(initialRoute.filtro.canal)
+  const [routeKey, setRouteKey] = useState(() => window.location.hash || '#/pasteurizador/inicio')
   const loadingStartedAt = useRef<number | null>(null)
   const loadingHideTimer = useRef<number | null>(null)
 
@@ -52,6 +88,18 @@ export function PasteurizadorModule() {
     [overview, amostras],
   )
 
+  function filtroAtual(): HistoricoFiltro {
+    return { inicio, fim, horaInicio, horaFim, canal }
+  }
+
+  function aplicarFiltro(filtro: HistoricoFiltro) {
+    setInicio(filtro.inicio)
+    setFim(filtro.fim)
+    setHoraInicio(filtro.horaInicio)
+    setHoraFim(filtro.horaFim)
+    setCanal(filtro.canal)
+  }
+
   async function loadOverview() {
     setStatus('loading')
     setStatusText('Carregando dados...')
@@ -62,48 +110,67 @@ export function PasteurizadorModule() {
       setStatusText('Dados carregados.')
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar o módulo.')
+      setStatusText(error instanceof Error ? error.message : 'Nao foi possivel carregar o modulo.')
     }
   }
 
-  async function loadAmostrasPeriodo() {
+  async function loadAmostrasPeriodo(filtro = filtroAtual()) {
     setStatus('loading')
-    setStatusText('Carregando amostras por período...')
+    setStatusText('Carregando amostras por periodo...')
 
     try {
-      const result = await pasteurizadorApi.amostrasPeriodo(inicio, fim, horaInicio, horaFim, canal)
+      const result = await pasteurizadorApi.amostrasPeriodo(
+        filtro.inicio,
+        filtro.fim,
+        filtro.horaInicio,
+        filtro.horaFim,
+        filtro.canal,
+      )
       setAmostras(result)
       setStatus('live')
-      setStatusText(`${result.length.toLocaleString('pt-BR')} ponto(s) carregado(s) para o gráfico.`)
+      setStatusText(`${result.length.toLocaleString('pt-BR')} ponto(s) carregado(s) para o grafico.`)
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar o gráfico por período.')
+      setStatusText(error instanceof Error ? error.message : 'Nao foi possivel carregar o grafico por periodo.')
     }
   }
 
-  async function consultarAmostrasPeriodo() {
-    const result = await pasteurizadorApi.amostrasPeriodo(inicio, fim, horaInicio, horaFim, canal)
+  async function consultarAmostrasPeriodo(filtro = filtroAtual()) {
+    const result = await pasteurizadorApi.amostrasPeriodo(
+      filtro.inicio,
+      filtro.fim,
+      filtro.horaInicio,
+      filtro.horaFim,
+      filtro.canal,
+    )
     setAmostras(result)
     return result
   }
 
-  async function loadColetasSalvas() {
-    const result = await pasteurizadorApi.coletas(inicio, fim, horaInicio, horaFim, 1, 50)
+  async function loadColetasSalvas(filtro = filtroAtual()) {
+    const result = await pasteurizadorApi.coletas(
+      filtro.inicio,
+      filtro.fim,
+      filtro.horaInicio,
+      filtro.horaFim,
+      1,
+      50,
+    )
     setColetas(result.items)
     setSelectedColetaId((current) => current && result.items.some((item) => item.id === current) ? current : null)
     return result
   }
 
-  async function loadColetas() {
+  async function loadColetas(filtro = filtroAtual()) {
     setStatus('loading')
     setStatusText('Carregando coletas salvas...')
 
     try {
-      await loadColetasSalvas()
-      await loadAmostrasPeriodo()
+      await loadColetasSalvas(filtro)
+      await loadAmostrasPeriodo(filtro)
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar as coletas.')
+      setStatusText(error instanceof Error ? error.message : 'Nao foi possivel carregar as coletas.')
     }
   }
 
@@ -114,35 +181,36 @@ export function PasteurizadorModule() {
     try {
       setAmostras(await pasteurizadorApi.amostras(coletaId, nextCanal))
       setStatus('live')
-      setStatusText('Amostras da coleta carregadas para o gráfico.')
+      setStatusText('Amostras da coleta carregadas para o grafico.')
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Não foi possível carregar as amostras.')
+      setStatusText(error instanceof Error ? error.message : 'Nao foi possivel carregar as amostras.')
     }
   }
 
   async function handleFiltrar() {
+    const filtro = filtroAtual()
     setSelectedColetaId(null)
     setStatus('loading')
-    setStatusText('Consultando período...')
+    setStatusText('Consultando periodo...')
 
     try {
-      await loadColetasSalvas()
-      let result = await consultarAmostrasPeriodo()
+      await loadColetasSalvas(filtro)
+      let result = await consultarAmostrasPeriodo(filtro)
 
-      if (result.length === 0 && inicio && fim) {
+      if (result.length === 0 && filtro.inicio && filtro.fim) {
         setStatusText('Sem dados salvos. Coletando direto do equipamento...')
-        await pasteurizadorApi.coletarAgora(inicio, fim, horaInicio, horaFim)
-        await loadColetasSalvas()
-        result = await consultarAmostrasPeriodo()
+        await pasteurizadorApi.coletarAgora(filtro.inicio, filtro.fim, filtro.horaInicio, filtro.horaFim)
+        await loadColetasSalvas(filtro)
+        result = await consultarAmostrasPeriodo(filtro)
       }
       setStatus('live')
       setStatusText(result.length
-        ? `${result.length.toLocaleString('pt-BR')} ponto(s) carregado(s) para o gráfico.`
-        : 'Nenhuma informação encontrada para esse período.')
+        ? `${result.length.toLocaleString('pt-BR')} ponto(s) carregado(s) para o grafico.`
+        : 'Nenhuma informacao encontrada para esse periodo.')
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Não foi possível filtrar o período.')
+      setStatusText(error instanceof Error ? error.message : 'Nao foi possivel filtrar o periodo.')
     }
   }
 
@@ -154,10 +222,18 @@ export function PasteurizadorModule() {
   function navigate(nextView: View) {
     pushRoute(nextView)
     setView(nextView)
+    if (nextView === 'historico' && view !== 'historico') {
+      aplicarFiltro(defaultHistoricoFiltro)
+    }
   }
 
   useEffect(() => {
-    const handleHashChange = () => setView(parseRoute())
+    const handleHashChange = () => {
+      const nextRoute = parseRoute()
+      setView(nextRoute.view)
+      aplicarFiltro(nextRoute.filtro)
+      setRouteKey(window.location.hash || '#/pasteurizador/inicio')
+    }
 
     if (!window.location.hash.startsWith('#/pasteurizador')) {
       window.history.replaceState(null, '', '#/pasteurizador/inicio')
@@ -170,7 +246,7 @@ export function PasteurizadorModule() {
   useEffect(() => {
     if (view === 'inicio') void loadOverview()
     else void loadColetas()
-  }, [view])
+  }, [view, routeKey])
 
   useEffect(() => {
     if (view === 'historico') void loadAmostrasPeriodo()
@@ -210,10 +286,10 @@ export function PasteurizadorModule() {
     }
   }, [status])
 
-  const pageTitle = view === 'inicio' ? 'Pasteurizador' : 'Histórico do pasteurizador'
+  const pageTitle = view === 'inicio' ? 'Pasteurizador' : 'Historico do pasteurizador'
   const pageCopy = view === 'inicio'
-    ? 'Monitoramento das coletas automáticas feitas pelo processador do FieldLogger.'
-    : 'Consulta por período, gráfico interativo e exportação CSV.'
+    ? 'Monitoramento das coletas automaticas feitas pelo processador do FieldLogger.'
+    : 'Consulta por periodo, grafico interativo e exportacao CSV.'
   const exportPdfUrl = pasteurizadorApi.exportPdfPeriodoUrl(inicio, fim, horaInicio, horaFim, canal)
 
   return (
@@ -262,7 +338,7 @@ export function PasteurizadorModule() {
                 setSelectedColetaId(id)
                 void loadAmostras(id)
               }}
-              onRecarregar={loadColetas}
+              onRecarregar={() => void loadColetas()}
               exportPdfUrl={exportPdfUrl}
             />
           )}

@@ -1,5 +1,4 @@
 import { useDashboardResumo } from './hooks/useDashboardResumo'
-import { openResumoDiario } from './shared/navigation'
 import { DashboardHeader } from './components/DashboardHeader'
 import { InicioResumoView } from './views/InicioResumo/InicioResumoView'
 import { ResumoDiarioView } from './views/ResumoDiario/ResumoDiarioView'
@@ -15,7 +14,7 @@ export function DashboardResumoApp() {
         data={dashboard.data}
         onDataChange={(data) => {
           dashboard.setData(data)
-          openResumoDiario(data)
+          void dashboard.carregar(data)
         }}
         onRefresh={() => void dashboard.carregar(dashboard.data)}
       />

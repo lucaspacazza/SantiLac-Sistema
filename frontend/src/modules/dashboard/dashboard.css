@@ -136,6 +136,7 @@
 }
 .dashboard-module .dashboard-home-grid, .dashboard-module .dashboard-daily-grid {
   display: grid;
+  align-items: start;
   gap: 16px;
 }
 .dashboard-module .dashboard-home-grid {
@@ -322,9 +323,10 @@
   justify-self: start;
   border: 0;
   background: transparent;
-  color: var(--muted);
+  color: var(--text);
   padding: 0;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .dashboard-module .bar-chart {
   width: 100%;
@@ -433,11 +435,20 @@
   min-height: 56px;
   padding: 10px 14px;
   display: grid;
-  grid-template-columns: 1fr repeat(4, minmax(150px, 0.9fr));
+  grid-template-columns: minmax(180px, 1.2fr) repeat(4, minmax(0, 1fr));
   align-items: center;
   gap: 10px;
 }
-.dashboard-module .module-shortcuts > span {
+.dashboard-module .module-shortcuts > div {
+  display: grid;
+  gap: 4px;
+}
+.dashboard-module .module-shortcuts > div h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.dashboard-module .module-shortcuts > div p {
+  margin: 0;
   color: var(--body);
   font-size: 12px;
 }

@@ -4,7 +4,7 @@ export type DashboardView = 'inicio' | 'resumo-diario'
 
 export function parseView(): DashboardView {
   const hash = window.location.hash.replace(/^#\/?/, '').split('?')[0]
-  return hash === 'dashboard/resumo-diario' ? 'resumo-diario' : 'inicio'
+  return hash === 'dashboard/inicio' ? 'inicio' : 'resumo-diario'
 }
 
 export function parseData(): string {
