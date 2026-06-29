@@ -49,3 +49,5 @@ docs/
 .codex-tmp/
 .agents/
 .continue/
+\index.html
+dash/
