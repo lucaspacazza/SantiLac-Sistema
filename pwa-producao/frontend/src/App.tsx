@@ -263,12 +263,14 @@ export function App() {
 
   return (
     <main className="factory-app">
-      <div className="utility-bar">
-        <div className="date-actions">
-          <input type="date" value={date} onChange={(event) => void changeDate(event.target.value)} />
-          <button type="button" onClick={() => void loadBase()}>Atualizar</button>
+      {view === 'inicio' && (
+        <div className="utility-bar">
+          <div className="date-actions">
+            <input type="date" value={date} onChange={(event) => void changeDate(event.target.value)} />
+            <button type="button" onClick={() => void loadBase()}>Atualizar</button>
+          </div>
         </div>
-      </div>
+      )}
 
       {(state !== 'ready' || message !== 'Pronto para lançamento.') && (
         <section className={`status-line is-${state}`}>
