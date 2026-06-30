@@ -25,7 +25,6 @@ export function App() {
   const filaCodigosRef = useRef<string[]>([])
 
   useEffect(() => {
-    // @ts-expect-error Vite carrega CSS por import lateral no chunk da embalagem.
     void import('./styles.css')
   }, [])
 
