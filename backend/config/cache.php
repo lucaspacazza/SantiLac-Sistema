@@ -39,7 +39,7 @@ return [
             'serialize' => false,
         ],
 
-        'database' => [
+        'database' => [ 
             'driver' => 'database',
             'connection' => env('DB_CACHE_CONNECTION'),
             'table' => env('DB_CACHE_TABLE', 'cache'),

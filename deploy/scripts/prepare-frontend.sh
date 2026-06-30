@@ -28,4 +28,3 @@ fi
 
 tar -czf "$PACKAGE_PATH" -C "$STAGE_DIR" .
 echo "FRONTEND_PACKAGE=$PACKAGE_PATH" >> "${GITHUB_ENV:-/dev/null}"
-

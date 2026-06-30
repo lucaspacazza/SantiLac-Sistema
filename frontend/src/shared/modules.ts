@@ -16,6 +16,19 @@ export type SidebarSubmodule = {
 
 export const sidebarModules = [
   {
+    slug: 'dashboard',
+    title: 'Dashboard',
+    desc: 'Leitura executiva e operacional da empresa.',
+    levels: ['7.0'],
+    icon: 'fa-chart-line',
+    href: '#/dashboard/visao-geral',
+    children: [
+      { title: 'Visão geral', icon: 'fa-home', href: '#/dashboard/visao-geral' },
+      { title: 'Operação do dia', icon: 'fa-calendar-day', href: '#/dashboard/operacao' },
+      { title: 'Riscos e qualidade', icon: 'fa-chart-line', href: '#/dashboard/riscos' },
+    ],
+  },
+  {
     slug: 'qualidade',
     title: 'Qualidade',
     desc: 'Análises e qualidade.',
