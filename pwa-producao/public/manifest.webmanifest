@@ -2,11 +2,11 @@
   "name": "Santi'Lac Produção",
   "short_name": "Produção",
   "description": "PWA de chão de fábrica da produção Santi'Lac.",
-  "start_url": "/fabrica",
+  "start_url": "/fabrica/",
   "scope": "/fabrica/",
   "display": "standalone",
-  "background_color": "#050607",
-  "theme_color": "#050607",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "orientation": "portrait-primary",
   "icons": [
     {

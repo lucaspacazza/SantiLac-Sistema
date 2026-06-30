@@ -31,7 +31,7 @@ Opcionais:
 
 ## Como funciona
 
-- Mudou `frontend/`: builda o frontend e publica o `dist`.
+- Mudou `frontend/` ou `pwa-producao/`: builda o frontend principal e publica o PWA de producao em `/fabrica/`.
 - Mudou `backend/`: publica o Laravel preservando `.env`, `vendor` e pastas de runtime.
 - Mudou `processor/`: publica o processor preservando `.env` e `.venv`.
 - Banco de dados nao roda automaticamente. SQL de producao deve ser aplicado manualmente.

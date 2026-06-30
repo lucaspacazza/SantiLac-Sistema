@@ -2,9 +2,6 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import './styles.css'
-import './modules/qualidade/qualidade.css'
-import './modules/estoque/estoque.css'
-import './modules/pasteurizador/pasteurizador.css'
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
@@ -14,6 +11,9 @@ createRoot(document.getElementById('root') as HTMLElement).render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js?v=2', { updateViaCache: 'none' }).catch(() => null)
+    navigator.serviceWorker.register('/fabrica/sw.js?v=1', {
+      scope: '/fabrica/',
+      updateViaCache: 'none',
+    }).catch(() => null)
   })
 }

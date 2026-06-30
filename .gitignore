@@ -51,3 +51,9 @@ docs/
 .continue/
 \index.html
 dash/
+
+!pwa-producao/
+!pwa-producao/**
+pwa-producao/node_modules/
+pwa-producao/dist/
+pwa-producao/tsconfig.tsbuildinfo
