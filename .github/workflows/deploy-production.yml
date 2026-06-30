@@ -101,6 +101,13 @@ jobs:
             frontend/package-lock.json
             pwa-producao/package-lock.json
 
+      - name: Assert production deploy targets
+        run: |
+          set -euo pipefail
+          test "$FRONTEND_CT" = "100"
+          test "$BACKEND_CT" = "101"
+          test "$PROCESSOR_CT" = "102"
+
       - name: Validate deploy configuration
         run: bash deploy/scripts/validate-config.sh
         env:
