@@ -18,6 +18,8 @@ Variables opcionais em `Settings > Secrets and variables > Actions > Variables`:
 - `FRONTEND_PATH`: pasta do site no container, padrao `/var/www/santilac-front`.
 - `BACKEND_CT`: container do backend, padrao `101`.
 - `BACKEND_PATH`: pasta do Laravel no container, padrao `/var/www/santilac-backend`.
+- `PWA_PRODUCAO_BACKEND_CT`: container do backend do PWA de producao, padrao igual ao `BACKEND_CT`.
+- `PWA_PRODUCAO_BACKEND_PATH`: pasta do backend do PWA de producao, padrao `/var/www/santilac-pwa-producao-backend`.
 - `PROCESSOR_CT`: container do processor, padrao `102`.
 - `PROCESSOR_PATH`: pasta do processor no container, padrao `/var/www/processor`.
 
@@ -25,14 +27,16 @@ Opcionais:
 
 - `FRONTEND_HEALTH_URL`
 - `BACKEND_HEALTH_URL`
+- `PWA_PRODUCAO_BACKEND_HEALTH_URL`
 - `PROCESSOR_HEALTH_URL`
 - `PROCESSOR_INSTALL_REQUIREMENTS`: use `1` para instalar `requirements.txt`.
 - `PROCESSOR_SERVICES`: nomes de services systemd separados por espaco para reiniciar apos deploy.
 
 ## Como funciona
 
-- Mudou `frontend/` ou `pwa-producao/`: builda o frontend principal e publica o PWA de producao em `/fabrica/`.
+- Mudou `frontend/` ou `pwa-producao/frontend/`: builda o frontend principal e publica o PWA de producao em `/fabrica/`.
 - Mudou `backend/`: publica o Laravel preservando `.env`, `vendor` e pastas de runtime.
+- Mudou `pwa-producao/backend/`: publica o backend independente do PWA de producao preservando `.env`, `vendor` e pastas de runtime.
 - Mudou `processor/`: publica o processor preservando `.env` e `.venv`.
 - Banco de dados nao roda automaticamente. SQL de producao deve ser aplicado manualmente.
 

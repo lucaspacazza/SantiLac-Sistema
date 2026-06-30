@@ -27,6 +27,11 @@ if [ "${DEPLOY_BACKEND:-false}" = "true" ]; then
   BACKEND_PATH="${BACKEND_PATH:-/var/www/santilac-backend}"
 fi
 
+if [ "${DEPLOY_PWA_PRODUCAO_BACKEND:-false}" = "true" ]; then
+  PWA_PRODUCAO_BACKEND_CT="${PWA_PRODUCAO_BACKEND_CT:-${BACKEND_CT:-101}}"
+  PWA_PRODUCAO_BACKEND_PATH="${PWA_PRODUCAO_BACKEND_PATH:-/var/www/santilac-pwa-producao-backend}"
+fi
+
 if [ "${DEPLOY_PROCESSOR:-false}" = "true" ]; then
   PROCESSOR_CT="${PROCESSOR_CT:-102}"
   PROCESSOR_PATH="${PROCESSOR_PATH:-/var/www/processor}"

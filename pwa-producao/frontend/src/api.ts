@@ -85,6 +85,7 @@ export type SoroRefrigeradoPayload = {
 }
 
 let csrfToken: string | null = null
+const API_BASE = '/api/fabrica'
 
 function errorMessage<T>(payload: ApiResponse<T> | null, fallback: string): string {
   const validation = Object.values(payload?.errors ?? {})[0]?.[0]
@@ -110,7 +111,7 @@ function toFormBody(payload: Record<string, unknown>): URLSearchParams {
 async function csrf(): Promise<string> {
   if (csrfToken) return csrfToken
 
-  const response = await fetch('/api/auth/csrf', {
+  const response = await fetch(`${API_BASE}/auth/csrf`, {
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
   })
@@ -176,25 +177,25 @@ async function jsonMutation<T>(path: string, method: 'POST' | 'PATCH', payload?:
 
 export const authApi = {
   csrf,
-  me: () => request<{ user: AuthUser | null }>('/api/auth/me'),
+  me: () => request<{ user: AuthUser | null }>(`${API_BASE}/auth/me`),
   login: (login: string, password: string, remember = true) =>
-    postForm<{ user: AuthUser }>('/api/auth/login', { login, password, remember }),
+    postForm<{ user: AuthUser }>(`${API_BASE}/auth/login`, { login, password, remember }),
 }
 
 export const producaoApi = {
-  overview: () => request<Overview>('/api/producao/overview'),
+  overview: () => request<Overview>(`${API_BASE}/producao/overview`),
   ordensProducao: (data: string) =>
-    request<OrdemProducaoResumo[]>(`/api/producao/ordens-producao?data=${encodeURIComponent(data)}`),
+    request<OrdemProducaoResumo[]>(`${API_BASE}/producao/ordens-producao?data=${encodeURIComponent(data)}`),
   formulacaoQueijoCatalogos: () =>
-    request<FormulacaoQueijoCatalogos>('/api/producao/formulacoes-queijo/catalogos'),
+    request<FormulacaoQueijoCatalogos>(`${API_BASE}/producao/formulacoes-queijo/catalogos`),
   salvarOrdemProducao: (payload: OrdemProducaoPayload) =>
-    jsonMutation('/api/producao/ordens-producao', 'POST', payload),
+    jsonMutation(`${API_BASE}/producao/ordens-producao`, 'POST', payload),
   criarFormulacaoQueijo: (payload: FormulacaoQueijoPayload) =>
-    jsonMutation<{ id: number }>('/api/producao/formulacoes-queijo', 'POST', payload),
+    jsonMutation<{ id: number }>(`${API_BASE}/producao/formulacoes-queijo`, 'POST', payload),
   finalizarFormulacaoQueijo: (id: number) =>
-    jsonMutation(`/api/producao/formulacoes-queijo/${id}/finalizar`, 'PATCH'),
+    jsonMutation(`${API_BASE}/producao/formulacoes-queijo/${id}/finalizar`, 'PATCH'),
   criarSoroRefrigerado: (payload: SoroRefrigeradoPayload) =>
-    jsonMutation<{ id: number }>('/api/producao/soro-refrigerado', 'POST', payload),
+    jsonMutation<{ id: number }>(`${API_BASE}/producao/soro-refrigerado`, 'POST', payload),
   finalizarSoroRefrigerado: (id: number) =>
-    jsonMutation(`/api/producao/soro-refrigerado/${id}/finalizar`, 'PATCH'),
+    jsonMutation(`${API_BASE}/producao/soro-refrigerado/${id}/finalizar`, 'PATCH'),
 }

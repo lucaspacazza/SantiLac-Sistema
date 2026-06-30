@@ -9,7 +9,7 @@ cd "$ROOT_DIR/frontend"
 npm ci
 npm run build
 
-cd "$ROOT_DIR/pwa-producao"
+cd "$ROOT_DIR/pwa-producao/frontend"
 npm ci
 npm run build
 
@@ -32,7 +32,7 @@ if [ -f public/manifest.webmanifest ]; then
 fi
 
 mkdir -p "$STAGE_DIR/fabrica"
-cp -a "$ROOT_DIR/pwa-producao/dist/." "$STAGE_DIR/fabrica/"
+cp -a "$ROOT_DIR/pwa-producao/frontend/dist/." "$STAGE_DIR/fabrica/"
 
 tar -czf "$PACKAGE_PATH" -C "$STAGE_DIR" .
 echo "FRONTEND_PACKAGE=$PACKAGE_PATH" >> "${GITHUB_ENV:-/dev/null}"
