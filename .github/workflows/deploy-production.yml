@@ -14,6 +14,10 @@ on:
         description: Deploy backend
         type: boolean
         default: false 
+      pwa_backend:
+        description: Deploy backend PWA producao
+        type: boolean
+        default: false
       processor:
         description: Deploy processor
         type: boolean
@@ -33,6 +37,7 @@ jobs:
     outputs:
       frontend: ${{ steps.detect.outputs.frontend }}
       backend: ${{ steps.detect.outputs.backend }}
+      pwa_backend: ${{ steps.detect.outputs.pwa_backend }}
       processor: ${{ steps.detect.outputs.processor }}
     steps:
       - uses: actions/checkout@v5
@@ -47,6 +52,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "frontend=${{ inputs.frontend }}" >> "$GITHUB_OUTPUT"
             echo "backend=${{ inputs.backend }}" >> "$GITHUB_OUTPUT"
+            echo "pwa_backend=${{ inputs.pwa_backend }}" >> "$GITHUB_OUTPUT"
             echo "processor=${{ inputs.processor }}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -67,8 +73,17 @@ jobs:
             printf '%s\n' "$changed" | grep -E "$1" >/dev/null 2>&1
           }
 
-          if has_change '^(frontend/|pwa-producao/)'; then echo "frontend=true" >> "$GITHUB_OUTPUT"; else echo "frontend=false" >> "$GITHUB_OUTPUT"; fi
+          if has_change '^(.github/workflows/deploy-production\.yml|deploy/)'; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            echo "pwa_backend=true" >> "$GITHUB_OUTPUT"
+            echo "processor=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if has_change '^(frontend/|pwa-producao/frontend/)'; then echo "frontend=true" >> "$GITHUB_OUTPUT"; else echo "frontend=false" >> "$GITHUB_OUTPUT"; fi
           if has_change '^(backend/)'; then echo "backend=true" >> "$GITHUB_OUTPUT"; else echo "backend=false" >> "$GITHUB_OUTPUT"; fi
+          if has_change '^(pwa-producao/backend/)'; then echo "pwa_backend=true" >> "$GITHUB_OUTPUT"; else echo "pwa_backend=false" >> "$GITHUB_OUTPUT"; fi
           if has_change '^(processor/)'; then echo "processor=true" >> "$GITHUB_OUTPUT"; else echo "processor=false" >> "$GITHUB_OUTPUT"; fi
 
   deploy:
@@ -77,6 +92,7 @@ jobs:
     if: |
       needs.detect.outputs.frontend == 'true' ||
       needs.detect.outputs.backend == 'true' ||
+      needs.detect.outputs.pwa_backend == 'true' ||
       needs.detect.outputs.processor == 'true'
     runs-on: [self-hosted, santilac-prod]
     environment: production
@@ -85,6 +101,8 @@ jobs:
       FRONTEND_PATH: /var/www/santilac-front
       BACKEND_CT: "101"
       BACKEND_PATH: /var/www/santilac-backend
+      PWA_PRODUCAO_BACKEND_CT: "101"
+      PWA_PRODUCAO_BACKEND_PATH: /var/www/santilac-pwa-producao-backend
       PROCESSOR_CT: "102"
       PROCESSOR_PATH: /var/www/processor
       PROCESSOR_INSTALL_REQUIREMENTS: "1"
@@ -99,13 +117,14 @@ jobs:
           cache: npm
           cache-dependency-path: |
             frontend/package-lock.json
-            pwa-producao/package-lock.json
+            pwa-producao/frontend/package-lock.json
 
       - name: Assert production deploy targets
         run: |
           set -euo pipefail
           test "$FRONTEND_CT" = "100"
           test "$BACKEND_CT" = "101"
+          test "$PWA_PRODUCAO_BACKEND_CT" = "101"
           test "$PROCESSOR_CT" = "102"
 
       - name: Validate deploy configuration
@@ -113,6 +132,7 @@ jobs:
         env:
           DEPLOY_FRONTEND: ${{ needs.detect.outputs.frontend }}
           DEPLOY_BACKEND: ${{ needs.detect.outputs.backend }}
+          DEPLOY_PWA_PRODUCAO_BACKEND: ${{ needs.detect.outputs.pwa_backend }}
           DEPLOY_PROCESSOR: ${{ needs.detect.outputs.processor }}
 
       - name: Prepare backend
@@ -124,6 +144,16 @@ jobs:
         run: bash deploy/scripts/publish-backend.sh
         env:
           BACKEND_HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL }}
+
+      - name: Prepare PWA producao backend
+        if: needs.detect.outputs.pwa_backend == 'true'
+        run: bash deploy/scripts/prepare-pwa-producao-backend.sh
+
+      - name: Deploy PWA producao backend
+        if: needs.detect.outputs.pwa_backend == 'true'
+        run: bash deploy/scripts/publish-pwa-producao-backend.sh
+        env:
+          PWA_PRODUCAO_BACKEND_HEALTH_URL: ${{ vars.PWA_PRODUCAO_BACKEND_HEALTH_URL }}
 
       - name: Prepare processor
         if: needs.detect.outputs.processor == 'true'

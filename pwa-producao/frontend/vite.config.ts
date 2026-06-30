@@ -7,7 +7,7 @@ export default defineConfig({
   publicDir: 'public',
   server: {
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
+      '/api/fabrica': 'http://127.0.0.1:8001',
     },
   },
 })
