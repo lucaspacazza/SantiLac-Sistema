@@ -1,8 +1,7 @@
-const CACHE_NAME = 'santilac-fabrica-shell-v1'
+const CACHE_NAME = 'santilac-producao-pwa-v1'
 const SHELL_ASSETS = [
-  '/fabrica',
-  '/fabrica.webmanifest',
-  '/assets/img/logo.png',
+  '/fabrica/',
+  '/fabrica/manifest.webmanifest',
   '/assets/img/favicon.ico',
   '/assets/img/icon128.png',
   '/assets/img/icon192.png',
@@ -33,7 +32,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate' && url.pathname.startsWith('/fabrica')) {
-    event.respondWith(fetch(request).catch(() => caches.match('/fabrica')))
+    event.respondWith(fetch(request).catch(() => caches.match('/fabrica/')))
     return
   }
 

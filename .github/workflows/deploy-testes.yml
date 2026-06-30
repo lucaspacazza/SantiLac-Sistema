@@ -74,7 +74,7 @@ jobs:
             exit 0
           fi
 
-          if has_change '^(frontend/)'; then echo "frontend=true" >> "$GITHUB_OUTPUT"; else echo "frontend=false" >> "$GITHUB_OUTPUT"; fi
+          if has_change '^(frontend/|pwa-producao/)'; then echo "frontend=true" >> "$GITHUB_OUTPUT"; else echo "frontend=false" >> "$GITHUB_OUTPUT"; fi
           if has_change '^(backend/)'; then echo "backend=true" >> "$GITHUB_OUTPUT"; else echo "backend=false" >> "$GITHUB_OUTPUT"; fi
           if has_change '^(processor/)'; then echo "processor=true" >> "$GITHUB_OUTPUT"; else echo "processor=false" >> "$GITHUB_OUTPUT"; fi
 
@@ -104,7 +104,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            pwa-producao/package-lock.json
 
       - name: Validate deploy configuration
         run: bash deploy/scripts/validate-config.sh

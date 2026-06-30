@@ -9,9 +9,14 @@ cd "$ROOT_DIR/frontend"
 npm ci
 npm run build
 
+cd "$ROOT_DIR/pwa-producao"
+npm ci
+npm run build
+
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR/assets/img"
 
+cd "$ROOT_DIR/frontend"
 cp -a dist/. "$STAGE_DIR/"
 
 if [ -d public/assets/img ]; then
@@ -25,6 +30,9 @@ fi
 if [ -f public/manifest.webmanifest ]; then
   cp public/manifest.webmanifest "$STAGE_DIR/manifest.webmanifest"
 fi
+
+mkdir -p "$STAGE_DIR/fabrica"
+cp -a "$ROOT_DIR/pwa-producao/dist/." "$STAGE_DIR/fabrica/"
 
 tar -czf "$PACKAGE_PATH" -C "$STAGE_DIR" .
 echo "FRONTEND_PACKAGE=$PACKAGE_PATH" >> "${GITHUB_ENV:-/dev/null}"
