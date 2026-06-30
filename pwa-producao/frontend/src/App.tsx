@@ -55,6 +55,10 @@ export function App() {
   const [ordens, setOrdens] = useState<OrdemProducaoResumo[]>([])
   const [catalogos, setCatalogos] = useState<FormulacaoQueijoCatalogos>({ queijos: [] })
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [view])
+
   const metrics = useMemo(() => {
     const totals = overview?.totais
 
@@ -259,27 +263,23 @@ export function App() {
 
   return (
     <main className="factory-app">
-      <header className="topbar">
-        <button className="brand-button" type="button" onClick={() => setView('inicio')}>Produção</button>
-        <span className="operator">{user?.nome}</span>
+      <div className="utility-bar">
         <div className="date-actions">
           <input type="date" value={date} onChange={(event) => void changeDate(event.target.value)} />
           <button type="button" onClick={() => void loadBase()}>Atualizar</button>
         </div>
-      </header>
+      </div>
 
-      <section className={`status-line is-${state}`}>
-        <span className="status-dot" />
-        {message}
-      </section>
+      {(state !== 'ready' || message !== 'Pronto para lançamento.') && (
+        <section className={`status-line is-${state}`}>
+          <span className="status-dot" />
+          {message}
+        </section>
+      )}
 
       {view === 'inicio' && (
         <section className="home-grid">
-          <section className="panel metrics-panel">
-            <div className="panel-title">
-              <h2>Resumo</h2>
-              <span>{date}</span>
-            </div>
+          <section className="metrics-strip">
             <div className="metrics-grid">
               {metrics.map(([label, value]) => (
                 <article className="metric-card" key={label}>
@@ -293,26 +293,23 @@ export function App() {
           <section className="action-grid">
             <button type="button" onClick={() => setView('ordens')}>
               <strong>OP</strong>
-              <span>Criar ordem do dia</span>
             </button>
             <button type="button" onClick={() => setView('queijo')}>
               <strong>Formulação</strong>
-              <span>Lançar queijo</span>
             </button>
             <button type="button" onClick={() => setView('soro')}>
               <strong>Soro</strong>
-              <span>Lançar soro refrigerado</span>
             </button>
           </section>
 
-          <section className="panel">
-            <div className="panel-title">
-              <h2>OPs do dia</h2>
+          <section className="operations-section">
+            <div className="operations-header">
+              <h2>OPs</h2>
               <span>{ordens.length}</span>
             </div>
             <div className="list">
               {ordens.length === 0 ? (
-                <div className="empty-state">Nenhuma OP para a data.</div>
+                <div className="empty-state">Sem OPs</div>
               ) : ordens.map((ordem) => (
                 <article className="list-row" key={ordem.id}>
                   <div>
