@@ -1,4 +1,4 @@
-const CACHE_NAME = 'santilac-producao-pwa-v2'
+const CACHE_NAME = 'santilac-producao-pwa-v3'
 const SHELL_ASSETS = [
   '/fabrica/',
   '/fabrica/manifest.webmanifest',
@@ -11,8 +11,21 @@ const SHELL_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS)).then(() => self.skipWaiting()),
+    caches.open(CACHE_NAME)
+      .then(async (cache) => {
+        for (const asset of SHELL_ASSETS) {
+          const response = await fetch(asset, { cache: 'reload' })
+          await cache.put(asset, response)
+        }
+      })
+      .then(() => self.skipWaiting()),
   )
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
 })
 
 self.addEventListener('activate', (event) => {
@@ -32,7 +45,15 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate' && url.pathname.startsWith('/fabrica')) {
-    event.respondWith(fetch(request).catch(() => caches.match('/fabrica/')))
+    event.respondWith(
+      fetch(request, { cache: 'no-store' })
+        .then(async (response) => {
+          const cache = await caches.open(CACHE_NAME)
+          await cache.put('/fabrica/', response.clone())
+          return response
+        })
+        .catch(() => caches.match('/fabrica/')),
+    )
     return
   }
 
