@@ -29,6 +29,8 @@ import {
   type ProducaoCremePayload,
   type SoroRefrigeradoPayload,
 } from './api'
+import { localDateValue } from './dateTime'
+import { TimeWheelInput } from './TimeWheelPicker'
 import { PRODUCTION_WORKFLOWS, type View, type WorkflowId } from './workflows'
 
 type AuthState = 'booting' | 'guest' | 'authenticated'
@@ -38,7 +40,7 @@ const EMPTY_CHEESE_CATALOGS: FormulacaoQueijoCatalogos = { queijos: [], insumos:
 const EMPTY_ORDER_CATALOGS: OrdemProducaoCatalogos = { queijos: [], insumos: [] }
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10)
+  return localDateValue()
 }
 
 function field(form: FormData, name: string): string {
@@ -559,7 +561,7 @@ function CheeseForm({ date, catalogs, onBack, onSubmit }: {
         <Field label="Queijomatic"><input name="numero_queijomatic" /></Field>
       </FormSection>
       <FormSection title="Processo">
-        <Field label="Início do enchimento"><input name="inicio_enchimento" type="time" /></Field>
+        <Field label="Início do enchimento"><TimeWheelInput name="inicio_enchimento" label="Início do enchimento" /></Field>
         <Field label="Leite (L)"><input name="quantidade_leite" inputMode="decimal" /></Field>
         <Field label="Pasteurização (°C)"><input name="temperatura_pasteurizacao" inputMode="decimal" /></Field>
         <Field label="Fosfatase"><select name="fosfatase"><option value="">Selecionar</option><option value="negativo">Negativo</option><option value="positivo">Positivo</option><option value="nao_aplicavel">Não aplicável</option></select></Field>
@@ -568,8 +570,8 @@ function CheeseForm({ date, catalogs, onBack, onSubmit }: {
         <Field label="Gordura final"><input name="gordura_final" inputMode="decimal" /></Field>
         <Field label="Acidez"><input name="acidez" inputMode="decimal" /></Field>
         <Field label="Coagulação (°C)"><input name="temperatura_coagulacao" inputMode="decimal" /></Field>
-        <Field label="Hora da coagulação"><input name="hora_coagulacao" type="time" /></Field>
-        <Field label="Hora do corte"><input name="hora_corte" type="time" /></Field>
+        <Field label="Hora da coagulação"><TimeWheelInput name="hora_coagulacao" label="Hora da coagulação" /></Field>
+        <Field label="Hora do corte"><TimeWheelInput name="hora_corte" label="Hora do corte" /></Field>
         <Field label="Cozimento (°C)"><input name="temperatura_cozimento" inputMode="decimal" /></Field>
       </FormSection>
       <FormSection title="Insumos">
