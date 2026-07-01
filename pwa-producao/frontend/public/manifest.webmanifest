@@ -5,8 +5,8 @@
   "start_url": "/fabrica/",
   "scope": "/fabrica/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#e9eef0",
+  "theme_color": "#263135",
   "orientation": "portrait-primary",
   "icons": [
     {

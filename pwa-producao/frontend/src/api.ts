@@ -46,6 +46,29 @@ export type FormulacaoQueijoCatalogos = {
     nome: string
     codigo_balanca: string
   }>
+  insumos: Array<{
+    id: number
+    nome: string
+    tipo_insumo: 'fermento_mvd' | 'fermento_fast' | 'fermento' | 'cloreto' | 'corante' | 'coalho' | 'outro'
+    unidade: string
+  }>
+}
+
+export type OrdemProducaoCatalogos = {
+  queijos: Array<{
+    id: number
+    nome: string
+    slug: string
+    codigo_balanca: string
+    op_rotulo: string | null
+    precisa_formato: boolean
+  }>
+  insumos: Array<{
+    id: number
+    nome: string
+    unidade: string
+    op_rotulo: string
+  }>
 }
 
 export type OrdemProducaoPayload = {
@@ -73,7 +96,13 @@ export type FormulacaoQueijoPayload = {
   hora_coagulacao: string | null
   hora_corte: string | null
   temperatura_cozimento: number | null
-  insumos: []
+  insumos: Array<{
+    tipo_insumo: 'fermento_mvd' | 'fermento_fast' | 'fermento' | 'cloreto' | 'corante' | 'coalho' | 'outro'
+    nome_insumo: string | null
+    quantidade: number
+    unidade: string
+    lote_insumo: string | null
+  }>
 }
 
 export type SoroRefrigeradoPayload = {
@@ -81,6 +110,30 @@ export type SoroRefrigeradoPayload = {
   entrada_diaria_estoque: number | null
   litragem_vendida: number | null
   silo_armazenado: string | null
+  responsavel: string | null
+}
+
+export type FormulacaoCremePayload = {
+  data_fabricacao: string
+  lote_creme_produzido: string
+  tipo_creme: string
+  mes: number | null
+  ano: number | null
+  gordura_inicial: number | null
+  gordura_final: number | null
+  acidez: number | null
+  responsavel_monitoramento: string | null
+  responsavel: string | null
+}
+
+export type ProducaoCremePayload = {
+  data_fabricacao: string
+  lote_creme_produzido: string
+  tipo_creme: string
+  mes: number | null
+  ano: number | null
+  quantidade_produzida_kg: number | null
+  responsavel_monitoramento: string | null
   responsavel: string | null
 }
 
@@ -186,6 +239,8 @@ export const producaoApi = {
   overview: () => request<Overview>(`${API_BASE}/producao/overview`),
   ordensProducao: (data: string) =>
     request<OrdemProducaoResumo[]>(`${API_BASE}/producao/ordens-producao?data=${encodeURIComponent(data)}`),
+  ordensProducaoCatalogos: () =>
+    request<OrdemProducaoCatalogos>(`${API_BASE}/producao/ordens-producao/catalogos`),
   formulacaoQueijoCatalogos: () =>
     request<FormulacaoQueijoCatalogos>(`${API_BASE}/producao/formulacoes-queijo/catalogos`),
   salvarOrdemProducao: (payload: OrdemProducaoPayload) =>
@@ -198,4 +253,12 @@ export const producaoApi = {
     jsonMutation<{ id: number }>(`${API_BASE}/producao/soro-refrigerado`, 'POST', payload),
   finalizarSoroRefrigerado: (id: number) =>
     jsonMutation(`${API_BASE}/producao/soro-refrigerado/${id}/finalizar`, 'PATCH'),
+  criarFormulacaoCreme: (payload: FormulacaoCremePayload) =>
+    jsonMutation<{ id: number }>(`${API_BASE}/producao/formulacoes-creme`, 'POST', payload),
+  finalizarFormulacaoCreme: (id: number) =>
+    jsonMutation(`${API_BASE}/producao/formulacoes-creme/${id}/finalizar`, 'PATCH'),
+  criarProducaoCreme: (payload: ProducaoCremePayload) =>
+    jsonMutation<{ id: number }>(`${API_BASE}/producao/producoes-creme`, 'POST', payload),
+  finalizarProducaoCreme: (id: number) =>
+    jsonMutation(`${API_BASE}/producao/producoes-creme/${id}/finalizar`, 'PATCH'),
 }

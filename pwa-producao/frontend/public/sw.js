@@ -1,4 +1,4 @@
-const CACHE_NAME = 'santilac-producao-pwa-v1'
+const CACHE_NAME = 'santilac-producao-pwa-v2'
 const SHELL_ASSETS = [
   '/fabrica/',
   '/fabrica/manifest.webmanifest',
