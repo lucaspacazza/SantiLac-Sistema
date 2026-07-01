@@ -99,7 +99,7 @@ export const sidebarModules = [
   },
   {
     slug: 'coletas',
-    title: 'Coletas',
+    title: 'Leite',
     desc: 'Rotas e coletas do app.',
     levels: ['3.6'],
     icon: 'fa-route',
