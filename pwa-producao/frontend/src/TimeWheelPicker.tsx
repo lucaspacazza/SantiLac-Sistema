@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Clock3, X } from 'lucide-react'
 import { formatTimeValue, parseTimeValue } from './dateTime'
 
@@ -58,7 +59,7 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
         <ChevronDown size={18} aria-hidden="true" />
       </button>
 
-      {open && (
+      {open && createPortal(
         <div className="time-wheel-backdrop" role="presentation" onPointerDown={(event) => {
           if (event.currentTarget === event.target) setOpen(false)
         }}>
@@ -81,7 +82,8 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
               <button type="button" className="time-wheel-confirm" onClick={confirm}><Check size={18} />Confirmar</button>
             </footer>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )

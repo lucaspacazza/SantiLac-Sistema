@@ -720,7 +720,7 @@ select:focus-visible {
   border-block: 1px solid rgba(47, 111, 102, 0.34);
   border-radius: 12px;
   background: var(--accent-soft);
-  transform: translateY(-9px);
+  transform: translateY(-50%);
   pointer-events: none;
 }
 

@@ -25,3 +25,17 @@ test('forces the factory shell to update instead of reusing a stale WebView work
   assert.match(bootstrap, /registration\.update\(\)/)
   assert.match(bootstrap, /controllerchange/)
 })
+
+test('centers the selected time band on the active wheel row', () => {
+  const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8')
+  const selectionRule = styles.match(/\.time-wheel-selection\s*\{[^}]+\}/s)?.[0] ?? ''
+
+  assert.match(selectionRule, /transform:\s*translateY\(-50%\)/)
+})
+
+test('renders the time dialog outside the form label so action buttons remain clickable', () => {
+  const component = readFileSync(new URL('./TimeWheelPicker.tsx', import.meta.url), 'utf8')
+
+  assert.match(component, /import\s*\{\s*createPortal\s*\}\s*from\s*['"]react-dom['"]/)
+  assert.match(component, /createPortal\([\s\S]+document\.body/)
+})
