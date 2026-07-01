@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Producao\FormulacaoCremeController;
 use App\Http\Controllers\Api\Producao\FormulacaoQueijoController;
 use App\Http\Controllers\Api\Producao\OrdemProducaoController;
+use App\Http\Controllers\Api\Producao\ProducaoCremeController;
 use App\Http\Controllers\Api\Producao\ProducaoController;
 use App\Http\Controllers\Api\Producao\SoroRefrigeradoController;
 use Illuminate\Support\Facades\Route;
@@ -41,4 +43,18 @@ Route::middleware(['auth', 'audit.action'])
         Route::patch('/soro-refrigerado/{id}', [SoroRefrigeradoController::class, 'update'])->whereNumber('id');
         Route::patch('/soro-refrigerado/{id}/finalizar', [SoroRefrigeradoController::class, 'finalizar'])->whereNumber('id');
         Route::patch('/soro-refrigerado/{id}/cancelar', [SoroRefrigeradoController::class, 'cancelar'])->whereNumber('id');
+
+        Route::get('/formulacoes-creme', [FormulacaoCremeController::class, 'index']);
+        Route::post('/formulacoes-creme', [FormulacaoCremeController::class, 'store']);
+        Route::get('/formulacoes-creme/{id}', [FormulacaoCremeController::class, 'show'])->whereNumber('id');
+        Route::patch('/formulacoes-creme/{id}', [FormulacaoCremeController::class, 'update'])->whereNumber('id');
+        Route::patch('/formulacoes-creme/{id}/finalizar', [FormulacaoCremeController::class, 'finalizar'])->whereNumber('id');
+        Route::patch('/formulacoes-creme/{id}/cancelar', [FormulacaoCremeController::class, 'cancelar'])->whereNumber('id');
+
+        Route::get('/producoes-creme', [ProducaoCremeController::class, 'index']);
+        Route::post('/producoes-creme', [ProducaoCremeController::class, 'store']);
+        Route::get('/producoes-creme/{id}', [ProducaoCremeController::class, 'show'])->whereNumber('id');
+        Route::patch('/producoes-creme/{id}', [ProducaoCremeController::class, 'update'])->whereNumber('id');
+        Route::patch('/producoes-creme/{id}/finalizar', [ProducaoCremeController::class, 'finalizar'])->whereNumber('id');
+        Route::patch('/producoes-creme/{id}/cancelar', [ProducaoCremeController::class, 'cancelar'])->whereNumber('id');
     });

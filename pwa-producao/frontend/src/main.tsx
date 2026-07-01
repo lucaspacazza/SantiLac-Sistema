@@ -11,7 +11,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/fabrica/sw.js?v=1', {
+    navigator.serviceWorker.register('/fabrica/sw.js?v=2', {
       scope: '/fabrica/',
       updateViaCache: 'none',
     }).catch(() => null)
