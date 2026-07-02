@@ -56,13 +56,12 @@ class ColetasGestaoService
 
     public function resumoMensal(): array
     {
-        $latest = $this->latestColetasSql();
         $rows = DB::connection('raw')->select("
             SELECT
                 DATE_FORMAT(datahora, '%Y-%m') AS mes,
                 COALESCE(SUM(litros), 0) AS litros,
                 COUNT(*) AS coletas
-            FROM ({$latest}) latest_coletas
+            FROM coletas
             WHERE datahora IS NOT NULL
             GROUP BY DATE_FORMAT(datahora, '%Y-%m')
             ORDER BY mes ASC
