@@ -54,6 +54,39 @@ class ColetasGestaoService
             ->all();
     }
 
+    public function resumoMensal(): array
+    {
+        $rows = DB::connection('raw')->select("
+            SELECT
+                DATE_FORMAT(datahora, '%Y-%m') AS mes,
+                COALESCE(SUM(litros), 0) AS litros,
+                COUNT(*) AS coletas
+            FROM coletas
+            WHERE datahora IS NOT NULL
+            GROUP BY DATE_FORMAT(datahora, '%Y-%m')
+            ORDER BY mes ASC
+        ");
+
+        $serie = collect($rows)
+            ->map(fn ($row): array => [
+                'mes' => (string) $row->mes,
+                'litros' => (float) $row->litros,
+                'coletas' => (int) $row->coletas,
+            ])
+            ->values()
+            ->all();
+
+        $porMes = collect($serie)->keyBy('mes');
+        $mesAtual = now()->format('Y-m');
+        $mesAnterior = now()->subMonthNoOverflow()->format('Y-m');
+
+        return [
+            'mes_atual' => $porMes->get($mesAtual, $this->mesVazio($mesAtual)),
+            'mes_anterior' => $porMes->get($mesAnterior, $this->mesVazio($mesAnterior)),
+            'serie' => $serie,
+        ];
+    }
+
     public function rotaDetalhe(string $uuid): ?array
     {
         if ($uuid === '') {
@@ -217,6 +250,15 @@ class ColetasGestaoService
                 GROUP BY rota_uuid, produtor_codigo
             ) latest ON latest.id = c.id
         ";
+    }
+
+    private function mesVazio(string $mes): array
+    {
+        return [
+            'mes' => $mes,
+            'litros' => 0.0,
+            'coletas' => 0,
+        ];
     }
 
     private function gpsResumoSql(?string $routeFilter = null): string

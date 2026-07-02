@@ -1,11 +1,13 @@
 import { RefreshCcw } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { pasteurizadorApi, type Amostra, type Coleta, type Overview } from './api/pasteurizadorApi'
-import { HistoricoPasteurizacao } from './views/HistoricoPasteurizacao/HistoricoPasteurizacao'
 import { Inicio } from './views/Inicio/Inicio'
+import './pasteurizador.css'
 
 type View = 'inicio' | 'historico'
 type LoadStatus = 'loading' | 'live' | 'error'
+
+const HistoricoPasteurizacao = lazy(() => import('./views/HistoricoPasteurizacao/HistoricoPasteurizacao').then((module) => ({ default: module.HistoricoPasteurizacao })))
 
 type HistoricoFiltro = {
   inicio: string
@@ -318,29 +320,31 @@ export function PasteurizadorModule() {
           {view === 'inicio' ? (
             <Inicio overview={overview} onNavigateHistorico={() => navigate('historico')} />
           ) : (
-            <HistoricoPasteurizacao
-              coletas={coletas}
-              amostras={amostras}
-              coletaSelecionada={coletaSelecionada}
-              inicio={inicio}
-              fim={fim}
-              horaInicio={horaInicio}
-              horaFim={horaFim}
-              canal={canal}
-              canaisDisponiveis={canaisDisponiveis}
-              onInicioChange={setInicio}
-              onFimChange={setFim}
-              onHoraInicioChange={setHoraInicio}
-              onHoraFimChange={setHoraFim}
-              onCanalChange={setCanal}
-              onFiltrar={handleFiltrar}
-              onSelecionarColeta={(id) => {
-                setSelectedColetaId(id)
-                void loadAmostras(id)
-              }}
-              onRecarregar={() => void loadColetas()}
-              exportPdfUrl={exportPdfUrl}
-            />
+            <Suspense fallback={<LoadingOverlay message="Carregando gráfico..." />}>
+              <HistoricoPasteurizacao
+                coletas={coletas}
+                amostras={amostras}
+                coletaSelecionada={coletaSelecionada}
+                inicio={inicio}
+                fim={fim}
+                horaInicio={horaInicio}
+                horaFim={horaFim}
+                canal={canal}
+                canaisDisponiveis={canaisDisponiveis}
+                onInicioChange={setInicio}
+                onFimChange={setFim}
+                onHoraInicioChange={setHoraInicio}
+                onHoraFimChange={setHoraFim}
+                onCanalChange={setCanal}
+                onFiltrar={handleFiltrar}
+                onSelecionarColeta={(id) => {
+                  setSelectedColetaId(id)
+                  void loadAmostras(id)
+                }}
+                onRecarregar={() => void loadColetas()}
+                exportPdfUrl={exportPdfUrl}
+              />
+            </Suspense>
           )}
         </section>
     </>

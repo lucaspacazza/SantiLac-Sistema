@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { ColetaDetalheRota } from './views/Rotas/ColetaDetalheRota'
 import { ColetasRota } from './views/Rotas/ColetasRota'
 import { DetalheRota } from './views/Rotas/DetalheRota'
+import { LeiteInicio } from './views/Inicio/LeiteInicio'
 import { ListagemRotas } from './views/Rotas/ListagemRotas'
 import { MapaRota } from './views/Rotas/MapaRota'
 
 type View =
+  | { name: 'inicio' }
   | { name: 'rotas' }
   | { name: 'detalhe'; uuid: string }
   | { name: 'mapa'; uuid: string }
@@ -30,11 +32,13 @@ function parseRoute(): View {
   if (section === 'rotas' && uuid && action === 'mapa') return { name: 'mapa', uuid: decodeURIComponent(uuid) }
   if (section === 'rotas' && uuid && action === 'coletas') return { name: 'coletas', uuid: decodeURIComponent(uuid) }
   if (section === 'rotas' && uuid) return { name: 'detalhe', uuid: decodeURIComponent(uuid) }
+  if (section === 'rotas') return { name: 'rotas' }
 
-  return { name: 'rotas' }
+  return { name: 'inicio' }
 }
 
 function routeTitle(view: View) {
+  if (view.name === 'inicio') return 'Leite'
   if (view.name === 'rotas') return 'Rotas'
   if (view.name === 'detalhe') return 'Detalhe da rota'
   if (view.name === 'mapa') return 'Mapa da rota'
@@ -62,6 +66,7 @@ export function ColetasModule() {
 
   return (
     <div className="coletas-module">
+      {view.name === 'inicio' && <LeiteInicio />}
       {view.name === 'rotas' && <ListagemRotas onOpen={(uuid) => navigate(`#/coletas/rotas/${encodeURIComponent(uuid)}`)} />}
       {view.name === 'detalhe' && (
         <DetalheRota

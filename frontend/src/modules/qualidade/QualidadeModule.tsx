@@ -9,6 +9,7 @@ import { GestaoProdutores } from './views/GestaoProdutores/GestaoProdutores'
 import { Inicio } from './views/Inicio/Inicio'
 import { PendenciasProdutor } from './views/PendenciasProdutor/PendenciasProdutor'
 import { Relatorios } from './views/Relatorios/Relatorios'
+import './qualidade.css'
 
 type LoadStatus = 'loading' | 'live' | 'error'
 type View = 'inicio' | 'produtores' | 'analises' | 'relatorios'

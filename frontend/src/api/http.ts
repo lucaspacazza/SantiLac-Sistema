@@ -52,17 +52,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 }
 
 export async function apiPost<T>(path: string, payload: Record<string, unknown>): Promise<T> {
-  const token = await ensureCsrfToken()
-  const response = await fetch(path, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-      'X-CSRF-TOKEN': token,
-    },
-    body: toFormBody(payload),
-  })
+  const response = await fetchWithCsrf(path, 'POST', payload)
 
   const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
   if (!response.ok || !json?.success || json.data === undefined) {
@@ -73,9 +63,20 @@ export async function apiPost<T>(path: string, payload: Record<string, unknown>)
 }
 
 export async function apiPatch<T>(path: string, payload: Record<string, unknown>): Promise<T> {
+  const response = await fetchWithCsrf(path, 'PATCH', payload)
+
+  const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
+  if (!response.ok || !json?.success || json.data === undefined) {
+    throw new Error(apiErrorMessage(json, 'Falha ao processar solicitação.'))
+  }
+
+  return json.data
+}
+
+async function fetchWithCsrf(path: string, method: 'POST' | 'PATCH', payload: Record<string, unknown>, retry = true): Promise<Response> {
   const token = await ensureCsrfToken()
   const response = await fetch(path, {
-    method: 'PATCH',
+    method,
     credentials: 'same-origin',
     headers: {
       Accept: 'application/json',
@@ -85,12 +86,12 @@ export async function apiPatch<T>(path: string, payload: Record<string, unknown>
     body: toFormBody(payload),
   })
 
-  const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
-  if (!response.ok || !json?.success || json.data === undefined) {
-    throw new Error(apiErrorMessage(json, 'Falha ao processar solicitação.'))
+  if (response.status === 419 && retry) {
+    csrfToken = null
+    return fetchWithCsrf(path, method, payload, false)
   }
 
-  return json.data
+  return response
 }
 
 export async function apiPostFile<T>(path: string, field: string, file: File): Promise<T> {
@@ -191,4 +192,3 @@ function toFormBody(payload: Record<string, unknown>): URLSearchParams {
 
   return params
 }
-

@@ -216,6 +216,24 @@
   display: block;
 }
 
+.module-loading {
+  min-height: 160px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 32px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.module-loading-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--success);
+  box-shadow: 0 0 12px rgba(68, 145, 235, 0.25);
+}
+
 .core-loading,
 .core-login {
   min-height: 100vh;

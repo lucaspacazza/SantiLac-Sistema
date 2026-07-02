@@ -13,6 +13,7 @@ import { EditarItem } from './views/EditarItem/EditarItem'
 import { Inicio } from './views/Inicio/Inicio'
 import { ItensView } from './views/Itens/Itens'
 import { MovimentosView } from './views/Movimentos/Movimentos'
+import './estoque.css'
 
 type View = 'inicio' | 'itens' | 'detalhe-item' | 'editar-item' | 'movimentos'
 type LoadStatus = 'loading' | 'live' | 'error'

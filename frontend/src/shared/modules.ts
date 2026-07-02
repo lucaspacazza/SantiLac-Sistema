@@ -99,12 +99,13 @@ export const sidebarModules = [
   },
   {
     slug: 'coletas',
-    title: 'Coletas',
+    title: 'Leite',
     desc: 'Rotas e coletas do app.',
     levels: ['3.6'],
-    icon: 'fa-route',
-    href: '#/coletas/rotas',
+    icon: 'fa-milk',
+    href: '#/coletas/inicio',
     children: [
+      { title: 'Início', icon: 'fa-home', href: '#/coletas/inicio' },
       { title: 'Rotas', icon: 'fa-route', href: '#/coletas/rotas' },
     ],
   },

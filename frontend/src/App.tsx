@@ -1,13 +1,5 @@
 ﻿import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { authApi, type AuthUser } from './api/authApi'
-import { CadastrosModule } from './modules/cadastros/CadastrosModule'
-import { ColetasModule } from './modules/coletas/ColetasModule'
-import { CombustivelModule } from './modules/combustivel/CombustivelModule'
-import { DashboardResumoApp } from './modules/dashboard/DashboardResumoApp'
-import { EstoqueModule } from './modules/estoque/EstoqueModule'
-import { PasteurizadorModule } from './modules/pasteurizador/PasteurizadorModule'
-import { ProducaoModule } from './modules/producao/ProducaoModule'
-import { QualidadeModule } from './modules/qualidade/QualidadeModule'
 import { LoginPage } from './pages/LoginPage'
 import { SystemHome } from './pages/SystemHome'
 import { CoreSidebar, routeForModule } from './shared/CoreSidebar'
@@ -16,7 +8,15 @@ import { allowedSidebarModules, canAccessModuleSlug, isSystemModule, type Module
 
 type AppState = 'booting' | 'guest' | 'authenticated'
 
+const CadastrosModule = lazy(() => import('./modules/cadastros/CadastrosModule').then((module) => ({ default: module.CadastrosModule })))
+const ColetasModule = lazy(() => import('./modules/coletas/ColetasModule').then((module) => ({ default: module.ColetasModule })))
+const CombustivelModule = lazy(() => import('./modules/combustivel/CombustivelModule').then((module) => ({ default: module.CombustivelModule })))
+const DashboardResumoApp = lazy(() => import('./modules/dashboard/DashboardResumoApp').then((module) => ({ default: module.DashboardResumoApp })))
 const EmbalagemApp = lazy(() => import('./modules/embalagem/App').then((module) => ({ default: module.App })))
+const EstoqueModule = lazy(() => import('./modules/estoque/EstoqueModule').then((module) => ({ default: module.EstoqueModule })))
+const PasteurizadorModule = lazy(() => import('./modules/pasteurizador/PasteurizadorModule').then((module) => ({ default: module.PasteurizadorModule })))
+const ProducaoModule = lazy(() => import('./modules/producao/ProducaoModule').then((module) => ({ default: module.ProducaoModule })))
+const QualidadeModule = lazy(() => import('./modules/qualidade/QualidadeModule').then((module) => ({ default: module.QualidadeModule })))
 const isEmbalagemHost = window.location.hostname.toLowerCase() === 'embalagem.santilac.com.br'
 
 function moduleFromHash(user: ModuleAccessUser | null): SystemModule | null {
@@ -101,8 +101,8 @@ export function App() {
       window.location.hash = '#/sistema'
       setActiveModule(null)
       setState('authenticated')
-    } catch {
-      setLoginError('Usuário ou senha incorretos.')
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : 'Não foi possível entrar no sistema.')
     } finally {
       setIsLoggingIn(false)
     }
@@ -169,26 +169,37 @@ export function App() {
       />
 
       <main className="content">
-        {activeModule === 'dashboard' ? (
-          <DashboardResumoApp />
-        ) : activeModule === 'qualidade' ? (
-          <QualidadeModule />
-        ) : activeModule === 'producao' ? (
-          <ProducaoModule />
-        ) : activeModule === 'estoque' ? (
-          <EstoqueModule />
-        ) : activeModule === 'pasteurizador' ? (
-          <PasteurizadorModule />
-        ) : activeModule === 'combustivel' ? (
-          <CombustivelModule />
-        ) : activeModule === 'coletas' ? (
-          <ColetasModule />
-        ) : activeModule === 'cadastros' ? (
-          <CadastrosModule />
-        ) : (
-          <SystemHome />
-        )}
+        <Suspense fallback={<ModuleLoading />}>
+          {activeModule === 'dashboard' ? (
+            <DashboardResumoApp />
+          ) : activeModule === 'qualidade' ? (
+            <QualidadeModule />
+          ) : activeModule === 'producao' ? (
+            <ProducaoModule />
+          ) : activeModule === 'estoque' ? (
+            <EstoqueModule />
+          ) : activeModule === 'pasteurizador' ? (
+            <PasteurizadorModule />
+          ) : activeModule === 'combustivel' ? (
+            <CombustivelModule />
+          ) : activeModule === 'coletas' ? (
+            <ColetasModule />
+          ) : activeModule === 'cadastros' ? (
+            <CadastrosModule />
+          ) : (
+            <SystemHome />
+          )}
+        </Suspense>
       </main>
     </div>
+  )
+}
+
+function ModuleLoading() {
+  return (
+    <section className="module-loading" aria-live="polite">
+      <span className="module-loading-dot" />
+      <span>Carregando módulo...</span>
+    </section>
   )
 }
