@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ColetaDetalheRota } from './views/Rotas/ColetaDetalheRota'
 import { ColetasRota } from './views/Rotas/ColetasRota'
 import { DetalheRota } from './views/Rotas/DetalheRota'
+import { LeiteInicio } from './views/Inicio/LeiteInicio'
 import { ListagemRotas } from './views/Rotas/ListagemRotas'
 import { MapaRota } from './views/Rotas/MapaRota'
 
@@ -65,7 +66,7 @@ export function ColetasModule() {
 
   return (
     <div className="coletas-module">
-      {view.name === 'inicio' && <section className="page leite-inicio" aria-label="Leite" />}
+      {view.name === 'inicio' && <LeiteInicio />}
       {view.name === 'rotas' && <ListagemRotas onOpen={(uuid) => navigate(`#/coletas/rotas/${encodeURIComponent(uuid)}`)} />}
       {view.name === 'detalhe' && (
         <DetalheRota

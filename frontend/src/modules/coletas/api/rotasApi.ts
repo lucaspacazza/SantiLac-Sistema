@@ -69,6 +69,18 @@ export type RotasFiltro = {
   fim?: string
 }
 
+export type LeiteResumoMes = {
+  mes: string
+  litros: number
+  coletas: number
+}
+
+export type LeiteResumoMensal = {
+  mes_atual: LeiteResumoMes
+  mes_anterior: LeiteResumoMes
+  serie: LeiteResumoMes[]
+}
+
 function buildUrl(path: string, params?: Record<string, string | undefined>) {
   const url = new URL(path, window.location.origin)
   Object.entries(params ?? {}).forEach(([key, value]) => {
@@ -78,6 +90,10 @@ function buildUrl(path: string, params?: Record<string, string | undefined>) {
 }
 
 export const rotasApi = {
+  async resumoMensal() {
+    return apiGet<LeiteResumoMensal>('/api/gestao/coletas/resumo-mensal')
+  },
+
   async listar(filtros: RotasFiltro) {
     const meta = await apiGet<{ rotas: RotaResumo[] }>(buildUrl('/api/gestao/rotas', filtros))
     return meta.rotas

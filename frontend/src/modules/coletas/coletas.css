@@ -154,6 +154,115 @@
 .coletas-module .status-line.is-live .status-dot { background: var(--success); }
 .coletas-module .status-line.is-error .status-dot { background: var(--danger); }
 
+.coletas-module .leite-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 260px));
+  gap: 10px;
+}
+
+.coletas-module .leite-card {
+  min-height: 96px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+}
+
+.coletas-module .leite-marker {
+  width: 7px;
+  height: 7px;
+  margin-top: 4px;
+  border-radius: 99px;
+  background: var(--success);
+}
+
+.coletas-module .leite-card div {
+  display: grid;
+  gap: 5px;
+}
+
+.coletas-module .leite-card small,
+.coletas-module .leite-card em,
+.coletas-module .leite-section-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.coletas-module .leite-card strong {
+  font-size: 22px;
+  line-height: 1.05;
+  font-weight: 650;
+}
+
+.coletas-module .leite-chart {
+  width: min(100%, 760px);
+  margin-top: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 14px 14px 12px;
+}
+
+.coletas-module .leite-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.coletas-module .leite-section-head h2 {
+  margin: 0;
+  color: var(--body);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.coletas-module .leite-bars {
+  min-height: 176px;
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.coletas-module .leite-bar-item {
+  min-width: 38px;
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+}
+
+.coletas-module .leite-bar-track {
+  width: 100%;
+  height: 138px;
+  display: flex;
+  align-items: end;
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.coletas-module .leite-bar-track span {
+  width: 14px;
+  margin: 0 auto;
+  border-radius: 3px 3px 0 0;
+  background: rgba(245, 189, 65, 0.8);
+}
+
+.coletas-module .leite-bar-item small {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
 .coletas-module .route-list {
   display: grid;
   width: min(100%, 760px);
@@ -578,9 +687,14 @@
   }
 
   .coletas-module .filters,
+  .coletas-module .leite-kpis,
   .coletas-module .detail-grid,
   .coletas-module .coleta-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .coletas-module .leite-chart {
+    width: 100%;
   }
 
   .coletas-module .route-row {

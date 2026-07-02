@@ -22,6 +22,14 @@ class ColetasGestaoController extends Controller
         ]);
     }
 
+    public function resumoMensal(): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $this->coletas->resumoMensal(),
+        ]);
+    }
+
     public function rotaDetalhe(Request $request): JsonResponse
     {
         $uuid = trim((string) $request->query('uuid'));

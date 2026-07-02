@@ -135,6 +135,7 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
 
     Route::prefix('gestao')->group(function (): void {
         Route::get('/rotas', [ColetasGestaoController::class, 'rotas']);
+        Route::get('/coletas/resumo-mensal', [ColetasGestaoController::class, 'resumoMensal']);
         Route::get('/rotas/detalhe', [ColetasGestaoController::class, 'rotaDetalhe']);
         Route::get('/rotas/coletas', [ColetasGestaoController::class, 'rotaColetas']);
         Route::get('/coletas/detalhe', [ColetasGestaoController::class, 'coletaDetalhe']);
