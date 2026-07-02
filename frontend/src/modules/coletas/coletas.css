@@ -200,12 +200,12 @@
 }
 
 .coletas-module .leite-chart {
-  width: min(100%, 760px);
+  width: min(100%, 860px);
   margin-top: 4px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
-  padding: 14px 14px 12px;
+  padding: 14px 16px 12px;
 }
 
 .coletas-module .leite-section-head {
@@ -229,13 +229,13 @@
   min-height: 194px;
   display: flex;
   align-items: end;
-  gap: 10px;
+  gap: 12px;
   overflow-x: auto;
   padding-bottom: 2px;
 }
 
 .coletas-module .leite-bar-item {
-  min-width: 58px;
+  min-width: 70px;
   display: grid;
   justify-items: center;
   gap: 6px;
@@ -260,10 +260,11 @@
 }
 
 .coletas-module .leite-bar-track span {
-  width: 14px;
+  width: 24px;
   margin: 0 auto;
-  border-radius: 3px 3px 0 0;
-  background: rgba(245, 189, 65, 0.8);
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, rgba(91, 169, 255, 0.95), rgba(38, 116, 209, 0.88));
+  box-shadow: 0 0 16px rgba(68, 145, 235, 0.26), 0 6px 14px rgba(18, 83, 166, 0.22);
 }
 
 .coletas-module .leite-bar-item small {
