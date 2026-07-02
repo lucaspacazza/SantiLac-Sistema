@@ -53,6 +53,7 @@ export function LeiteInicio() {
         <div className="leite-bars">
           {(resumo?.serie ?? []).map((item) => (
             <div className="leite-bar-item" key={item.mes}>
+              <span className="leite-bar-value">{formatLitros(item.litros)}</span>
               <div className="leite-bar-track" title={`${mesLabel(item.mes)} · ${formatLitros(item.litros)}`}>
                 <span style={{ height: `${Math.max((item.litros / maxLitros) * 100, item.litros > 0 ? 6 : 0)}%` }} />
               </div>
