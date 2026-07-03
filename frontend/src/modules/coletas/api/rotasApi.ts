@@ -73,6 +73,8 @@ export type LeiteResumoMes = {
   mes: string
   litros: number
   coletas: number
+  dias_coleta: number
+  produtores: number
 }
 
 export type LeiteResumoMensal = {

@@ -60,7 +60,9 @@ class ColetasGestaoService
             SELECT
                 DATE_FORMAT(datahora, '%Y-%m') AS mes,
                 COALESCE(SUM(litros), 0) AS litros,
-                COUNT(*) AS coletas
+                COUNT(*) AS coletas,
+                COUNT(DISTINCT DATE(datahora)) AS dias_coleta,
+                COUNT(DISTINCT NULLIF(TRIM(produtor_codigo), '')) AS produtores
             FROM coletas
             WHERE datahora IS NOT NULL
             GROUP BY DATE_FORMAT(datahora, '%Y-%m')
@@ -72,6 +74,8 @@ class ColetasGestaoService
                 'mes' => (string) $row->mes,
                 'litros' => (float) $row->litros,
                 'coletas' => (int) $row->coletas,
+                'dias_coleta' => (int) $row->dias_coleta,
+                'produtores' => (int) $row->produtores,
             ])
             ->values()
             ->all();
@@ -258,6 +262,8 @@ class ColetasGestaoService
             'mes' => $mes,
             'litros' => 0.0,
             'coletas' => 0,
+            'dias_coleta' => 0,
+            'produtores' => 0,
         ];
     }
 

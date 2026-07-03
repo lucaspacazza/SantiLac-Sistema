@@ -30,7 +30,12 @@ use App\Http\Controllers\Api\Producao\ProducaoCremeController;
 use App\Http\Controllers\Api\Producao\SoroRefrigeradoController;
 use App\Http\Controllers\Api\Qualidade\QualidadeController;
 use App\Http\Controllers\Api\Qualidade\RelatoriosController;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Session\Middleware\StartSession;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 Route::prefix('api/auth')->group(function (): void {
     Route::get('/csrf', [AuthController::class, 'csrf']);
@@ -39,20 +44,31 @@ Route::prefix('api/auth')->group(function (): void {
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
 });
 
-Route::middleware('coletas.mobile.key')->prefix('api')->group(function (): void {
-    Route::get('/catalogo', CatalogoController::class);
-    Route::post('/produtores/endpoint', ProdutorEndpointController::class);
-    Route::get('/app/version', AppVersionController::class);
-    Route::post('/app/logs', AppLogsController::class);
+$statelessApiMiddleware = [
+    EncryptCookies::class,
+    AddQueuedCookiesToResponse::class,
+    StartSession::class,
+    ShareErrorsFromSession::class,
+    PreventRequestForgery::class,
+];
 
-    Route::get('/rotas/open-route', RotasOpenRouteController::class);
-    Route::post('/rotas/start', RotasStartController::class);
-    Route::post('/rotas/finish', RotasFinishController::class);
-    Route::post('/rotas/cancel', RotasCancelController::class);
-    Route::post('/rotas/gps-chunk', RotasGpsChunkController::class);
-    Route::post('/rotas/stops-batch', RotasStopsBatchController::class);
-    Route::post('/rotas/coletas-batch', RotasColetasBatchController::class);
-});
+Route::withoutMiddleware($statelessApiMiddleware)
+    ->middleware('coletas.mobile.key')
+    ->prefix('api')
+    ->group(function (): void {
+        Route::get('/catalogo', CatalogoController::class);
+        Route::post('/produtores/endpoint', ProdutorEndpointController::class);
+        Route::get('/app/version', AppVersionController::class);
+        Route::post('/app/logs', AppLogsController::class);
+
+        Route::get('/rotas/open-route', RotasOpenRouteController::class);
+        Route::post('/rotas/start', RotasStartController::class);
+        Route::post('/rotas/finish', RotasFinishController::class);
+        Route::post('/rotas/cancel', RotasCancelController::class);
+        Route::post('/rotas/gps-chunk', RotasGpsChunkController::class);
+        Route::post('/rotas/stops-batch', RotasStopsBatchController::class);
+        Route::post('/rotas/coletas-batch', RotasColetasBatchController::class);
+    });
 
 Route::post('/api/pasteurizador/coletas', [PasteurizadorController::class, 'criarColeta'])
     ->middleware('throttle:6,1');

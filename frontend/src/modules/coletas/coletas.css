@@ -154,22 +154,29 @@
 .coletas-module .status-line.is-live .status-dot { background: var(--success); }
 .coletas-module .status-line.is-error .status-dot { background: var(--danger); }
 
+.coletas-module .leite-inicio {
+  width: min(calc(100% - 64px), 1360px);
+  margin: 24px auto 34px;
+}
+
 .coletas-module .leite-kpis {
+  width: 100%;
   display: grid;
-  grid-template-columns: repeat(2, minmax(180px, 260px));
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .coletas-module .leite-card {
-  min-height: 96px;
+  min-width: 0;
+  min-height: 112px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
   color: var(--text);
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 14px;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
 }
 
 .coletas-module .leite-marker {
@@ -182,7 +189,7 @@
 
 .coletas-module .leite-card div {
   display: grid;
-  gap: 5px;
+  gap: 6px;
 }
 
 .coletas-module .leite-card small,
@@ -194,18 +201,59 @@
 }
 
 .coletas-module .leite-card strong {
-  font-size: 22px;
+  overflow-wrap: anywhere;
+  font-size: 24px;
   line-height: 1.05;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.coletas-module .leite-indicators {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.coletas-module .leite-indicator {
+  min-width: 0;
+  min-height: 96px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 15px 16px;
+  border-right: 1px solid var(--line);
+}
+
+.coletas-module .leite-indicator:last-child {
+  border-right: 0;
+}
+
+.coletas-module .leite-indicator small,
+.coletas-module .leite-indicator span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.coletas-module .leite-indicator strong {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.15;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 .coletas-module .leite-chart {
-  width: min(100%, 860px);
+  width: 100%;
   margin-top: 4px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
-  padding: 14px 16px 12px;
+  padding: 18px 18px 14px;
 }
 
 .coletas-module .leite-section-head {
@@ -213,7 +261,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
 }
 
 .coletas-module .leite-section-head h2 {
@@ -226,16 +274,17 @@
 }
 
 .coletas-module .leite-bars {
-  min-height: 194px;
+  min-height: 230px;
   display: flex;
   align-items: end;
-  gap: 12px;
+  gap: 16px;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding: 4px 0 2px;
 }
 
 .coletas-module .leite-bar-item {
-  min-width: 70px;
+  min-width: 86px;
+  flex: 1 0 86px;
   display: grid;
   justify-items: center;
   gap: 6px;
@@ -252,7 +301,7 @@
 
 .coletas-module .leite-bar-track {
   width: 100%;
-  height: 138px;
+  height: 174px;
   display: flex;
   align-items: end;
   border-left: 1px solid var(--line);
@@ -260,7 +309,7 @@
 }
 
 .coletas-module .leite-bar-track span {
-  width: 24px;
+  width: 28px;
   margin: 0 auto;
   border-radius: 4px 4px 0 0;
   background: linear-gradient(180deg, rgba(91, 169, 255, 0.95), rgba(38, 116, 209, 0.88));
@@ -687,6 +736,19 @@
   animation: coletas-loading-spin 0.8s linear infinite;
 }
 
+:root[data-theme="light"] .coletas-loading-overlay {
+  background: rgba(16, 32, 51, 0.24);
+}
+
+:root[data-theme="light"] .coletas-loading-card {
+  box-shadow: 0 18px 44px rgba(38, 59, 89, 0.18);
+}
+
+:root[data-theme="light"] .coletas-loading-spinner {
+  border-color: rgba(42, 63, 92, 0.18);
+  border-top-color: var(--primary);
+}
+
 @keyframes coletas-loading-spin {
   to { transform: rotate(360deg); }
 }
@@ -696,11 +758,28 @@
     margin: 20px 16px 26px;
   }
 
+  .coletas-module .leite-inicio {
+    width: calc(100% - 32px);
+    margin: 20px auto 26px;
+  }
+
   .coletas-module .filters,
   .coletas-module .leite-kpis,
   .coletas-module .detail-grid,
   .coletas-module .coleta-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .coletas-module .leite-indicators {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .coletas-module .leite-indicator:nth-child(2) {
+    border-right: 0;
+  }
+
+  .coletas-module .leite-indicator:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
   }
 
   .coletas-module .leite-chart {
@@ -719,5 +798,21 @@
   .coletas-module .mini-map-caption,
   .coletas-module .mini-map-empty {
     width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .coletas-module .leite-indicators {
+    grid-template-columns: 1fr;
+  }
+
+  .coletas-module .leite-indicator,
+  .coletas-module .leite-indicator:nth-child(2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .coletas-module .leite-indicator:last-child {
+    border-bottom: 0;
   }
 }
