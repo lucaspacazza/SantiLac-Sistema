@@ -105,7 +105,6 @@ export const sidebarModules = [
     icon: 'fa-milk',
     href: '#/coletas/inicio',
     children: [
-      { title: 'Início', icon: 'fa-home', href: '#/coletas/inicio' },
       { title: 'Rotas', icon: 'fa-route', href: '#/coletas/rotas' },
     ],
   },
