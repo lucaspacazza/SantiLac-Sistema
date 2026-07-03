@@ -66,7 +66,6 @@ function CoreApp() {
   useEffect(() => {
     async function boot() {
       try {
-        await authApi.csrf()
         const session = await authApi.me()
         if (session.user) {
           setUser(session.user)
@@ -217,7 +216,6 @@ function EmbalagemPortal() {
 
     async function boot() {
       try {
-        await authApi.csrf()
         const session = await authApi.me()
         if (session.user) {
           setUser(session.user)
