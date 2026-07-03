@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\ProdutorQualidade;
+use App\Models\Qualidade\ProdutorQualidade;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;

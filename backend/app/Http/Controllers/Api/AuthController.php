@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
+use App\Models\Usuarios\User;
 use App\Services\Coletas\Mobile\MobileAuthService;
 use App\Services\Sistema\AuditLogService;
 use Illuminate\Http\JsonResponse;

@@ -2,11 +2,11 @@
 
 namespace App\Services\Embalagem;
 
-use App\Models\EmbalagemCaixa;
-use App\Models\EmbalagemLote;
-use App\Models\EmbalagemPalete;
-use App\Models\ProducaoFormulacaoQueijo;
-use App\Models\ProducaoOrdemProducao;
+use App\Models\Embalagem\EmbalagemCaixa;
+use App\Models\Embalagem\EmbalagemLote;
+use App\Models\Embalagem\EmbalagemPalete;
+use App\Models\Producao\ProducaoFormulacaoQueijo;
+use App\Models\Producao\ProducaoOrdemProducao;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -163,16 +163,24 @@ class EmbalagemService
         });
     }
 
-    public function finalizar(int $loteId, int $pecasAvulsas, float $pesoPecasAvulsas = 0): array
+    public function finalizar(
+        int $loteId,
+        int $pecasAvulsas,
+        float $pesoPecasAvulsas = 0,
+        string $paleteParcial = 'preencher',
+    ): array
     {
         $pecasAvulsas = max(0, $pecasAvulsas);
         $pesoPecasAvulsas = round(max(0, $pesoPecasAvulsas), 3);
+        $paleteParcial = in_array($paleteParcial, ['preencher', 'finalizar'], true)
+            ? $paleteParcial
+            : 'preencher';
 
         if ($pecasAvulsas > 0 && $pesoPecasAvulsas <= 0) {
             throw new DomainException('Informe o peso das peças avulsas.');
         }
 
-        return DB::connection('raw')->transaction(function () use ($loteId, $pecasAvulsas, $pesoPecasAvulsas): array {
+        return DB::connection('raw')->transaction(function () use ($loteId, $pecasAvulsas, $pesoPecasAvulsas, $paleteParcial): array {
             $lote = EmbalagemLote::query()->where('id', $loteId)->lockForUpdate()->first();
             if ($lote === null) {
                 throw new DomainException('Lote de embalagem não encontrado.');
@@ -191,10 +199,24 @@ class EmbalagemService
             $pesoTotal = round((float) $lote->peso_total + $pesoPecasAvulsas, 3);
             $campos = $this->camposComPecasAtualizadas($ordem->campos_json, $lote->tipo_queijo, $totalPecas);
 
-            EmbalagemPalete::query()
-                ->where('lote_id', $lote->id)
-                ->where('status', 'aberto')
-                ->update(['status' => 'finalizado']);
+            if ($paleteParcial === 'finalizar') {
+                $paleteIds = EmbalagemCaixa::query()
+                    ->where('lote_id', $lote->id)
+                    ->pluck('palete_id')
+                    ->unique()
+                    ->values();
+
+                EmbalagemPalete::query()
+                    ->whereIn('id', $paleteIds)
+                    ->where('status', 'aberto')
+                    ->where('caixas', '>', 0)
+                    ->get()
+                    ->each(function (EmbalagemPalete $palete): void {
+                        $palete->status = 'finalizado';
+                        $this->prepararEtiquetaPalete($palete);
+                        $palete->save();
+                    });
+            }
 
             $lote->forceFill([
                 'pecas_total' => $totalPecas,
@@ -223,7 +245,8 @@ class EmbalagemService
     public function paletesPendentesEtiqueta(string $baseUrl): array
     {
         return EmbalagemPalete::query()
-            ->where('status', 'cheio')
+            ->whereIn('status', ['cheio', 'finalizado'])
+            ->where('caixas', '>', 0)
             ->where(function ($query): void {
                 $query
                     ->whereNull('etiqueta_status')
@@ -378,8 +401,32 @@ class EmbalagemService
             throw new DomainException('Lote do palete não encontrado.');
         }
 
-        $ordem = ProducaoOrdemProducao::query()->where('id', $lote->ordem_producao_id)->first();
         $queijo = $this->buscarQueijo($lote->tipo_queijo);
+        $lotes = DB::connection('raw')->table('embalagem_caixas as c')
+            ->join('embalagem_lotes as l', 'l.id', '=', 'c.lote_id')
+            ->where('c.palete_id', $palete->id)
+            ->groupBy('l.id', 'l.codigo_ordem', 'l.lote', 'l.data_fabricacao', 'l.data_validade')
+            ->orderBy('l.data_fabricacao')
+            ->get([
+                'l.codigo_ordem',
+                'l.lote',
+                'l.data_fabricacao',
+                'l.data_validade',
+                DB::raw('COUNT(c.id) as caixas'),
+                DB::raw('SUM(c.peso) as peso'),
+            ]);
+        if ($lotes->isEmpty()) {
+            $lotes = collect([(object) [
+                'codigo_ordem' => $lote->codigo_ordem,
+                'lote' => $lote->lote,
+                'data_fabricacao' => optional($lote->data_fabricacao)->toDateString(),
+                'data_validade' => optional($lote->data_validade)->toDateString(),
+                'caixas' => 0,
+                'peso' => 0,
+            ]]);
+        }
+
+        $primeiroLote = $lotes->first();
         $token = (string) $palete->etiqueta_token;
         if ($token === '') {
             $this->prepararEtiquetaPalete($palete);
@@ -394,26 +441,36 @@ class EmbalagemService
             'numero' => (int) $palete->numero,
             'status' => (string) $palete->status,
             'etiqueta_status' => (string) ($palete->etiqueta_status ?? 'pendente'),
-            'codigo_ordem' => (string) ($ordem->codigo_ordem ?? $lote->codigo_ordem),
-            'lote' => (string) $lote->lote,
+            'codigo_ordem' => $lotes->pluck('codigo_ordem')->unique()->implode(', '),
+            'lote' => $lotes->pluck('lote')->unique()->implode(', '),
             'queijo' => (string) ($queijo['nome'] ?? $lote->tipo_queijo),
-            'data_fabricacao' => optional($lote->data_fabricacao)->format('d/m/Y') ?? '-',
-            'data_validade' => optional($lote->data_validade)->format('d/m/Y') ?? '-',
+            'data_fabricacao' => $this->formatarDataEtiqueta($primeiroLote->data_fabricacao ?? null),
+            'data_validade' => $this->formatarDataEtiqueta($primeiroLote->data_validade ?? null),
             'caixas_total' => (int) $palete->caixas,
             'peso_total' => (float) $palete->peso_total,
+            'lotes' => $lotes->map(fn (object $item): array => [
+                'codigo_ordem' => (string) $item->codigo_ordem,
+                'lote' => (string) $item->lote,
+                'data_fabricacao' => $this->formatarDataEtiqueta($item->data_fabricacao ?? null),
+                'data_validade' => $this->formatarDataEtiqueta($item->data_validade ?? null),
+                'caixas' => (int) $item->caixas,
+                'peso' => (float) $item->peso,
+            ])->values()->all(),
         ];
 
         if ($comCaixas) {
-            $dados['caixas'] = EmbalagemCaixa::query()
-                ->where('palete_id', $palete->id)
-                ->orderBy('sequencia')
-                ->get()
-                ->map(fn (EmbalagemCaixa $caixa): array => [
+            $dados['caixas'] = DB::connection('raw')->table('embalagem_caixas as c')
+                ->join('embalagem_lotes as l', 'l.id', '=', 'c.lote_id')
+                ->where('c.palete_id', $palete->id)
+                ->orderBy('c.sequencia')
+                ->get(['c.*', 'l.lote'])
+                ->map(fn (object $caixa): array => [
                     'id' => (int) $caixa->id,
                     'sequencia' => (int) $caixa->sequencia,
                     'codigo_barra' => (string) $caixa->codigo_barra,
                     'peso' => (float) $caixa->peso,
-                    'hora' => optional($caixa->created_at)->format('H:i') ?? '-',
+                    'lote' => (string) $caixa->lote,
+                    'hora' => date('H:i', strtotime((string) $caixa->created_at)),
                 ])
                 ->values()
                 ->all();
@@ -435,9 +492,14 @@ class EmbalagemService
     private function paleteAtual(EmbalagemLote $lote, int $caixasPorPalete, bool $lock = false): EmbalagemPalete
     {
         $query = EmbalagemPalete::query()
-            ->where('lote_id', $lote->id)
             ->where('status', 'aberto')
             ->where('caixas', '<', max(1, $caixasPorPalete))
+            ->whereExists(function ($sub) use ($lote): void {
+                $sub->selectRaw('1')
+                    ->from('embalagem_lotes as lote_palete')
+                    ->whereColumn('lote_palete.id', 'embalagem_paletes.lote_id')
+                    ->where('lote_palete.tipo_queijo', $lote->tipo_queijo);
+            })
             ->orderByDesc('id');
 
         if ($lock) {
@@ -449,7 +511,7 @@ class EmbalagemService
             return $palete;
         }
 
-        $numero = ((int) EmbalagemPalete::query()->where('lote_id', $lote->id)->max('numero')) + 1;
+        $numero = ((int) EmbalagemPalete::query()->max('numero')) + 1;
 
         return EmbalagemPalete::query()->create([
             'lote_id' => $lote->id,
@@ -463,7 +525,12 @@ class EmbalagemService
     private function respostaOperacao(ProducaoOrdemProducao $ordem, EmbalagemLote $lote, array $queijo, ?EmbalagemPalete $palete): array
     {
         $paletes = EmbalagemPalete::query()
-            ->where('lote_id', $lote->id)
+            ->where(function ($query) use ($lote): void {
+                $query->where('lote_id', $lote->id)
+                    ->orWhereIn('id', EmbalagemCaixa::query()
+                        ->select('palete_id')
+                        ->where('lote_id', $lote->id));
+            })
             ->orderBy('numero')
             ->get()
             ->map(fn (EmbalagemPalete $item): array => [
@@ -524,6 +591,17 @@ class EmbalagemService
             'historico' => $historico,
             'barcode' => self::BARCODE,
         ];
+    }
+
+    private function formatarDataEtiqueta(mixed $valor): string
+    {
+        if ($valor === null || $valor === '') {
+            return '-';
+        }
+
+        $timestamp = strtotime((string) $valor);
+
+        return $timestamp !== false ? date('d/m/Y', $timestamp) : (string) $valor;
     }
 
     private function buscarQueijo(string $tipo): ?array

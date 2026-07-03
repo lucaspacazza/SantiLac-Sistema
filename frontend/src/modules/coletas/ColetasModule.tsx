@@ -1,6 +1,6 @@
 import 'leaflet/dist/leaflet.css'
 import './coletas.css'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ColetaDetalheRota } from './views/Rotas/ColetaDetalheRota'
 import { ColetasRota } from './views/Rotas/ColetasRota'
 import { DetalheRota } from './views/Rotas/DetalheRota'
@@ -37,28 +37,14 @@ function parseRoute(): View {
   return { name: 'inicio' }
 }
 
-function routeTitle(view: View) {
-  if (view.name === 'inicio') return 'Leite'
-  if (view.name === 'rotas') return 'Rotas'
-  if (view.name === 'detalhe') return 'Detalhe da rota'
-  if (view.name === 'mapa') return 'Mapa da rota'
-  if (view.name === 'coletas') return 'Coletas da rota'
-  return 'Detalhe da coleta'
-}
-
 export function ColetasModule() {
   const [view, setView] = useState<View>(() => parseRoute())
-  const title = useMemo(() => routeTitle(view), [view])
 
   useEffect(() => {
     const handleHashChange = () => setView(parseRoute())
     window.addEventListener('hashchange', handleHashChange)
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
-
-  useEffect(() => {
-    document.title = `Santi'Lac | ${title}`
-  }, [title])
 
   function navigate(next: string) {
     window.location.hash = next

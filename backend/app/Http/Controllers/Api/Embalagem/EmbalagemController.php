@@ -41,6 +41,7 @@ class EmbalagemController extends Controller
             $loteId,
             (int) $request->input('pecas_avulsas', 0),
             (float) $request->input('peso_pecas_avulsas', 0),
+            (string) $request->input('palete_parcial', 'preencher'),
         ));
     }
 

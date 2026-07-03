@@ -2,7 +2,7 @@
 
 namespace App\Services\Qualidade;
 
-use App\Models\ProdutorQualidade;
+use App\Models\Qualidade\ProdutorQualidade;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;

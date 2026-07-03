@@ -1,5 +1,5 @@
 import './cadastros.css'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DetalheMotorista } from './views/Cadastros/DetalheMotorista'
 import { DetalheProdutor } from './views/Cadastros/DetalheProdutor'
 import { DetalheUsuario } from './views/Cadastros/DetalheUsuario'
@@ -53,31 +53,14 @@ function parseRoute(): View {
   return { name: 'usuarios' }
 }
 
-function routeTitle(view: View) {
-  if (view.name === 'usuarios') return 'Usuários'
-  if (view.name === 'usuario-detail') return 'Detalhe do usuário'
-  if (view.name === 'usuario-form') return view.id ? 'Editar usuário' : 'Novo usuário'
-  if (view.name === 'produtores') return 'Produtores'
-  if (view.name === 'produtor-detail') return 'Detalhe do produtor'
-  if (view.name === 'produtor-form') return view.id ? 'Editar produtor' : 'Novo produtor'
-  if (view.name === 'motoristas') return 'Motoristas'
-  if (view.name === 'motorista-detail') return 'Detalhe do motorista'
-  return view.id ? 'Editar motorista' : 'Novo motorista'
-}
-
 export function CadastrosModule() {
   const [view, setView] = useState<View>(() => parseRoute())
-  const title = useMemo(() => routeTitle(view), [view])
 
   useEffect(() => {
     const handleHashChange = () => setView(parseRoute())
     window.addEventListener('hashchange', handleHashChange)
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
-
-  useEffect(() => {
-    document.title = `Santi'Lac | ${title}`
-  }, [title])
 
   function navigate(next: string) {
     window.location.hash = next

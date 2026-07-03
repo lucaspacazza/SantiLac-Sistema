@@ -2,7 +2,7 @@
 
 namespace App\Services\Producao;
 
-use App\Models\ProducaoFormulacaoQueijo;
+use App\Models\Producao\ProducaoFormulacaoQueijo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 

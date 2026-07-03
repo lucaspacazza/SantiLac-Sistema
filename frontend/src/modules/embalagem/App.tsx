@@ -12,6 +12,8 @@ export function App() {
   const [codigoBarra, setCodigoBarra] = useState('')
   const [pecasAvulsas, setPecasAvulsas] = useState(0)
   const [modalAvulsasAberto, setModalAvulsasAberto] = useState(false)
+  const [modalPaleteParcialAberto, setModalPaleteParcialAberto] = useState(false)
+  const [decisaoPaleteParcial, setDecisaoPaleteParcial] = useState<'preencher' | 'finalizar'>('preencher')
   const [codigoAvulsas, setCodigoAvulsas] = useState('')
   const [pesoAvulsas, setPesoAvulsas] = useState('')
   const [erroAvulsas, setErroAvulsas] = useState('')
@@ -146,7 +148,11 @@ export function App() {
     }
   }
 
-  async function finalizar(pesoPecasAvulsas = 0, confirmar = true) {
+  async function finalizar(
+    pesoPecasAvulsas = 0,
+    confirmar = true,
+    paleteParcial: 'preencher' | 'finalizar' = decisaoPaleteParcial,
+  ) {
     if (!operacao) return
     if (confirmar) {
       const confirmou = window.confirm('Finalizar a embalagem desta OP?')
@@ -157,7 +163,7 @@ export function App() {
     setMensagem('Finalizando OP.')
 
     try {
-      const data = await embalagemApi.finalizar(operacao.lote.id, pecasAvulsas, pesoPecasAvulsas)
+      const data = await embalagemApi.finalizar(operacao.lote.id, pecasAvulsas, pesoPecasAvulsas, paleteParcial)
       setOperacao(data)
       setStatus('ok')
       setMensagem('OP finalizada.')
@@ -170,6 +176,19 @@ export function App() {
   }
 
   function solicitarFinalizacao() {
+    const palete = operacao?.palete_atual
+    if (palete && palete.caixas > 0 && palete.caixas < operacao.lote.caixas_por_palete) {
+      setModalPaleteParcialAberto(true)
+      return
+    }
+
+    continuarFinalizacao('preencher', false)
+  }
+
+  function continuarFinalizacao(paleteParcial: 'preencher' | 'finalizar', paleteConfirmado = true) {
+    setDecisaoPaleteParcial(paleteParcial)
+    setModalPaleteParcialAberto(false)
+
     if (pecasAvulsas > 0) {
       setCodigoAvulsas('')
       setPesoAvulsas('')
@@ -178,7 +197,7 @@ export function App() {
       return
     }
 
-    void finalizar(0)
+    void finalizar(0, !paleteConfirmado, paleteParcial)
   }
 
   function atualizarCodigoAvulsas(value: string) {
@@ -199,7 +218,7 @@ export function App() {
       return
     }
 
-    void finalizar(peso, false)
+    void finalizar(peso, false, decisaoPaleteParcial)
   }
 
   function fecharModalAvulsas() {
@@ -314,6 +333,28 @@ export function App() {
               </button>
               <button className="btn primary" disabled={status === 'loading'} type="button" onClick={confirmarAvulsas}>
                 Salvar peso e finalizar
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {operacao && modalPaleteParcialAberto && operacao.palete_atual ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="palete-parcial-title">
+            <div>
+              <span className="section-kicker">Palete incompleto</span>
+              <h2 id="palete-parcial-title">Palete {operacao.palete_atual.numero}</h2>
+            </div>
+            <p className="modal-copy">
+              O palete {operacao.palete_atual.numero} está incompleto. Deseja deixá-lo aberto para receber caixas dos próximos lotes ou finalizá-lo e gerar a etiqueta?
+            </p>
+            <div className="modal-actions">
+              <button className="btn secondary" type="button" onClick={() => continuarFinalizacao('preencher')}>
+                Continuar preenchendo
+              </button>
+              <button className="btn primary" type="button" onClick={() => continuarFinalizacao('finalizar')}>
+                Finalizar palete
               </button>
             </div>
           </section>

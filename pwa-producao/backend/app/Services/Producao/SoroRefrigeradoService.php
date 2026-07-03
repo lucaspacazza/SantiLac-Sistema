@@ -2,7 +2,7 @@
 
 namespace App\Services\Producao;
 
-use App\Models\ProducaoSoroRefrigerado;
+use App\Models\Producao\ProducaoSoroRefrigerado;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
