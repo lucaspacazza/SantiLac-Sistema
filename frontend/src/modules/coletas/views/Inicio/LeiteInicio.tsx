@@ -24,6 +24,7 @@ export function LeiteInicio() {
   }, [])
 
   const maxLitros = useMemo(() => Math.max(...(resumo?.serie.map((item) => item.litros) ?? [0]), 1), [resumo])
+  const indicadores = useMemo(() => calcularIndicadores(resumo), [resumo])
 
   return (
     <section className="page leite-inicio" aria-label="Leite">
@@ -42,6 +43,16 @@ export function LeiteInicio() {
       <div className="leite-kpis">
         <ResumoCard titulo="Mês atual" item={resumo?.mes_atual} />
         <ResumoCard titulo="Mês anterior" item={resumo?.mes_anterior} />
+      </div>
+
+      <div className="leite-indicators" aria-label="Indicadores do mês atual">
+        {indicadores.map((indicador) => (
+          <article className="leite-indicator" key={indicador.titulo}>
+            <small>{indicador.titulo}</small>
+            <strong>{indicador.valor}</strong>
+            <span>{indicador.detalhe}</span>
+          </article>
+        ))}
       </div>
 
       <section className="leite-chart" aria-label="Volume coletado por mês">
@@ -77,6 +88,62 @@ function ResumoCard({ titulo, item }: { titulo: string; item: LeiteResumoMes | u
       </div>
     </article>
   )
+}
+
+function calcularIndicadores(resumo: LeiteResumoMensal | null) {
+  const atual = resumo?.mes_atual
+  const anterior = resumo?.mes_anterior
+  const diasDecorridos = atual ? diasDecorridosNoMes(atual.mes) : 0
+  const variacao = atual && anterior && anterior.litros > 0
+    ? ((atual.litros - anterior.litros) / anterior.litros) * 100
+    : null
+  const mediaDiaria = atual && atual.dias_coleta > 0 ? atual.litros / atual.dias_coleta : 0
+  const diasNoMes = atual ? totalDiasNoMes(atual.mes) : 0
+  const projecao = atual && diasDecorridos > 0
+    ? (atual.litros / diasDecorridos) * diasNoMes
+    : 0
+
+  return [
+    {
+      titulo: 'Variação mensal',
+      valor: variacao === null ? '-' : `${variacao >= 0 ? '+' : ''}${variacao.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`,
+      detalhe: 'Comparado ao mês anterior',
+    },
+    {
+      titulo: 'Média diária',
+      valor: formatLitros(mediaDiaria),
+      detalhe: atual?.dias_coleta ? `${atual.dias_coleta.toLocaleString('pt-BR')} dia(s) com coleta` : 'Sem coletas no mês',
+    },
+    {
+      titulo: 'Produtores coletados',
+      valor: (atual?.produtores ?? 0).toLocaleString('pt-BR'),
+      detalhe: 'Produtores distintos no mês',
+    },
+    {
+      titulo: 'Projeção do mês',
+      valor: formatLitros(projecao),
+      detalhe: diasDecorridos ? `Estimativa após ${diasDecorridos} dia(s)` : 'Sem dados para estimativa',
+    },
+  ]
+}
+
+function totalDiasNoMes(value: string) {
+  const [ano, mes] = value.split('-').map(Number)
+  if (!ano || !mes) return 0
+  return new Date(ano, mes, 0).getDate()
+}
+
+function diasDecorridosNoMes(value: string) {
+  const [ano, mes] = value.split('-').map(Number)
+  if (!ano || !mes) return 0
+
+  const hoje = new Date()
+  const totalDias = totalDiasNoMes(value)
+  if (hoje.getFullYear() === ano && hoje.getMonth() + 1 === mes) {
+    return Math.min(hoje.getDate(), totalDias)
+  }
+
+  return totalDias
 }
 
 function mesLabel(value: string) {
