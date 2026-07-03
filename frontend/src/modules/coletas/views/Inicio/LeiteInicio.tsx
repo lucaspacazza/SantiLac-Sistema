@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { rotasApi, type LeiteResumoMensal, type LeiteResumoMes } from '../../api/rotasApi'
+import { LoadingOverlay } from '../../components/LoadingOverlay'
+import { useLoadingOverlayVisible } from '../../hooks/useLoadingOverlayVisible'
 import { formatLitros } from '../Rotas/formatters'
 
 export function LeiteInicio() {
   const [resumo, setResumo] = useState<LeiteResumoMensal | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const loadingOverlayVisible = useLoadingOverlayVisible(loading)
 
   useEffect(() => {
     async function carregar() {
@@ -28,6 +31,8 @@ export function LeiteInicio() {
 
   return (
     <section className="page leite-inicio" aria-label="Leite">
+      {loadingOverlayVisible ? <LoadingOverlay message="Carregando resumo do leite..." /> : null}
+
       <div className="page-head">
         <div>
           <h1>Leite</h1>
