@@ -9,6 +9,7 @@ import {
   Milk,
   Minus,
   Route,
+  RefreshCcw,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react'
@@ -32,6 +33,7 @@ type DetalheProdutorProps = {
   codigo: string
   produtorInicial: Produtor | null
   reloadKey: number
+  onRefresh: () => void
   onBack: () => void
 }
 
@@ -59,7 +61,7 @@ const sanitaryFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2
 const decimalFormat = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 const compactNumberFormat = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 })
 
-export function DetalheProdutor({ codigo, produtorInicial, reloadKey, onBack }: DetalheProdutorProps) {
+export function DetalheProdutor({ codigo, produtorInicial, reloadKey, onRefresh, onBack }: DetalheProdutorProps) {
   const [detail, setDetail] = useState<ProducerDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<{ codigo: string; message: string } | null>(null)
@@ -213,9 +215,15 @@ export function DetalheProdutor({ codigo, produtorInicial, reloadKey, onBack }: 
       <div className="detail-actions producer-detail-actions">
         <button className="btn secondary" type="button" onClick={onBack}>
           <ArrowLeft size={16} />
-          Voltar para produtores
+          Voltar
         </button>
-        <ExportFormatMenu isExporting={exportingFormat !== null} onExport={handleExport} />
+        <div className="producer-detail-primary-actions">
+          <button className="btn secondary" type="button" onClick={onRefresh}>
+            <RefreshCcw size={16} />
+            Atualizar
+          </button>
+          <ExportFormatMenu isExporting={exportingFormat !== null} onExport={handleExport} />
+        </div>
       </div>
 
       {(exportMessage || exportError || currentLoadError) && (

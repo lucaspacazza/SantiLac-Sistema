@@ -1511,6 +1511,12 @@
   min-height: 38px;
 }
 
+.producer-detail-primary-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .status-retry {
   border: 0;
   background: transparent;
@@ -2320,6 +2326,12 @@
   .producer-detail-actions .export-menu-wrap,
   .producer-detail-actions .btn,
   .producer-detail-actions .export-format-button {
+    width: 100%;
+  }
+
+  .producer-detail-primary-actions {
+    align-items: stretch;
+    flex-direction: column;
     width: 100%;
   }
 

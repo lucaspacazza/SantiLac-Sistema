@@ -254,6 +254,7 @@ export function QualidadeModule() {
   return (
     <>
       <section className="page">
+          {!route.producerCode && (
           <header className="page-head">
             <div>
               <h1>{pageTitle}</h1>
@@ -263,9 +264,7 @@ export function QualidadeModule() {
               <button
                 className="btn secondary"
                 type="button"
-                onClick={() => route.producerCode
-                  ? setProducerDetailReloadKey((current) => current + 1)
-                  : route.view === 'analises'
+                onClick={() => route.view === 'analises'
                   ? setAnalisesReloadKey((current) => current + 1)
                   : route.view === 'relatorios'
                     ? setRelatoriosReloadKey((current) => current + 1)
@@ -282,6 +281,7 @@ export function QualidadeModule() {
               )}
             </div>
           </header>
+          )}
 
           {route.view !== 'analises' && route.view !== 'relatorios' && !route.producerCode && (
             <section className={`status-line is-${status}`}>
@@ -295,6 +295,7 @@ export function QualidadeModule() {
               codigo={route.producerCode}
               produtorInicial={selectedProducer}
               reloadKey={producerDetailReloadKey}
+              onRefresh={() => setProducerDetailReloadKey((current) => current + 1)}
               onBack={() => pushRoute({ view: 'produtores', producerCode: null, issuesCode: null })}
             />
           ) : route.issuesCode ? (
