@@ -112,6 +112,7 @@ export function QualidadeModule() {
   const [route, setRoute] = useState<RouteState>(() => parseRoute())
   const [analisesReloadKey, setAnalisesReloadKey] = useState(0)
   const [relatoriosReloadKey, setRelatoriosReloadKey] = useState(0)
+  const [producerDetailReloadKey, setProducerDetailReloadKey] = useState(0)
   const [exportingProducersFormat, setExportingProducersFormat] = useState<ExportFormat | null>(null)
 
   async function loadData() {
@@ -241,7 +242,7 @@ export function QualidadeModule() {
   const pageCopy = route.issuesCode
     ? 'Conferência dos indicadores fora do padrão.'
     : route.producerCode
-    ? 'Consulta individual do produtor dentro do módulo de qualidade.'
+    ? 'Produção, qualidade e evolução histórica do produtor.'
     : route.view === 'inicio'
       ? 'Resumo real do módulo com base nos produtores carregados.'
       : route.view === 'analises'
@@ -262,7 +263,9 @@ export function QualidadeModule() {
               <button
                 className="btn secondary"
                 type="button"
-                onClick={() => route.view === 'analises'
+                onClick={() => route.producerCode
+                  ? setProducerDetailReloadKey((current) => current + 1)
+                  : route.view === 'analises'
                   ? setAnalisesReloadKey((current) => current + 1)
                   : route.view === 'relatorios'
                     ? setRelatoriosReloadKey((current) => current + 1)
@@ -280,7 +283,7 @@ export function QualidadeModule() {
             </div>
           </header>
 
-          {route.view !== 'analises' && route.view !== 'relatorios' && (
+          {route.view !== 'analises' && route.view !== 'relatorios' && !route.producerCode && (
             <section className={`status-line is-${status}`}>
               <span className="status-dot" />
               <span>{statusText}</span>
@@ -288,7 +291,12 @@ export function QualidadeModule() {
           )}
 
           {route.producerCode ? (
-            <DetalheProdutor produtor={selectedProducer} onBack={() => pushRoute({ view: 'produtores', producerCode: null, issuesCode: null })} />
+            <DetalheProdutor
+              codigo={route.producerCode}
+              produtorInicial={selectedProducer}
+              reloadKey={producerDetailReloadKey}
+              onBack={() => pushRoute({ view: 'produtores', producerCode: null, issuesCode: null })}
+            />
           ) : route.issuesCode ? (
             <PendenciasProdutor codigo={route.issuesCode} onBack={() => pushRoute({ view: 'relatorios', producerCode: null, issuesCode: null })} />
           ) : route.view === 'inicio' ? (

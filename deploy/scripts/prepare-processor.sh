@@ -10,6 +10,7 @@ tar -czf "$PACKAGE_PATH" \
   --exclude='processor/.env' \
   --exclude='processor/.env.*' \
   --exclude='processor/.venv' \
+  --exclude='processor/graphify-out' \
   --exclude='processor/__pycache__' \
   --exclude='processor/**/__pycache__' \
   processor
