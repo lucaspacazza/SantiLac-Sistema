@@ -83,7 +83,7 @@ export function PendenciasProdutor({ codigo, onBack }: PendenciasProdutorProps) 
       <div className="producer-issues-actions">
         <button className="btn secondary" type="button" onClick={onBack}>
           <ArrowLeft size={16} />
-          Voltar para relatórios
+          Voltar
         </button>
         <ExportFormatMenu
           isExporting={exportingFormat !== null}

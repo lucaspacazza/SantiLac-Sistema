@@ -3,6 +3,9 @@
 namespace App\Services;
 
 use App\Models\Qualidade\ProdutorQualidade;
+use App\Services\Coletas\ColetasGestaoService;
+use App\Services\Qualidade\ProducerInsightsCalculator;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +16,7 @@ use Symfony\Component\Process\Process;
 
 class QualidadeService
 {
+    private const DASHBOARD_MONTHS = 12;
     private const ANALISES_TABLE = 'resultadosanalises';
     private const IMPORTACOES_TABLE = 'importacoes_analises';
     private const ANALISE_FIELDS = [
@@ -29,6 +33,20 @@ class QualidadeService
         'bacteria',
         'temperatura',
     ];
+    private const DASHBOARD_QUALITY_FIELDS = [
+        'gordura',
+        'proteina',
+        'lactose',
+        'solidos_totais',
+        'ccs',
+        'ufc',
+    ];
+
+    public function __construct(
+        private readonly ColetasGestaoService $coletas,
+        private readonly ProducerInsightsCalculator $insights,
+    ) {
+    }
 
     public function overview(): array
     {
@@ -234,13 +252,15 @@ class QualidadeService
             return null;
         }
 
-        $analisesRecentes = $this->analisesRecentesDoProdutor($codigo, 5);
+        $analisesCanonicas = $this->idsAnalisesCanonicasDoProdutor($codigo);
+        $analisesRecentes = $this->analisesRecentesDoProdutor($codigo, $analisesCanonicas, 12);
 
         return [
             'produtor' => $this->formatarProdutor($produtor),
-            'resumo' => $this->resumoAnalisesDoProdutor($codigo),
+            'resumo' => $this->resumoAnalisesDoProdutor($analisesCanonicas),
             'ultima_analise' => $analisesRecentes[0] ?? null,
             'analises_recentes' => $analisesRecentes,
+            'dashboard' => $this->dashboardDoProdutor($codigo, $analisesCanonicas),
         ];
     }
 
@@ -260,8 +280,15 @@ class QualidadeService
             return $this->paginaVazia($perPage);
         }
 
+        $analisesCanonicas = $this->idsAnalisesCanonicasDoProdutor($codigo);
+
+        if ($analisesCanonicas === []) {
+            return $this->paginaVazia($perPage);
+        }
+
         $page = $this->analisesBase()
             ->where('ra.produtor_codigo', $codigo)
+            ->whereIn('ra.id', $analisesCanonicas)
             ->orderByDesc('ra.data')
             ->orderByDesc('ra.id')
             ->paginate($perPage);
@@ -420,6 +447,7 @@ class QualidadeService
                     ->table(self::ANALISES_TABLE)
                     ->where('produtor_codigo', $dados['produtor_codigo'])
                     ->whereDate('data', $dados['data'])
+                    ->orderByDesc('id')
                     ->first();
 
                 if ($existente === null) {
@@ -583,14 +611,126 @@ class QualidadeService
         return Schema::connection('raw')->hasTable(self::ANALISES_TABLE);
     }
 
-    private function analisesRecentesDoProdutor(string $codigo, int $limit): array
+    private function dashboardDoProdutor(string $codigo, array $analisesCanonicas): array
     {
-        if (! $this->analisesDisponiveis()) {
+        $milkHistory = $this->coletas->resumoMensalProdutor($codigo, self::DASHBOARD_MONTHS);
+        $milkSeries = collect($milkHistory['serie_mensal']);
+        $currentMilk = $milkSeries->firstWhere('periodo', $milkHistory['periodo_atual']);
+        $milkComparison = $this->insights->compareMilkVolume(
+            ($currentMilk['coletas'] ?? 0) > 0 ? (float) $currentMilk['litros'] : null,
+            $milkHistory['anterior_comparavel_coletas'] > 0
+                ? (float) $milkHistory['anterior_comparavel_litros']
+                : null,
+        );
+        $qualityHistory = $this->historicoQualidadeDoProdutor($codigo, $analisesCanonicas, self::DASHBOARD_MONTHS);
+        $qualitySeries = collect($qualityHistory['serie_mensal']);
+        $currentQuality = $qualitySeries->firstWhere('periodo', $qualityHistory['periodo_atual']);
+        $previousQuality = $qualitySeries->firstWhere('periodo', $qualityHistory['periodo_anterior']);
+        $qualityComparison = $this->insights->compareQuality(
+            ($currentQuality['analises'] ?? 0) > 0 ? $currentQuality : [],
+            ($previousQuality['analises'] ?? 0) > 0 ? $previousQuality : [],
+        );
+
+        return [
+            'leite' => [
+                'periodo_atual' => $milkHistory['periodo_atual'],
+                'periodo_anterior' => $milkHistory['periodo_anterior'],
+                'periodo_parcial' => $milkHistory['periodo_parcial'],
+                'dia_comparacao' => $milkHistory['dia_comparacao'],
+                ...$milkComparison,
+                'coletas_atual' => (int) ($currentMilk['coletas'] ?? 0),
+                'dias_coleta_atual' => (int) ($currentMilk['dias_coleta'] ?? 0),
+                'media_por_coleta' => $currentMilk['media_por_coleta'] ?? null,
+                'ultima_coleta' => $milkHistory['ultima_coleta'],
+                'serie_mensal' => $milkHistory['serie_mensal'],
+            ],
+            'qualidade' => [
+                'periodo_atual' => $qualityHistory['periodo_atual'],
+                'periodo_anterior' => $qualityHistory['periodo_anterior'],
+                ...$qualityComparison,
+                'media_atual' => ($currentQuality['analises'] ?? 0) > 0 ? $currentQuality : null,
+                'media_anterior' => ($previousQuality['analises'] ?? 0) > 0 ? $previousQuality : null,
+                'serie_mensal' => $qualityHistory['serie_mensal'],
+            ],
+        ];
+    }
+
+    private function historicoQualidadeDoProdutor(string $codigo, array $analisesCanonicas, int $meses): array
+    {
+        if (! $this->analisesDisponiveis() || $analisesCanonicas === []) {
+            return [
+                'periodo_atual' => null,
+                'periodo_anterior' => null,
+                'serie_mensal' => [],
+            ];
+        }
+
+        $query = DB::connection('raw')
+            ->table(self::ANALISES_TABLE)
+            ->where('produtor_codigo', $codigo)
+            ->whereIn('id', $analisesCanonicas);
+        $latestDate = (clone $query)->max('data');
+
+        if ($latestDate === null) {
+            return [
+                'periodo_atual' => null,
+                'periodo_anterior' => null,
+                'serie_mensal' => [],
+            ];
+        }
+
+        $reference = CarbonImmutable::parse((string) $latestDate)->startOfMonth();
+        $start = $reference->subMonths($meses - 1);
+        $end = $reference->addMonth();
+        $rows = (clone $query)
+            ->select(['data', ...self::DASHBOARD_QUALITY_FIELDS])
+            ->where('data', '>=', $start->format('Y-m-d'))
+            ->where('data', '<', $end->format('Y-m-d'))
+            ->orderBy('data')
+            ->get();
+        $rowsByMonth = $rows->groupBy(
+            fn ($row): string => CarbonImmutable::parse((string) $row->data)->format('Y-m')
+        );
+        $series = [];
+
+        for ($index = 0; $index < $meses; $index++) {
+            $period = $start->addMonths($index)->format('Y-m');
+            $monthRows = $rowsByMonth->get($period, collect());
+            $point = [
+                'periodo' => $period,
+                'analises' => $monthRows->count(),
+            ];
+
+            foreach (self::DASHBOARD_QUALITY_FIELDS as $field) {
+                $values = $monthRows
+                    ->pluck($field)
+                    ->filter(fn ($value): bool => $value !== null && is_numeric($value))
+                    ->map(fn ($value): float => (float) $value);
+                $average = $values->isNotEmpty() ? (float) $values->average() : null;
+                $point[$field] = $average === null
+                    ? null
+                    : ($field === 'ccs' || $field === 'ufc' ? round($average) : round($average, 2));
+            }
+
+            $series[] = $point;
+        }
+
+        return [
+            'periodo_atual' => $reference->format('Y-m'),
+            'periodo_anterior' => $reference->subMonth()->format('Y-m'),
+            'serie_mensal' => $series,
+        ];
+    }
+
+    private function analisesRecentesDoProdutor(string $codigo, array $analisesCanonicas, int $limit): array
+    {
+        if (! $this->analisesDisponiveis() || $analisesCanonicas === []) {
             return [];
         }
 
         return $this->analisesBase()
             ->where('ra.produtor_codigo', $codigo)
+            ->whereIn('ra.id', $analisesCanonicas)
             ->orderByDesc('ra.data')
             ->orderByDesc('ra.id')
             ->limit($limit)
@@ -600,9 +740,9 @@ class QualidadeService
             ->all();
     }
 
-    private function resumoAnalisesDoProdutor(string $codigo): array
+    private function resumoAnalisesDoProdutor(array $analisesCanonicas): array
     {
-        if (! $this->analisesDisponiveis()) {
+        if (! $this->analisesDisponiveis() || $analisesCanonicas === []) {
             return [
                 'total_analises' => 0,
                 'ultima_analise' => null,
@@ -615,7 +755,7 @@ class QualidadeService
 
         $resumo = DB::connection('raw')
             ->table(self::ANALISES_TABLE)
-            ->where('produtor_codigo', $codigo)
+            ->whereIn('id', $analisesCanonicas)
             ->selectRaw('COUNT(*) as total_analises')
             ->selectRaw('MAX(data) as ultima_analise')
             ->selectRaw('AVG(gordura) as media_gordura')
@@ -632,6 +772,28 @@ class QualidadeService
             'media_ccs' => $resumo->media_ccs !== null ? round((float) $resumo->media_ccs) : null,
             'media_ufc' => $resumo->media_ufc !== null ? round((float) $resumo->media_ufc) : null,
         ];
+    }
+
+    /**
+     * Mantém apenas a análise mais recente de cada dia. Importações antigas podiam
+     * gerar mais de uma linha para o mesmo produtor e data.
+     *
+     * @return array<int, int>
+     */
+    private function idsAnalisesCanonicasDoProdutor(string $codigo): array
+    {
+        if (! $this->analisesDisponiveis()) {
+            return [];
+        }
+
+        return DB::connection('raw')
+            ->table(self::ANALISES_TABLE)
+            ->where('produtor_codigo', $codigo)
+            ->selectRaw('MAX(id) AS id')
+            ->groupBy('data')
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
     }
 
     private function ultimasAnalisesPorProdutor(array $codigos): array

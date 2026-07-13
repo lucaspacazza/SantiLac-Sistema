@@ -34,9 +34,94 @@ export type Produtor = {
   nome: string
   cidade: string
   rota: string
+  cpf_cnpj?: string | null
+  celular?: string | null
   ativo: boolean
   novo: boolean
+  data_cadastro?: string | null
+  data_inativacao?: string | null
   ultima_analise: Analise | null
+}
+
+export type ProducerTrend = 'melhorou' | 'estavel' | 'piorou' | 'sem_comparacao'
+export type MilkTrend = 'aumentou' | 'estavel' | 'diminuiu' | 'sem_comparacao'
+
+export type MilkMonthlyPoint = {
+  periodo: string
+  litros: number
+  coletas: number
+  dias_coleta: number
+  media_por_coleta: number | null
+}
+
+export type QualityMonthlyPoint = {
+  periodo: string
+  analises: number
+  gordura: number | null
+  proteina: number | null
+  lactose: number | null
+  solidos_totais: number | null
+  ccs: number | null
+  ufc: number | null
+}
+
+export type QualityIndicatorComparison = {
+  codigo: string
+  label: string
+  unidade: string
+  atual: number
+  anterior: number
+  variacao: number
+  variacao_percentual: number | null
+  situacao: Exclude<ProducerTrend, 'sem_comparacao'>
+}
+
+export type ProducerDashboard = {
+  leite: {
+    periodo_atual: string | null
+    periodo_anterior: string | null
+    periodo_parcial: boolean
+    dia_comparacao: number | null
+    atual_litros: number | null
+    anterior_litros: number | null
+    variacao_litros: number | null
+    variacao_percentual: number | null
+    tendencia: MilkTrend
+    coletas_atual: number
+    dias_coleta_atual: number
+    media_por_coleta: number | null
+    ultima_coleta: string | null
+    serie_mensal: MilkMonthlyPoint[]
+  }
+  qualidade: {
+    periodo_atual: string | null
+    periodo_anterior: string | null
+    situacao: ProducerTrend
+    alerta_sanitario: boolean
+    comparados: number
+    melhoraram: number
+    estaveis: number
+    pioraram: number
+    indicadores: Record<string, QualityIndicatorComparison>
+    media_atual: QualityMonthlyPoint | null
+    media_anterior: QualityMonthlyPoint | null
+    serie_mensal: QualityMonthlyPoint[]
+  }
+}
+
+export type ProducerDetailResponse = {
+  produtor: Omit<Produtor, 'ultima_analise'>
+  resumo: {
+    total_analises: number
+    ultima_analise: string | null
+    media_gordura: number | null
+    media_proteina: number | null
+    media_ccs: number | null
+    media_ufc: number | null
+  }
+  ultima_analise: Analise | null
+  analises_recentes: Analise[]
+  dashboard: ProducerDashboard
 }
 
 export type ProducersResponse = {
@@ -95,6 +180,7 @@ const API_BASE = '/api/qualidade'
 
 export const qualidadeApi = {
   produtores: () => apiGet<ProducersResponse>(`${API_BASE}/produtores?per_page=100`),
+  produtor: (codigo: string) => apiGet<ProducerDetailResponse>(`${API_BASE}/produtores/${encodeURIComponent(codigo)}`),
   analises: () => apiGet<AnalisesResponse>(`${API_BASE}/analises?per_page=100`),
   importarAnalises: (file: File) => apiPostFile<ImportAnalisesResponse>(`${API_BASE}/analises/importacoes`, 'arquivo', file),
   overview: () => apiGet<Overview>(`${API_BASE}/overview`),

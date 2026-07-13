@@ -38,7 +38,7 @@ export function TodosFormulacoesQueijo({
   return (
     <div className="stack">
       <div className="toolbar">
-        <button className="btn secondary subtle" type="button" onClick={onBack}><ArrowLeft size={16} />Voltar ao filtro</button>
+        <button className="btn secondary subtle" type="button" onClick={onBack}><ArrowLeft size={16} />Voltar</button>
         <form className="search" onSubmit={(event) => { event.preventDefault(); onSearch() }}>
           <Search size={16} />
           <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Buscar por código, queijo ou lote" />

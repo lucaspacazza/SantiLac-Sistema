@@ -2,8 +2,10 @@
 
 namespace App\Services\Coletas;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ColetasGestaoService
 {
@@ -88,6 +90,121 @@ class ColetasGestaoService
             'mes_atual' => $porMes->get($mesAtual, $this->mesVazio($mesAtual)),
             'mes_anterior' => $porMes->get($mesAnterior, $this->mesVazio($mesAnterior)),
             'serie' => $serie,
+        ];
+    }
+
+    public function resumoMensalProdutor(string $produtorCodigo, int $meses = 12): array
+    {
+        $meses = min(max($meses, 2), 24);
+
+        if (! Schema::connection('raw')->hasTable('coletas')) {
+            return [
+                'periodo_atual' => null,
+                'periodo_anterior' => null,
+                'periodo_parcial' => false,
+                'dia_comparacao' => null,
+                'anterior_comparavel_litros' => null,
+                'anterior_comparavel_coletas' => 0,
+                'ultima_coleta' => null,
+                'serie_mensal' => [],
+            ];
+        }
+
+        $connection = DB::connection('raw');
+        $latestRouteCollectionIds = $connection->table('coletas')
+            ->where('produtor_codigo', $produtorCodigo)
+            ->whereNotNull('rota_uuid')
+            ->whereNotNull('datahora')
+            ->whereRaw("TRIM(rota_uuid) <> ''")
+            ->selectRaw('MAX(id) AS id')
+            ->groupBy('produtor_codigo', 'rota_uuid')
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+        $canonicalCollections = $connection->table('coletas')
+            ->where('produtor_codigo', $produtorCodigo)
+            ->whereNotNull('datahora')
+            ->where(function ($query) use ($latestRouteCollectionIds): void {
+                $query->whereNull('rota_uuid')
+                    ->orWhereRaw("TRIM(rota_uuid) = ''");
+
+                if ($latestRouteCollectionIds !== []) {
+                    $query->orWhereIn('id', $latestRouteCollectionIds);
+                }
+            });
+        $latestDate = (clone $canonicalCollections)->max('datahora');
+
+        if ($latestDate === null) {
+            return [
+                'periodo_atual' => null,
+                'periodo_anterior' => null,
+                'periodo_parcial' => false,
+                'dia_comparacao' => null,
+                'anterior_comparavel_litros' => null,
+                'anterior_comparavel_coletas' => 0,
+                'ultima_coleta' => null,
+                'serie_mensal' => [],
+            ];
+        }
+
+        $reference = CarbonImmutable::parse((string) $latestDate)->startOfMonth();
+        $start = $reference->subMonths($meses - 1);
+        $end = $reference->addMonth();
+
+        $rows = (clone $canonicalCollections)
+            ->select('id', 'litros', 'datahora')
+            ->where('datahora', '>=', $start->format('Y-m-d H:i:s'))
+            ->where('datahora', '<', $end->format('Y-m-d H:i:s'))
+            ->orderBy('datahora')
+            ->get();
+
+        $rowsByMonth = $rows->groupBy(
+            fn ($row): string => CarbonImmutable::parse((string) $row->datahora)->format('Y-m')
+        );
+        $previousPeriod = $reference->subMonth()->format('Y-m');
+        $isPartial = $reference->format('Y-m') === CarbonImmutable::now(config('app.timezone'))->format('Y-m');
+        $comparisonDay = $isPartial ? CarbonImmutable::parse((string) $latestDate)->day : null;
+        $previousRows = $rowsByMonth->get($previousPeriod, collect());
+        $comparablePreviousRows = $comparisonDay !== null
+            ? $previousRows->filter(
+                fn ($row): bool => CarbonImmutable::parse((string) $row->datahora)->day <= $comparisonDay
+            )
+            : $previousRows;
+        $comparablePreviousCollections = $comparablePreviousRows->count();
+        $comparablePreviousLiters = $comparablePreviousCollections > 0
+            ? (float) $comparablePreviousRows->sum(fn ($row): float => (float) $row->litros)
+            : null;
+        $series = [];
+
+        for ($index = 0; $index < $meses; $index++) {
+            $month = $start->addMonths($index);
+            $period = $month->format('Y-m');
+            $monthRows = $rowsByMonth->get($period, collect());
+            $total = (float) $monthRows->sum(fn ($row): float => (float) $row->litros);
+            $collections = $monthRows->count();
+            $days = $monthRows
+                ->map(fn ($row): string => CarbonImmutable::parse((string) $row->datahora)->format('Y-m-d'))
+                ->unique()
+                ->count();
+
+            $series[] = [
+                'periodo' => $period,
+                'litros' => round($total, 3),
+                'coletas' => $collections,
+                'dias_coleta' => $days,
+                'media_por_coleta' => $collections > 0 ? round($total / $collections, 3) : null,
+            ];
+        }
+
+        return [
+            'periodo_atual' => $reference->format('Y-m'),
+            'periodo_anterior' => $previousPeriod,
+            'periodo_parcial' => $isPartial,
+            'dia_comparacao' => $comparisonDay,
+            'anterior_comparavel_litros' => $comparablePreviousLiters !== null ? round($comparablePreviousLiters, 3) : null,
+            'anterior_comparavel_coletas' => $comparablePreviousCollections,
+            'ultima_coleta' => (string) $latestDate,
+            'serie_mensal' => $series,
         ];
     }
 
