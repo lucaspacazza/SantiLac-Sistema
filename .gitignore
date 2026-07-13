@@ -47,6 +47,8 @@ database/
 .docx
 docs/
 .codex-tmp/
+.local-tools/
+graphify-out/
 .agents/
 .continue/
 \index.html
@@ -60,3 +62,6 @@ pwa-producao/tsconfig.tsbuildinfo
 pwa-producao/frontend/node_modules/
 pwa-producao/frontend/dist/
 pwa-producao/frontend/tsconfig.tsbuildinfo
+.codex/
+config.toml
+Auditoria_DNS_Cloudflare_SantiLac_2026-07-13.docx

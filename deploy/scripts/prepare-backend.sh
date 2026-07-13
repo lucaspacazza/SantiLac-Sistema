@@ -11,6 +11,7 @@ tar -czf "$PACKAGE_PATH" \
   --exclude='backend/.env.*' \
   --exclude='backend/vendor' \
   --exclude='backend/node_modules' \
+  --exclude='backend/graphify-out' \
   --exclude='backend/storage/logs/*' \
   --exclude='backend/storage/framework/cache/*' \
   --exclude='backend/storage/framework/sessions/*' \
