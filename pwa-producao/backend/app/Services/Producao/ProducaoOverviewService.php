@@ -2,11 +2,11 @@
 
 namespace App\Services\Producao;
 
-use App\Models\ProducaoCreme;
-use App\Models\ProducaoFormulacaoCreme;
-use App\Models\ProducaoFormulacaoQueijo;
-use App\Models\ProducaoOrdemProducao;
-use App\Models\ProducaoSoroRefrigerado;
+use App\Models\Producao\ProducaoCreme;
+use App\Models\Producao\ProducaoFormulacaoCreme;
+use App\Models\Producao\ProducaoFormulacaoQueijo;
+use App\Models\Producao\ProducaoOrdemProducao;
+use App\Models\Producao\ProducaoSoroRefrigerado;
 
 class ProducaoOverviewService
 {

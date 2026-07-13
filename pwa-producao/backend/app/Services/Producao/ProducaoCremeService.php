@@ -2,7 +2,7 @@
 
 namespace App\Services\Producao;
 
-use App\Models\ProducaoCreme;
+use App\Models\Producao\ProducaoCreme;
 use Illuminate\Http\Request;
 
 class ProducaoCremeService extends BaseFormularioService

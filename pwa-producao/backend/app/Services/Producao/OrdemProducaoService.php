@@ -2,8 +2,8 @@
 
 namespace App\Services\Producao;
 
-use App\Models\ProducaoFormulacaoQueijo;
-use App\Models\ProducaoOrdemProducao;
+use App\Models\Producao\ProducaoFormulacaoQueijo;
+use App\Models\Producao\ProducaoOrdemProducao;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;

@@ -38,6 +38,7 @@ export async function ensureCsrfToken(): Promise<string> {
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(path, {
     credentials: 'same-origin',
+    signal: AbortSignal.timeout(15000),
     headers: {
       Accept: 'application/json',
     },

@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\Combustivel\CombustivelController;
 use App\Http\Controllers\Api\Dashboard\DashboardResumoController;
 use App\Http\Controllers\Api\Embalagem\EmbalagemController;
 use App\Http\Controllers\Api\Estoque\EstoqueController;
+use App\Http\Controllers\Api\Expedicao\ExpedicaoController;
 use App\Http\Controllers\Api\Pasteurizador\PasteurizadorController;
 use App\Http\Controllers\Api\ProdutorController;
 use App\Http\Controllers\Api\ProdutorApp\ProdutorAppController;
@@ -90,10 +91,6 @@ Route::prefix('api/produtor-app')->group(function (): void {
 });
 
 Route::prefix('api/embalagem')->group(function (): void {
-    Route::post('/ordens/validar', [EmbalagemController::class, 'validarOrdem']);
-    Route::get('/lotes/{loteId}', [EmbalagemController::class, 'estado'])->whereNumber('loteId');
-    Route::post('/lotes/{loteId}/caixas', [EmbalagemController::class, 'registrarCaixa'])->whereNumber('loteId');
-    Route::post('/lotes/{loteId}/finalizar', [EmbalagemController::class, 'finalizar'])->whereNumber('loteId');
     Route::get('/etiquetas/pendentes', [EmbalagemController::class, 'etiquetasPendentes']);
     Route::post('/paletes/{paleteId}/etiqueta', [EmbalagemController::class, 'marcarEtiqueta'])->whereNumber('paleteId');
     Route::get('/paletes/{token}/resumo', [EmbalagemController::class, 'resumoPalete']);
@@ -101,6 +98,34 @@ Route::prefix('api/embalagem')->group(function (): void {
 });
 
 Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): void {
+    Route::prefix('embalagem')->group(function (): void {
+        Route::post('/ordens/validar', [EmbalagemController::class, 'validarOrdem']);
+        Route::get('/lotes/{loteId}', [EmbalagemController::class, 'estado'])->whereNumber('loteId');
+        Route::post('/lotes/{loteId}/caixas', [EmbalagemController::class, 'registrarCaixa'])->whereNumber('loteId');
+        Route::post('/lotes/{loteId}/finalizar', [EmbalagemController::class, 'finalizar'])->whereNumber('loteId');
+    });
+
+    Route::prefix('expedicao')->group(function (): void {
+        Route::get('/resumo', [ExpedicaoController::class, 'resumo']);
+        Route::get('/estoque', [ExpedicaoController::class, 'estoque']);
+        Route::get('/estoque/paletes/{id}', [ExpedicaoController::class, 'palete'])->whereNumber('id');
+        Route::get('/ordens', [ExpedicaoController::class, 'ordens']);
+        Route::post('/ordens', [ExpedicaoController::class, 'criar']);
+        Route::get('/ordens/{id}', [ExpedicaoController::class, 'ordem'])->whereNumber('id');
+        Route::patch('/ordens/{id}', [ExpedicaoController::class, 'atualizar'])->whereNumber('id');
+        Route::post('/ordens/{id}/lancar', [ExpedicaoController::class, 'lancar'])->whereNumber('id');
+        Route::post('/ordens/{id}/cancelar', [ExpedicaoController::class, 'cancelar'])->whereNumber('id');
+        Route::get('/relatorios', [ExpedicaoController::class, 'relatorio']);
+        Route::post('/relatorios/exportar/{formato}', [ExpedicaoController::class, 'exportar'])
+            ->whereIn('formato', ['xlsx', 'pdf']);
+
+        Route::get('/carregamentos', [ExpedicaoController::class, 'carregamentos']);
+        Route::get('/carregamentos/{id}', [ExpedicaoController::class, 'carregamento'])->whereNumber('id');
+        Route::post('/carregamentos/{id}/iniciar', [ExpedicaoController::class, 'iniciar'])->whereNumber('id');
+        Route::post('/carregamentos/{id}/escanear', [ExpedicaoController::class, 'escanear'])->whereNumber('id');
+        Route::post('/carregamentos/{id}/concluir', [ExpedicaoController::class, 'concluir'])->whereNumber('id');
+    });
+
     Route::prefix('dashboard-resumo')->group(function (): void {
         Route::get('/home', [DashboardResumoController::class, 'homeResumo']);
         Route::get('/diario', [DashboardResumoController::class, 'resumoDiario']);

@@ -15,3 +15,4 @@ class DashboardDataService
         return now('America/Sao_Paulo')->startOfDay();
     }
 }
+   

@@ -109,6 +109,19 @@ export const sidebarModules = [
     ],
   },
   {
+    slug: 'expedicao',
+    title: 'Expedição',
+    desc: 'Estoque final e carregamentos.',
+    levels: ['3.7'],
+    icon: 'fa-truck',
+    href: '#/expedicao',
+    children: [
+      { title: 'Estoque', icon: 'fa-warehouse', href: '#/expedicao/estoque' },
+      { title: 'Expedição', icon: 'fa-truck', href: '#/expedicao/ordens' },
+      { title: 'Relatórios', icon: 'fa-chart-pie', href: '#/expedicao/relatorios' },
+    ],
+  },
+  {
     slug: 'cadastros',
     title: 'Cadastros',
     desc: 'Usuários, produtores e motoristas.',

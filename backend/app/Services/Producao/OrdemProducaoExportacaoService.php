@@ -2,7 +2,7 @@
 
 namespace App\Services\Producao;
 
-use App\Models\ProducaoOrdemProducao;
+use App\Models\Producao\ProducaoOrdemProducao;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\Process\Process;
 

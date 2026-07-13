@@ -51,48 +51,61 @@ export type OperacaoEmbalagem = {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
-
-  const payload = await response.json().catch(() => null)
-
-  if (!response.ok || !payload?.success) {
-    throw new Error(payload?.error?.message ?? 'Não foi possível concluir a operação.')
-  }
-
-  return payload.data as T
-}
-
 export const embalagemApi = {
   validarOrdem(codigoOrdem: string) {
-    return request<OperacaoEmbalagem>('/api/embalagem/ordens/validar', {
-      method: 'POST',
-      body: JSON.stringify({ codigo_ordem: codigoOrdem }),
-    })
+    return apiPost<OperacaoEmbalagem>('/api/embalagem/ordens/validar', { codigo_ordem: codigoOrdem })
   },
 
   estado(loteId: number) {
-    return request<OperacaoEmbalagem>(`/api/embalagem/lotes/${loteId}`)
+    return apiGet<OperacaoEmbalagem>(`/api/embalagem/lotes/${loteId}`)
   },
 
   registrarCaixa(loteId: number, codigoBarra: string) {
-    return request<OperacaoEmbalagem>(`/api/embalagem/lotes/${loteId}/caixas`, {
-      method: 'POST',
-      body: JSON.stringify({ codigo_barra: codigoBarra }),
-    })
+    return apiPost<OperacaoEmbalagem>(`/api/embalagem/lotes/${loteId}/caixas`, { codigo_barra: codigoBarra })
   },
 
-  finalizar(loteId: number, pecasAvulsas: number, pesoPecasAvulsas = 0) {
-    return request<OperacaoEmbalagem>(`/api/embalagem/lotes/${loteId}/finalizar`, {
-      method: 'POST',
-      body: JSON.stringify({ pecas_avulsas: pecasAvulsas, peso_pecas_avulsas: pesoPecasAvulsas }),
+  finalizar(loteId: number, pecasAvulsas: number, pesoPecasAvulsas = 0, paleteParcial: 'preencher' | 'finalizar' = 'preencher') {
+    return apiPost<OperacaoEmbalagem>(`/api/embalagem/lotes/${loteId}/finalizar`, {
+      pecas_avulsas: pecasAvulsas,
+      peso_pecas_avulsas: pesoPecasAvulsas,
+      palete_parcial: paleteParcial,
     })
   },
 }
+
+export type CarregamentoResumo = {
+  id: number
+  codigo: string
+  status: 'lancada' | 'carregando'
+  paletes_total: number
+  carregados: number
+  peso_total: number
+}
+
+export type Carregamento = {
+  id: number
+  codigo: string
+  status: 'lancada' | 'carregando' | 'concluida'
+  paletes_total: number
+  caixas_total: number
+  peso_total: number
+  produtos: Array<{ produto: string; paletes: number; carregados: number; peso_total: number }>
+  paletes: Array<{
+    id: number
+    numero: number
+    produto: string
+    lote: string
+    caixas: number
+    peso_total: number
+    status_carregamento: 'reservado' | 'carregado'
+  }>
+}
+
+export const carregamentoApi = {
+  listar: () => apiGet<{ itens: CarregamentoResumo[] }>('/api/expedicao/carregamentos'),
+  detalhe: (id: number) => apiGet<Carregamento>(`/api/expedicao/carregamentos/${id}`),
+  iniciar: (id: number) => apiPost<Carregamento>(`/api/expedicao/carregamentos/${id}/iniciar`, {}),
+  escanear: (id: number, codigo: string) => apiPost<Carregamento>(`/api/expedicao/carregamentos/${id}/escanear`, { codigo }),
+  concluir: (id: number) => apiPost<Carregamento>(`/api/expedicao/carregamentos/${id}/concluir`, {}),
+}
+import { apiGet, apiPost } from '../../../api/http'

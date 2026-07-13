@@ -1,10 +1,11 @@
 ﻿import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { LogOut } from 'lucide-react'
 import { authApi, type AuthUser } from './api/authApi'
 import { LoginPage } from './pages/LoginPage'
 import { SystemHome } from './pages/SystemHome'
 import { CoreSidebar, routeForModule } from './shared/CoreSidebar'
 import type { ThemeMode } from './shared/ThemeToggle'
-import { allowedSidebarModules, canAccessModuleSlug, isSystemModule, type ModuleAccessUser, type SystemModule } from './shared/modules'
+import { allowedSidebarModules, canAccessModuleSlug, isSystemModule, sidebarModules, type ModuleAccessUser, type SystemModule } from './shared/modules'
 
 type AppState = 'booting' | 'guest' | 'authenticated'
 
@@ -13,6 +14,8 @@ const ColetasModule = lazy(() => import('./modules/coletas/ColetasModule').then(
 const CombustivelModule = lazy(() => import('./modules/combustivel/CombustivelModule').then((module) => ({ default: module.CombustivelModule })))
 const DashboardResumoApp = lazy(() => import('./modules/dashboard/DashboardResumoApp').then((module) => ({ default: module.DashboardResumoApp })))
 const EmbalagemApp = lazy(() => import('./modules/embalagem/App').then((module) => ({ default: module.App })))
+const CarregamentoExpedicao = lazy(() => import('./modules/embalagem/views/CarregamentoExpedicao').then((module) => ({ default: module.CarregamentoExpedicao })))
+const ExpedicaoModule = lazy(() => import('./modules/expedicao/ExpedicaoModule').then((module) => ({ default: module.ExpedicaoModule })))
 const EstoqueModule = lazy(() => import('./modules/estoque/EstoqueModule').then((module) => ({ default: module.EstoqueModule })))
 const PasteurizadorModule = lazy(() => import('./modules/pasteurizador/PasteurizadorModule').then((module) => ({ default: module.PasteurizadorModule })))
 const ProducaoModule = lazy(() => import('./modules/producao/ProducaoModule').then((module) => ({ default: module.ProducaoModule })))
@@ -33,14 +36,10 @@ function moduleFromHash(user: ModuleAccessUser | null): SystemModule | null {
 }
 
 export function App() {
-  if (isEmbalagemHost) {
-    return (
-      <Suspense fallback={null}>
-        <EmbalagemApp />
-      </Suspense>
-    )
-  }
+  return isEmbalagemHost ? <EmbalagemPortal /> : <CoreApp />
+}
 
+function CoreApp() {
   const [state, setState] = useState<AppState>('booting')
   const [user, setUser] = useState<AuthUser | null>(null)
   const [activeModule, setActiveModule] = useState<SystemModule | null>(null)
@@ -58,9 +57,15 @@ export function App() {
   }, [theme])
 
   useEffect(() => {
+    const module = activeModule
+      ? sidebarModules.find((item) => item.slug === activeModule)
+      : null
+    document.title = module ? `Santi'Lac | ${module.title}` : "Santi'Lac"
+  }, [activeModule])
+
+  useEffect(() => {
     async function boot() {
       try {
-        await authApi.csrf()
         const session = await authApi.me()
         if (session.user) {
           setUser(session.user)
@@ -184,6 +189,8 @@ export function App() {
             <CombustivelModule />
           ) : activeModule === 'coletas' ? (
             <ColetasModule />
+          ) : activeModule === 'expedicao' ? (
+            <ExpedicaoModule />
           ) : activeModule === 'cadastros' ? (
             <CadastrosModule />
           ) : (
@@ -191,6 +198,93 @@ export function App() {
           )}
         </Suspense>
       </main>
+    </div>
+  )
+}
+
+function EmbalagemPortal() {
+  const [state, setState] = useState<AppState>('booting')
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [loginError, setLoginError] = useState<string | null>(null)
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [area, setArea] = useState<'embalagem' | 'carregamento'>(() =>
+    window.localStorage.getItem('embalagem-area') === 'carregamento' ? 'carregamento' : 'embalagem')
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = 'dark'
+    void import('./modules/embalagem/styles.css')
+
+    async function boot() {
+      try {
+        const session = await authApi.me()
+        if (session.user) {
+          setUser(session.user)
+          setState('authenticated')
+          return
+        }
+      } catch {
+        setUser(null)
+      }
+      setState('guest')
+    }
+
+    void boot()
+  }, [])
+
+  useEffect(() => {
+    document.title = state === 'authenticated'
+      ? `Santi'Lac | ${area === 'embalagem' ? 'Embalagem' : 'Carregamento'}`
+      : "Santi'Lac"
+  }, [area, state])
+
+  async function login(loginValue: string, password: string, remember: boolean) {
+    setIsLoggingIn(true)
+    setLoginError(null)
+    try {
+      const result = await authApi.login(loginValue, password, remember)
+      setUser(result.user)
+      setState('authenticated')
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Não foi possível entrar no sistema.')
+    } finally {
+      setIsLoggingIn(false)
+    }
+  }
+
+  async function logout() {
+    await authApi.logout().catch(() => null)
+    setUser(null)
+    setState('guest')
+  }
+
+  function selectArea(value: 'embalagem' | 'carregamento') {
+    setArea(value)
+    window.localStorage.setItem('embalagem-area', value)
+  }
+
+  if (state === 'booting') {
+    return <main className="core-loading"><img src="/assets/img/logo.png" alt="Santi'Lac" /><span>Carregando operação...</span></main>
+  }
+  if (state === 'guest' || !user) {
+    return <LoginPage loading={isLoggingIn} error={loginError} onLogin={login} />
+  }
+
+  return (
+    <div className="packaging-workspace">
+      <header className="packaging-topbar">
+        <img src="/assets/img/logo.png" alt="Santi'Lac" />
+        <nav className="packaging-tabs" aria-label="Áreas da operação">
+          <button className={area === 'embalagem' ? 'is-active' : ''} type="button" onClick={() => selectArea('embalagem')}>Embalagem</button>
+          <button className={area === 'carregamento' ? 'is-active' : ''} type="button" onClick={() => selectArea('carregamento')}>Carregamento</button>
+        </nav>
+        <div className="packaging-user">
+          <span>{user.nome}</span>
+          <button className="icon-btn" type="button" title="Sair" aria-label="Sair" onClick={() => void logout()}><LogOut size={16} /></button>
+        </div>
+      </header>
+      <Suspense fallback={<ModuleLoading />}>
+        {area === 'embalagem' ? <EmbalagemApp /> : <CarregamentoExpedicao />}
+      </Suspense>
     </div>
   )
 }

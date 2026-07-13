@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Producao;
 
 use Illuminate\Database\Eloquent\Model;
 
-class ProducaoFormulacaoCreme extends Model
+class ProducaoCreme extends Model
 {
     protected $connection = 'raw';
 
-    protected $table = 'producao_formulacoes_creme';
+    protected $table = 'producao_creme';
 
     protected $fillable = [
         'documento_codigo',
@@ -19,9 +19,7 @@ class ProducaoFormulacaoCreme extends Model
         'tipo_creme',
         'data_fabricacao',
         'lote_creme_produzido',
-        'gordura_inicial',
-        'gordura_final',
-        'acidez',
+        'quantidade_produzida_kg',
         'responsavel',
         'responsavel_id',
         'status',
@@ -32,9 +30,7 @@ class ProducaoFormulacaoCreme extends Model
         'mes' => 'integer',
         'ano' => 'integer',
         'data_fabricacao' => 'date',
-        'gordura_inicial' => 'float',
-        'gordura_final' => 'float',
-        'acidez' => 'float',
+        'quantidade_produzida_kg' => 'float',
         'responsavel_id' => 'integer',
     ];
 }

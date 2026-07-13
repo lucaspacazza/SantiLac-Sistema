@@ -19,7 +19,7 @@ class CombustivelLog extends Model
         'created_at',
     ];
 
-    protected $casts = [
+    protected $casts = [ 
         'metadata' => 'array',
         'created_at' => 'datetime',
     ];

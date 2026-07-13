@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Embalagem;
 
 use Illuminate\Database\Eloquent\Model;
 
@@ -16,6 +16,7 @@ class EmbalagemPalete extends Model
         'caixas',
         'peso_total',
         'status',
+        'expedicao_status',
         'etiqueta_token',
         'etiqueta_status',
         'etiqueta_impressa_at',

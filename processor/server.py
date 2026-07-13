@@ -116,6 +116,15 @@ class ProcessorHandler(BaseHTTPRequestHandler):
             self.handle_producao_export(payload)
             return
 
+        if self.path in {"/expedicao/exportar/xlsx", "/expedicao/exportar/pdf"}:
+            kind = "pdf" if self.path.endswith("/pdf") else "xlsx"
+            self.handle_export(
+                payload,
+                kind,
+                BASE_DIR / "modules" / "expedicao" / "export_report.py",
+            )
+            return
+
         self.respond_json(404, error("PROCESSOR_404", "Rota nao encontrada."))
 
     def authorized(self) -> bool:
