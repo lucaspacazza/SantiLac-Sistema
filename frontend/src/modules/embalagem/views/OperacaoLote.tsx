@@ -78,7 +78,9 @@ export function OperacaoLote({
                 value={codigoBarra}
                 onChange={(event) => onCodigoChange(event.target.value)}
                 placeholder="Escaneie o código"
-                inputMode="numeric"
+                inputMode="none"
+                onPointerDown={(event) => { event.currentTarget.inputMode = 'numeric' }}
+                onBlur={(event) => { event.currentTarget.inputMode = 'none' }}
                 autoFocus
                 disabled={operacao.lote.status === 'finalizado'}
               />

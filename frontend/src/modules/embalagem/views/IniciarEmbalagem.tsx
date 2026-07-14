@@ -30,6 +30,9 @@ export function IniciarEmbalagem({
           <input
             autoFocus
             className="control op-input"
+            inputMode="none"
+            onPointerDown={(event) => { event.currentTarget.inputMode = 'text' }}
+            onBlur={(event) => { event.currentTarget.inputMode = 'none' }}
             value={codigo}
             onChange={(event) => onCodigoChange(event.target.value)}
             placeholder="Ex.: op1122"

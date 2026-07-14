@@ -31,6 +31,38 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    const scannerSelector = 'input.scan-input:not(:disabled), input.op-input:not(:disabled)'
+    const editableSelector = 'input:not(.scan-input):not(.op-input), textarea, select, [contenteditable="true"]'
+
+    const visibleScanner = () => Array.from(document.querySelectorAll<HTMLInputElement>(scannerSelector))
+      .find((input) => input.offsetParent !== null)
+
+    const focusScanner = () => {
+      const active = document.activeElement
+      if (active instanceof HTMLElement && active.matches(editableSelector)) return
+      visibleScanner()?.focus({ preventScroll: true })
+    }
+
+    const handlePointerUp = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof HTMLElement && target.closest(editableSelector)) return
+      window.setTimeout(focusScanner, 0)
+    }
+
+    const observer = new MutationObserver(() => window.setTimeout(focusScanner, 0))
+    observer.observe(document.body, { childList: true, subtree: true })
+    document.addEventListener('pointerup', handlePointerUp, true)
+    window.addEventListener('focus', focusScanner)
+    window.setTimeout(focusScanner, 0)
+
+    return () => {
+      observer.disconnect()
+      document.removeEventListener('pointerup', handlePointerUp, true)
+      window.removeEventListener('focus', focusScanner)
+    }
+  }, [])
+
+  useEffect(() => {
     operacaoRef.current = operacao
   }, [operacao])
 
@@ -304,7 +336,9 @@ export function App() {
               <input
                 autoFocus
                 className="control scan-input"
-                inputMode="numeric"
+                inputMode="none"
+                onPointerDown={(event) => { event.currentTarget.inputMode = 'numeric' }}
+                onBlur={(event) => { event.currentTarget.inputMode = 'none' }}
                 placeholder="Escaneie a etiqueta"
                 value={codigoAvulsas}
                 onChange={(event) => atualizarCodigoAvulsas(event.target.value)}

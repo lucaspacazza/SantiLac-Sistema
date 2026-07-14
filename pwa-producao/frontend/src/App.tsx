@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react'
 import {
   ArrowLeft,
   Beaker,
+  CalendarDays,
   ChevronRight,
   ClipboardList,
   Droplets,
@@ -71,7 +72,37 @@ function submitValue(event: FormEvent<HTMLFormElement>, name: string): string {
 
 function formatDateInput(value: string): string {
   const [year, month, day] = value.split('-')
-  return year && month && day ? `${day}/${month}/${year}` : value
+  return year && month && day ? `${day}/${month}/${year.slice(-2)}` : value
+}
+
+function DateInput({ name, value, defaultValue, required, onChange }: {
+  name?: string
+  value?: string
+  defaultValue?: string
+  required?: boolean
+  onChange?: (value: string) => void
+}) {
+  const [internalValue, setInternalValue] = useState(defaultValue ?? value ?? '')
+  const currentValue = value ?? internalValue
+
+  return (
+    <span className="short-date-input">
+      <span>{formatDateInput(currentValue)}</span>
+      <CalendarDays size={18} aria-hidden="true" />
+      <input
+        aria-label="Selecionar data"
+        name={name}
+        type="date"
+        value={currentValue}
+        required={required}
+        onChange={(event) => {
+          const nextValue = event.target.value
+          setInternalValue(nextValue)
+          onChange?.(nextValue)
+        }}
+      />
+    </span>
+  )
 }
 
 function workflowIcon(id: WorkflowId, size = 22) {
@@ -350,11 +381,7 @@ export function App() {
     return (
       <main className="factory-auth">
         <form className="auth-panel" onSubmit={login}>
-          <div className="auth-mark">SL</div>
-          <div>
-            <span className="section-kicker">Produção</span>
-            <h1>{authState === 'booting' ? 'Carregando' : 'Acesso do operador'}</h1>
-          </div>
+          <img className="auth-logo" src="https://sistema.santilac.com.br/assets/img/logo.png" alt="Santi'Lac" />
           {authState === 'guest' && (
             <>
               <label>Usuário<input name="login" autoComplete="username" required /></label>
@@ -394,7 +421,7 @@ export function App() {
         <header className="utility-bar">
           <label className="date-control">
             <span>Data</span>
-            <input type="date" value={date} onChange={(event) => void changeDate(event.target.value)} />
+            <DateInput value={date} onChange={(nextDate) => void changeDate(nextDate)} />
           </label>
           <button className="icon-button" type="button" onClick={() => void loadBase()} aria-label="Atualizar">
             <RefreshCw size={20} className={state === 'loading' ? 'is-spinning' : ''} />
@@ -510,7 +537,7 @@ function OrderForm({ date, catalogs, onBack, onSubmit }: {
   return (
     <FactoryForm title="Ordem de produção" code="OP" onBack={onBack} onSubmit={onSubmit} singleAction>
       <FormSection title="Identificação">
-        <Field label="Data"><input name="data" type="date" defaultValue={date} required /></Field>
+        <Field label="Data"><DateInput name="data" defaultValue={date} required /></Field>
         <Field label="Produto"><select value={cheeseId} onChange={(event) => setCheeseId(event.target.value)} required><option value="">Selecionar</option>{catalogs.queijos.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select></Field>
         <Field label="Lote"><input name="lote_codigo" required /></Field>
         {cheese?.precisa_formato && <Field label="Formato"><select value={format} onChange={(event) => setFormat(event.target.value)}><option value="f1">F1</option><option value="f4">F4</option><option value="f6">F6</option></select></Field>}
@@ -553,7 +580,7 @@ function CheeseForm({ date, catalogs, onBack, onSubmit }: {
   return (
     <FactoryForm title="Formulação de queijo" code="PLAN 6.3" onBack={onBack} onSubmit={onSubmit}>
       <FormSection title="Lote">
-        <Field label="Data"><input name="data_formulacao" type="date" defaultValue={date} required /></Field>
+        <Field label="Data"><DateInput name="data_formulacao" defaultValue={date} required /></Field>
         <Field label="Tipo de queijo"><select name="tipo_queijo" required><option value="">Selecionar</option>{catalogs.queijos.map((item) => <option key={item.id} value={item.nome}>{item.nome}</option>)}</select></Field>
         <Field label="Lote do queijo"><input name="lote_queijo" required /></Field>
         <Field label="Lote do leite"><input name="lote_leite" /></Field>
@@ -603,7 +630,7 @@ function SoroForm({ date, onBack, onSubmit }: { date: string; onBack: () => void
   return (
     <FactoryForm title="Soro refrigerado" code="PLAN 6.7" onBack={onBack} onSubmit={onSubmit}>
       <FormSection title="Movimentação">
-        <Field label="Data"><input name="data_registro" type="date" defaultValue={date} required /></Field>
+        <Field label="Data"><DateInput name="data_registro" defaultValue={date} required /></Field>
         <Field label="Entrada (L)"><input name="entrada_diaria_estoque" inputMode="decimal" /></Field>
         <Field label="Saída / venda (L)"><input name="litragem_vendida" inputMode="decimal" /></Field>
         <Field label="Silo"><input name="silo_armazenado" /></Field>
@@ -619,7 +646,7 @@ function CreamFormulaForm({ date, onBack, onSubmit }: { date: string; onBack: ()
   return (
     <FactoryForm title="Formulação de creme" code="PLAN 6.9" onBack={onBack} onSubmit={onSubmit}>
       <FormSection title="Lote">
-        <Field label="Data"><input name="data_fabricacao" type="date" defaultValue={date} required /></Field>
+        <Field label="Data"><DateInput name="data_fabricacao" defaultValue={date} required /></Field>
         <Field label="Lote do creme"><input name="lote_creme_produzido" required /></Field>
         <Field label="Tipo de creme"><select name="tipo_creme" required><option value="">Selecionar</option>{creamTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
         <Field label="Mês"><input name="mes" type="number" min="1" max="12" defaultValue={new Date(`${date}T12:00:00`).getMonth() + 1} /></Field>
@@ -640,7 +667,7 @@ function CreamProductionForm({ date, onBack, onSubmit }: { date: string; onBack:
   return (
     <FactoryForm title="Produção de creme" code="PLAN 6.10" onBack={onBack} onSubmit={onSubmit}>
       <FormSection title="Produção">
-        <Field label="Data"><input name="data_fabricacao" type="date" defaultValue={date} required /></Field>
+        <Field label="Data"><DateInput name="data_fabricacao" defaultValue={date} required /></Field>
         <Field label="Lote do creme"><input name="lote_creme_produzido" required /></Field>
         <Field label="Tipo de creme"><select name="tipo_creme" required><option value="">Selecionar</option>{creamTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
         <Field label="Quantidade (kg)"><input name="quantidade_produzida_kg" inputMode="decimal" /></Field>
