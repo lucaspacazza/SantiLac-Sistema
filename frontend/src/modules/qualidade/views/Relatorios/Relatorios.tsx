@@ -1,5 +1,5 @@
-import { AlertTriangle, BarChart3, Check, FilterX, RefreshCw, Users } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AlertTriangle, Check, FilterX, RefreshCw } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { relatoriosApi, type ProdutorPrioridade, type RelatoriosFiltros, type RelatoriosResumoV2 } from '../../api/relatoriosApi'
 import { formatDate, formatDecimal, formatNumber } from '../../shared/formatters'
 
@@ -77,10 +77,7 @@ export function Relatorios({ reloadKey, onOpenProdutor, onOpenPendencias }: Rela
       ) : report ? (
         <>
           <ExecutiveStrip report={report} />
-          <div className="reports-analysis-grid">
-            <TrendChart data={report.tendencia} />
-            <IndicatorMatrix report={report} />
-          </div>
+          <IndicatorMatrix report={report} />
           <section className="report-section">
             <SectionTitle icon={<AlertTriangle size={18} />} eyebrow="Prioridade operacional" title="Quem precisa de atenção agora" />
             <div className="queue-filters" role="group" aria-label="Filtrar fila operacional">
@@ -88,7 +85,6 @@ export function Relatorios({ reloadKey, onOpenProdutor, onOpenPendencias }: Rela
             </div>
             <PriorityTable items={queue} onOpen={queueFilter === 'fora_padrao' ? onOpenPendencias : onOpenProdutor} />
           </section>
-          <RouteComparison report={report} />
         </>
       ) : <div className="reports-empty"><AlertTriangle size={24} /><strong>Relatório indisponível</strong><span>Revise os filtros ou tente atualizar novamente.</span><button type="button" onClick={() => void loadReport()}><RefreshCw size={16} />Tentar novamente</button></div>}
     </section>
@@ -109,17 +105,6 @@ function Metric({ label, value, detail, tone = '' }: { label: string; value: str
   return <div className={`executive-metric ${tone ? `is-${tone}` : ''}`}><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>
 }
 
-function TrendChart({ data }: { data: RelatoriosResumoV2['tendencia'] }) {
-  const points = useMemo(() => {
-    if (!data.length) return ''
-    return data.map((item, index) => `${(index / Math.max(data.length - 1, 1)) * 100},${100 - item.conformidade_percentual}`).join(' ')
-  }, [data])
-  return <section className="report-section trend-panel">
-    <SectionTitle icon={<BarChart3 size={18} />} eyebrow="Tendência" title="Conformidade ao longo do tempo" />
-    {data.length ? <><div className="trend-chart" role="img" aria-label="Gráfico da conformidade mensal em percentual"><div className="trend-axis"><span>100%</span><span>50%</span><span>0%</span></div><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points={points} /></svg></div><div className="trend-labels">{data.map((item) => <span key={item.periodo}>{monthLabel(item.periodo)}<strong>{formatDecimal(item.conformidade_percentual)}%</strong></span>)}</div></> : <span className="empty-copy">Sem histórico para o período.</span>}
-  </section>
-}
-
 function IndicatorMatrix({ report }: { report: RelatoriosResumoV2 }) {
   return <section className="report-section indicator-panel"><SectionTitle icon={<Check size={18} />} eyebrow="Causas" title="Matriz de indicadores" />
     <div className="indicator-matrix" role="table" aria-label="Indicadores fora do padrão"><div className="indicator-head" role="row"><span role="columnheader">Indicador</span><span role="columnheader">Fora</span><span role="columnheader">Prevalência</span></div>{report.indicadores.map((item) => <div className="indicator-row" role="row" key={item.codigo}><strong role="rowheader">{item.label}<small>{item.unidade || 'resultado qualitativo'}</small></strong><span role="cell">{item.fora_padrao}/{item.total_avaliados}</span><span role="cell" className="prevalence-cell"><i style={{ width: `${Math.min(item.prevalencia_percentual, 100)}%` }} />{formatDecimal(item.prevalencia_percentual)}%</span></div>)}</div>
@@ -131,11 +116,6 @@ function PriorityTable({ items, onOpen }: { items: ProdutorPrioridade[]; onOpen:
   return <div className="operational-table" role="table"><div className="operational-head" role="row"><span role="columnheader">Produtor</span><span role="columnheader">Local</span><span role="columnheader">Motivo</span><span role="columnheader">Análise</span><span role="columnheader">Ação</span></div>{items.map((item) => <div className="operational-row" role="row" key={item.codigo}><strong role="rowheader">{item.nome}<small>{item.codigo}</small></strong><span role="cell">{item.rota || 'Sem rota'}<small>{item.cidade || 'Sem cidade'}</small></span><span role="cell"><b>{item.status === 'sem_analise' ? 'Sem análise' : `${item.total_desvios} desvio(s)`}</b><small>{item.indicadores_fora_padrao.join(', ') || 'Coleta pendente'}</small></span><span role="cell">{formatDate(item.data_analise)}</span><button type="button" onClick={() => onOpen(item.codigo)}>Ver produtor</button></div>)}</div>
 }
 
-function RouteComparison({ report }: { report: RelatoriosResumoV2 }) {
-  return <section className="report-section"><SectionTitle icon={<Users size={18} />} eyebrow="Território" title="Comparação por rota" /><div className="route-table" role="table"><div className="route-head" role="row"><span role="columnheader">Rota</span><span role="columnheader">Produtores</span><span role="columnheader">Cobertura</span><span role="columnheader">Conformidade</span><span role="columnheader">Críticos</span></div>{report.rotas.map((item) => <div className="route-row" role="row" key={item.rota}><strong role="rowheader">{item.rota}</strong><span role="cell">{formatNumber(item.total_produtores)}</span><span role="cell">{formatDecimal(item.cobertura_percentual)}%</span><span role="cell">{formatDecimal(item.conformidade_percentual)}%</span><span role="cell" className={item.criticos ? 'is-alert' : ''}>{formatNumber(item.criticos)}</span></div>)}</div></section>
-}
-
 function SectionTitle({ icon, eyebrow, title }: { icon: ReactNode; eyebrow: string; title: string }) { return <header className="report-section-title"><span>{icon}</span><div><small>{eyebrow}</small><h2>{title}</h2></div></header> }
 function queueLabel(item: QueueFilter) { return item === 'criticos' ? 'Críticos' : item === 'fora_padrao' ? 'Fora do padrão' : 'Sem análise' }
-function monthLabel(value: string) { const [year, month] = value.split('-'); return `${month}/${year.slice(2)}` }
 function ReportSkeleton() { return <div className="reports-skeleton" aria-label="Carregando"><span /><span /><span /></div> }
