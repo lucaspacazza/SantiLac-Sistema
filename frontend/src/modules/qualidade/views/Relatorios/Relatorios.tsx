@@ -1,16 +1,7 @@
-import {
-  AlertTriangle,
-  BarChart3,
-  CheckCircle2,
-  Database,
-  FileSpreadsheet,
-  Users,
-} from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
-import { relatoriosApi, type ExportacaoDownload, type ProdutorRelatorio, type RelatoriosResumo } from '../../api/relatoriosApi'
+import { AlertTriangle, BarChart3, Check, FilterX, RefreshCw, Users } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { relatoriosApi, type ProdutorPrioridade, type RelatoriosFiltros, type RelatoriosResumoV2 } from '../../api/relatoriosApi'
 import { formatDate, formatDecimal, formatNumber } from '../../shared/formatters'
-import { DetalheDesvioReport } from './DetalheDesvioReport'
-import { ForaPadraoReport } from './ForaPadraoReport'
 
 type RelatoriosProps = {
   reloadKey: number
@@ -18,261 +9,133 @@ type RelatoriosProps = {
   onOpenPendencias: (codigo: string) => void
 }
 
-type LoadStatus = 'loading' | 'live' | 'error'
-type Tab = 'resumo' | 'fora'
-type ExportFormat = 'excel' | 'pdf'
-type ExportTarget = 'fora-geral-excel' | 'fora-geral-pdf' | `indicador-${string}-${ExportFormat}`
+type QueueFilter = 'criticos' | 'fora_padrao' | 'sem_analise'
+
+function defaultPeriod(): RelatoriosFiltros {
+  const end = new Date()
+  const start = new Date(end.getFullYear(), end.getMonth() - 11, 1)
+  return { data_inicio: isoDate(start), data_fim: isoDate(end) }
+}
+
+function isoDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 export function Relatorios({ reloadKey, onOpenProdutor, onOpenPendencias }: RelatoriosProps) {
-  const [report, setReport] = useState<RelatoriosResumo | null>(null)
-  const [status, setStatus] = useState<LoadStatus>('loading')
-  const [statusText, setStatusText] = useState('Carregando relatórios...')
-  const [activeTab, setActiveTab] = useState<Tab>('resumo')
-  const [exportMonth, setExportMonth] = useState('')
-  const [exportingTarget, setExportingTarget] = useState<ExportTarget | null>(null)
-  const [exportResult, setExportResult] = useState<ExportacaoDownload | null>(null)
-  const [exportError, setExportError] = useState<string | null>(null)
-  const [selectedDeviationCode, setSelectedDeviationCode] = useState<string | null>(null)
+  const [draft, setDraft] = useState<RelatoriosFiltros>(defaultPeriod)
+  const [filters, setFilters] = useState<RelatoriosFiltros>(defaultPeriod)
+  const [report, setReport] = useState<RelatoriosResumoV2 | null>(null)
+  const [status, setStatus] = useState<'loading' | 'live' | 'error'>('loading')
+  const [message, setMessage] = useState('Carregando relatórios...')
+  const [queueFilter, setQueueFilter] = useState<QueueFilter>('criticos')
+  const requestRef = useRef(0)
 
-  async function loadReport() {
+  async function loadReport(nextFilters = filters) {
+    const requestId = ++requestRef.current
     setStatus('loading')
-    setStatusText('Carregando relatórios...')
-
+    setMessage('Atualizando visão operacional...')
     try {
-      const data = await relatoriosApi.resumo()
+      const data = await relatoriosApi.resumo(nextFilters)
+      if (requestId !== requestRef.current) return
       setReport(data)
-      setExportMonth(toMonthYear(data.periodo.inicio.slice(0, 7)))
       setStatus('live')
-      setStatusText(`Relatório de ${data.periodo.label} carregado com ${formatNumber(data.totais.analises)} análise(s).`)
-    } catch {
-      setReport(null)
+      setMessage(`Visão atualizada em ${new Date(data.contexto.gerado_em).toLocaleString('pt-BR')}.`)
+    } catch (error) {
+      if (requestId !== requestRef.current) return
       setStatus('error')
-      setStatusText('Não foi possível carregar os relatórios.')
+      const reason = error instanceof Error ? error.message : 'Não foi possível carregar os relatórios.'
+      setMessage(report ? `${reason} Os dados anteriores permanecem visíveis.` : reason)
     }
   }
 
-  useEffect(() => {
-    void loadReport()
-  }, [reloadKey])
+  useEffect(() => { void loadReport(filters) }, [filters, reloadKey])
 
-  const selectedDeviation = selectedDeviationCode
-    ? report?.fora_padrao.find((grupo) => grupo.codigo === selectedDeviationCode) ?? null
-    : null
-
-  function resolveExportMonth(): string | null {
-    if (!exportMonth) return null
-
-    const normalizedMonth = monthYearToApi(exportMonth)
-    if (!normalizedMonth) {
-      setExportError('Informe o mês no formato MM/AAAA.')
-      return null
-    }
-
-    return normalizedMonth
-  }
-
-  async function handleExportForaPadrao(format: ExportFormat) {
-    const normalizedMonth = resolveExportMonth()
-    if (!normalizedMonth) return
-
-    const target: ExportTarget = format === 'pdf' ? 'fora-geral-pdf' : 'fora-geral-excel'
-    setExportingTarget(target)
-    setExportResult(null)
-    setExportError(null)
-
-    try {
-      const result = format === 'pdf'
-        ? await relatoriosApi.exportarForaPadraoPdf(normalizedMonth)
-        : await relatoriosApi.exportarForaPadrao(normalizedMonth)
-      setExportResult(result)
-    } catch (error) {
-      setExportError(error instanceof Error ? error.message : 'Falha ao gerar exportação.')
-    } finally {
-      setExportingTarget(null)
-    }
-  }
-
-  async function handleExportIndicador(codigo: string, format: ExportFormat) {
-    const normalizedMonth = resolveExportMonth()
-    if (!normalizedMonth) return
-
-    const target: ExportTarget = `indicador-${codigo}-${format}`
-    setExportingTarget(target)
-    setExportResult(null)
-    setExportError(null)
-
-    try {
-      const result = format === 'pdf'
-        ? await relatoriosApi.exportarIndicadorForaPadraoPdf(codigo, normalizedMonth)
-        : await relatoriosApi.exportarIndicadorForaPadrao(codigo, normalizedMonth)
-      setExportResult(result)
-    } catch (error) {
-      setExportError(error instanceof Error ? error.message : 'Falha ao gerar exportação.')
-    } finally {
-      setExportingTarget(null)
-    }
-  }
+  const queue = report?.prioridades[queueFilter] ?? []
 
   return (
-    <>
-      <section className={`status-line is-${status}`}>
-        <span className="status-dot" />
-        <span>{statusText}</span>
-      </section>
+    <section className="reports-page reports-v2">
+      <div className={`status-line is-${status}`} role="status" aria-live="polite">
+        <span className="status-dot" /><span>{message}</span>
+      </div>
 
-      {!report ? (
-        <section className="empty-state">Aguardando dados dos relatórios.</section>
-      ) : (
-        <section className="reports-page">
-          <section className="reports-toolbar">
-            <div className="segmented-control" aria-label="Tipos de relatório">
-              <TabButton active={activeTab === 'resumo'} onClick={() => {
-                setActiveTab('resumo')
-                setSelectedDeviationCode(null)
-              }}>Resumo</TabButton>
-              <TabButton active={activeTab === 'fora'} onClick={() => setActiveTab('fora')}>Fora do padrão</TabButton>
-            </div>
+      <form className="reports-context" onSubmit={(event) => { event.preventDefault(); setFilters({ ...draft }) }}>
+        <label><span>De</span><input type="date" value={draft.data_inicio} max={draft.data_fim} onChange={(e) => setDraft({ ...draft, data_inicio: e.target.value })} /></label>
+        <label><span>Até</span><input type="date" value={draft.data_fim} min={draft.data_inicio} onChange={(e) => setDraft({ ...draft, data_fim: e.target.value })} /></label>
+        <label><span>Rota</span><select value={draft.rota ?? ''} onChange={(e) => setDraft({ ...draft, rota: e.target.value || undefined, cidade: undefined })}><option value="">Todas</option>{report?.opcoes.rotas.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>Cidade</span><select value={draft.cidade ?? ''} onChange={(e) => setDraft({ ...draft, cidade: e.target.value || undefined })}><option value="">Todas</option>{report?.opcoes.cidades.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <div className="reports-context-actions">
+          <button className="secondary-button" type="button" onClick={() => { const clean = defaultPeriod(); setDraft(clean); setFilters(clean) }}><FilterX size={16} />Limpar</button>
+          <button className="primary-button" type="submit"><RefreshCw size={16} />Aplicar</button>
+        </div>
+      </form>
 
-            <div className="export-control">
-              <input
-                aria-label="Mês de referência"
-                className="month-input"
-                type="text"
-                inputMode="numeric"
-                placeholder="MM/AAAA"
-                value={exportMonth}
-                onChange={(event) => setExportMonth(event.target.value)}
-              />
+      {status === 'loading' && !report ? <ReportSkeleton /> : report?.executivo.total_produtores === 0 ? (
+        <div className="reports-empty"><FilterX size={24} /><strong>Nenhum produtor neste recorte</strong><span>Altere o período ou limpe os filtros territoriais.</span><button type="button" onClick={() => { const clean = defaultPeriod(); setDraft(clean); setFilters(clean) }}><FilterX size={16} />Limpar filtros</button></div>
+      ) : report ? (
+        <>
+          <ExecutiveStrip report={report} />
+          <div className="reports-analysis-grid">
+            <TrendChart data={report.tendencia} />
+            <IndicatorMatrix report={report} />
+          </div>
+          <section className="report-section">
+            <SectionTitle icon={<AlertTriangle size={18} />} eyebrow="Prioridade operacional" title="Quem precisa de atenção agora" />
+            <div className="queue-filters" role="group" aria-label="Filtrar fila operacional">
+              {(['criticos', 'fora_padrao', 'sem_analise'] as QueueFilter[]).map((item) => <button type="button" key={item} aria-pressed={queueFilter === item} className={queueFilter === item ? 'is-active' : ''} onClick={() => setQueueFilter(item)}>{queueLabel(item)} <span>{formatNumber(report.prioridades[item].length)}</span></button>)}
             </div>
+            <PriorityTable items={queue} onOpen={queueFilter === 'fora_padrao' ? onOpenPendencias : onOpenProdutor} />
           </section>
-
-          {(exportResult || exportError) && (
-            <section className={`status-line ${exportError ? 'is-error' : 'is-live'}`}>
-              <span className="status-dot" />
-              <span>
-                {exportError
-                  ? exportError
-                  : `Download iniciado: ${exportResult?.arquivo}`}
-              </span>
-            </section>
-          )}
-
-          {activeTab === 'resumo' && (
-            <ResumoReport report={report} onOpenPendencias={onOpenPendencias} />
-          )}
-
-          {activeTab === 'fora' && (
-            selectedDeviation ? (
-              <DetalheDesvioReport
-                grupo={selectedDeviation}
-                exportingTarget={exportingTarget}
-                onBack={() => setSelectedDeviationCode(null)}
-                onExport={(format) => handleExportIndicador(selectedDeviation.codigo, format)}
-                onOpenProdutor={onOpenProdutor}
-              />
-            ) : (
-              <ForaPadraoReport
-                grupos={report.fora_padrao}
-                exportingTarget={exportingTarget}
-                onExport={handleExportForaPadrao}
-                onOpenGrupo={setSelectedDeviationCode}
-              />
-            )
-          )}
-
-        </section>
-      )}
-    </>
+          <RouteComparison report={report} />
+        </>
+      ) : <div className="reports-empty"><AlertTriangle size={24} /><strong>Relatório indisponível</strong><span>Revise os filtros ou tente atualizar novamente.</span><button type="button" onClick={() => void loadReport()}><RefreshCw size={16} />Tentar novamente</button></div>}
+    </section>
   )
 }
 
-function toMonthYear(value: string): string {
-  const [year, month] = value.split('-')
-  return year && month ? `${month}/${year}` : value
+function ExecutiveStrip({ report }: { report: RelatoriosResumoV2 }) {
+  const item = report.executivo
+  return <section className="executive-strip" aria-label="Resumo executivo">
+    <Metric label="Cobertura" value={`${formatDecimal(item.cobertura_percentual)}%`} detail={`${formatNumber(item.produtores_analisados)} de ${formatNumber(item.total_produtores)} produtores`} />
+    <Metric label="Conformidade" value={`${formatDecimal(item.conformidade_percentual)}%`} detail={`${formatNumber(item.conformes)} produtores conformes`} tone="good" />
+    <Metric label="Amostragem" value={formatNumber(item.total_analises)} detail={`${formatDecimal(item.media_analises_por_produtor)} por produtor analisado`} />
+    <Metric label="Críticos" value={formatNumber(item.criticos)} detail="produtores com risco sanitário" tone={item.criticos > 0 ? 'bad' : 'good'} />
+  </section>
 }
 
-function monthYearToApi(value: string): string | null {
-  const match = value.trim().match(/^(\d{2})\/(\d{4})$/)
-  if (!match) return null
-
-  const month = Number(match[1])
-  if (month < 1 || month > 12) return null
-
-  return `${match[2]}-${match[1]}`
+function Metric({ label, value, detail, tone = '' }: { label: string; value: string; detail: string; tone?: string }) {
+  return <div className={`executive-metric ${tone ? `is-${tone}` : ''}`}><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>
 }
 
-function ResumoReport({ report, onOpenPendencias }: { report: RelatoriosResumo; onOpenPendencias: (codigo: string) => void }) {
-  const principal = report.ranking_atencao.slice(0, 8)
-
-  return (
-    <div className="reports-grid">
-      <section className="report-kpis">
-        <ReportCard icon={<Users size={17} />} label="Produtores ativos" value={formatNumber(report.totais.ativos)} detail={`${formatNumber(report.totais.inativos)} inativo(s)`} />
-        <ReportCard icon={<Database size={17} />} label="Análises no período" value={formatNumber(report.totais.analises)} detail={report.periodo.label} />
-        <ReportCard icon={<CheckCircle2 size={17} />} label="Dentro do padrão" value={`${formatDecimal(report.totais.percentual_dentro)}%`} detail={`${formatNumber(report.totais.dentro_padrao)} de ${formatNumber(report.totais.produtores_com_analise)} analisado(s)`} tone="good" />
-        <ReportCard icon={<AlertTriangle size={17} />} label="Fora do padrão" value={`${formatDecimal(report.totais.percentual_fora)}%`} detail={`${formatNumber(report.totais.fora_padrao)} de ${formatNumber(report.totais.produtores_com_analise)} analisado(s)`} tone="bad" />
-        <ReportCard icon={<FileSpreadsheet size={17} />} label="Última análise" value={formatDate(report.ultima_analise)} detail="Data da coleta" />
-      </section>
-
-      <section className="report-panel report-wide">
-        <PanelHeading eyebrow="Atenção" title="Produtores com mais pendências" />
-        <CompactProducerTable produtores={principal} emptyText="Nenhum produtor fora do padrão neste período." onOpenProdutor={onOpenPendencias} />
-      </section>
-    </div>
-  )
+function TrendChart({ data }: { data: RelatoriosResumoV2['tendencia'] }) {
+  const points = useMemo(() => {
+    if (!data.length) return ''
+    return data.map((item, index) => `${(index / Math.max(data.length - 1, 1)) * 100},${100 - item.conformidade_percentual}`).join(' ')
+  }, [data])
+  return <section className="report-section trend-panel">
+    <SectionTitle icon={<BarChart3 size={18} />} eyebrow="Tendência" title="Conformidade ao longo do tempo" />
+    {data.length ? <><div className="trend-chart" role="img" aria-label="Gráfico da conformidade mensal em percentual"><div className="trend-axis"><span>100%</span><span>50%</span><span>0%</span></div><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points={points} /></svg></div><div className="trend-labels">{data.map((item) => <span key={item.periodo}>{monthLabel(item.periodo)}<strong>{formatDecimal(item.conformidade_percentual)}%</strong></span>)}</div></> : <span className="empty-copy">Sem histórico para o período.</span>}
+  </section>
 }
 
-function CompactProducerTable({ produtores, emptyText, onOpenProdutor }: { produtores: ProdutorRelatorio[]; emptyText: string; onOpenProdutor: (codigo: string) => void }) {
-  if (produtores.length === 0) {
-    return <span className="empty-copy">{emptyText}</span>
-  }
-
-  return (
-    <div className="attention-table">
-      <div className="attention-table-head">
-        <span>Código</span>
-        <span>Produtor</span>
-        <span>Pendências</span>
-      </div>
-      {produtores.map((produtor) => (
-        <button className="attention-row" type="button" key={produtor.codigo} onClick={() => onOpenProdutor(produtor.codigo)}>
-          <span>{produtor.codigo}</span>
-          <strong>{produtor.nome}</strong>
-          <em>{formatNumber(produtor.total_pendencias)}</em>
-        </button>
-      ))}
-    </div>
-  )
+function IndicatorMatrix({ report }: { report: RelatoriosResumoV2 }) {
+  return <section className="report-section indicator-panel"><SectionTitle icon={<Check size={18} />} eyebrow="Causas" title="Matriz de indicadores" />
+    <div className="indicator-matrix" role="table" aria-label="Indicadores fora do padrão"><div className="indicator-head" role="row"><span role="columnheader">Indicador</span><span role="columnheader">Fora</span><span role="columnheader">Prevalência</span></div>{report.indicadores.map((item) => <div className="indicator-row" role="row" key={item.codigo}><strong role="rowheader">{item.label}<small>{item.unidade || 'resultado qualitativo'}</small></strong><span role="cell">{item.fora_padrao}/{item.total_avaliados}</span><span role="cell" className="prevalence-cell"><i style={{ width: `${Math.min(item.prevalencia_percentual, 100)}%` }} />{formatDecimal(item.prevalencia_percentual)}%</span></div>)}</div>
+  </section>
 }
 
-
-function ReportCard({ icon, label, value, detail, tone = 'neutral' }: { icon: ReactNode; label: string; value: string; detail: string; tone?: 'neutral' | 'good' | 'warn' | 'bad' }) {
-  return (
-    <article className={`report-card is-${tone}`}>
-      <span className="panel-icon">{icon}</span>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
-    </article>
-  )
+function PriorityTable({ items, onOpen }: { items: ProdutorPrioridade[]; onOpen: (codigo: string) => void }) {
+  if (!items.length) return <span className="empty-copy">Nenhum produtor nesta condição.</span>
+  return <div className="operational-table" role="table"><div className="operational-head" role="row"><span role="columnheader">Produtor</span><span role="columnheader">Local</span><span role="columnheader">Motivo</span><span role="columnheader">Análise</span><span role="columnheader">Ação</span></div>{items.map((item) => <div className="operational-row" role="row" key={item.codigo}><strong role="rowheader">{item.nome}<small>{item.codigo}</small></strong><span role="cell">{item.rota || 'Sem rota'}<small>{item.cidade || 'Sem cidade'}</small></span><span role="cell"><b>{item.status === 'sem_analise' ? 'Sem análise' : `${item.total_desvios} desvio(s)`}</b><small>{item.indicadores_fora_padrao.join(', ') || 'Coleta pendente'}</small></span><span role="cell">{formatDate(item.data_analise)}</span><button type="button" onClick={() => onOpen(item.codigo)}>Ver produtor</button></div>)}</div>
 }
 
-function PanelHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
-  return (
-    <div className="panel-title compact">
-      <span className="panel-icon"><BarChart3 size={17} /></span>
-      <div>
-        <span className="eyebrow">{eyebrow}</span>
-        <h2>{title}</h2>
-      </div>
-    </div>
-  )
+function RouteComparison({ report }: { report: RelatoriosResumoV2 }) {
+  return <section className="report-section"><SectionTitle icon={<Users size={18} />} eyebrow="Território" title="Comparação por rota" /><div className="route-table" role="table"><div className="route-head" role="row"><span role="columnheader">Rota</span><span role="columnheader">Produtores</span><span role="columnheader">Cobertura</span><span role="columnheader">Conformidade</span><span role="columnheader">Críticos</span></div>{report.rotas.map((item) => <div className="route-row" role="row" key={item.rota}><strong role="rowheader">{item.rota}</strong><span role="cell">{formatNumber(item.total_produtores)}</span><span role="cell">{formatDecimal(item.cobertura_percentual)}%</span><span role="cell">{formatDecimal(item.conformidade_percentual)}%</span><span role="cell" className={item.criticos ? 'is-alert' : ''}>{formatNumber(item.criticos)}</span></div>)}</div></section>
 }
 
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button className={active ? 'is-active' : ''} type="button" onClick={onClick}>
-      {children}
-    </button>
-  )
-}
+function SectionTitle({ icon, eyebrow, title }: { icon: ReactNode; eyebrow: string; title: string }) { return <header className="report-section-title"><span>{icon}</span><div><small>{eyebrow}</small><h2>{title}</h2></div></header> }
+function queueLabel(item: QueueFilter) { return item === 'criticos' ? 'Críticos' : item === 'fora_padrao' ? 'Fora do padrão' : 'Sem análise' }
+function monthLabel(value: string) { const [year, month] = value.split('-'); return `${month}/${year.slice(2)}` }
+function ReportSkeleton() { return <div className="reports-skeleton" aria-label="Carregando"><span /><span /><span /></div> }
