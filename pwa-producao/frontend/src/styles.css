@@ -1,14 +1,14 @@
 :root {
   color-scheme: dark;
-  --canvas: #050505;
-  --surface: #0b0b0c;
-  --surface-muted: #101012;
+  --canvas: #000000;
+  --surface: #030303;
+  --surface-muted: #080808;
   --ink: #f5f5f5;
   --ink-soft: #9ca3af;
-  --line: #242428;
-  --line-strong: #35353b;
-  --graphite: #09090b;
-  --graphite-soft: #17171a;
+  --line: #1c1c1c;
+  --line-strong: #2a2a2a;
+  --graphite: #000000;
+  --graphite-soft: #080808;
   --accent: #4ade80;
   --accent-soft: #102419;
   --danger: #f87171;
@@ -61,7 +61,7 @@ select:focus-visible {
   margin: 0 auto;
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);
-  background: var(--surface-muted);
+  background: var(--canvas);
   border-inline: 1px solid var(--line);
 }
 
@@ -214,7 +214,7 @@ select:focus-visible {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
-  color: var(--graphite);
+  color: var(--ink);
 }
 
 .icon-button:active {
@@ -315,7 +315,7 @@ select:focus-visible {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: 0 12px 30px rgba(32, 49, 53, 0.045);
+  box-shadow: none;
 }
 
 .section-heading {
@@ -383,7 +383,7 @@ select:focus-visible {
 .add-row-button {
   border: 1px solid var(--line-strong);
   background: var(--surface);
-  color: var(--graphite);
+  color: var(--ink);
 }
 
 .secondary-button:active,
@@ -510,6 +510,65 @@ select:focus-visible {
   max-width: 1050px;
   margin: 0 auto;
   padding-bottom: 94px;
+}
+
+.formula-module {
+  max-width: 1050px;
+  margin: 0 auto;
+}
+
+.formula-module-heading {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.formula-list {
+  overflow: hidden;
+  min-height: 260px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.formula-row {
+  width: 100%;
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto 20px;
+  align-items: center;
+  gap: 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  padding: 14px 20px;
+  text-align: left;
+}
+
+.formula-row:last-child {
+  border-bottom: 0;
+}
+
+.formula-row:hover,
+.formula-row:active {
+  background: var(--surface-muted);
+}
+
+.formula-row div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.formula-row div span,
+.formula-row time {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.formula-row div span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .form-heading {
@@ -733,7 +792,7 @@ select:focus-visible {
 }
 
 .time-wheel-header strong {
-  color: var(--graphite);
+  color: var(--ink);
   font-size: 32px;
   font-weight: 720;
   letter-spacing: -0.04em;
@@ -810,7 +869,7 @@ select:focus-visible {
 }
 
 .time-wheel-column button.is-selected {
-  color: var(--graphite);
+  color: var(--ink);
   font-size: 26px;
   font-weight: 760;
 }
@@ -819,7 +878,7 @@ select:focus-visible {
   position: relative;
   z-index: 2;
   margin-top: 18px;
-  color: var(--graphite);
+  color: var(--ink);
   font-size: 28px;
   font-weight: 750;
   text-align: center;
@@ -855,7 +914,7 @@ select:focus-visible {
 .time-wheel-cancel {
   border: 1px solid var(--line-strong);
   background: var(--surface);
-  color: var(--graphite);
+  color: var(--ink);
 }
 
 .time-wheel-confirm {
@@ -1039,6 +1098,22 @@ select:focus-visible {
 
   .form-heading {
     grid-template-columns: 1fr;
+  }
+
+  .formula-module-heading {
+    grid-template-columns: 1fr auto;
+  }
+
+  .formula-module-heading .back-button {
+    grid-column: 1 / -1;
+  }
+
+  .formula-row {
+    grid-template-columns: 10px minmax(0, 1fr) 20px;
+  }
+
+  .formula-row time {
+    display: none;
   }
 
   .back-button {
