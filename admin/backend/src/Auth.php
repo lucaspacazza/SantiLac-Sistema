@@ -15,7 +15,7 @@ final class Auth
         $attempts=$this->db->prepare('SELECT COUNT(*) FROM admin_login_tentativas WHERE (identidade_hash=:identity OR ip_hash=:ip) AND created_at >= NOW() - INTERVAL 1 MINUTE');
         $attempts->execute(['identity'=>$identityHash,'ip'=>$ipHash]);
         if((int)$attempts->fetchColumn()>=10)return null;
-        $statement = $this->db->prepare('SELECT id, nome, usuario, senha, admin, ativo FROM usuarios WHERE (usuario = :login OR email = :login) LIMIT 1');
+        $statement = $this->db->prepare('SELECT id, nome, usuario, senha, admin, ativo FROM usuarios WHERE usuario = :login LIMIT 1');
         $statement->execute(['login' => $login]);
         $user = $statement->fetch();
         if (! $user || ! (bool) $user['ativo'] || ! (bool) $user['admin'] || ! $this->passwordMatches($password, (string) $user['senha'])) {
