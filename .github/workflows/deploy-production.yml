@@ -22,6 +22,10 @@ on:
         description: Deploy processor
         type: boolean
         default: false
+      admin:
+        description: Deploy subsistema admin
+        type: boolean
+        default: false
 
 concurrency:
   group: production-deploy
@@ -39,6 +43,7 @@ jobs:
       backend: ${{ steps.detect.outputs.backend }}
       pwa_backend: ${{ steps.detect.outputs.pwa_backend }}
       processor: ${{ steps.detect.outputs.processor }}
+      admin: ${{ steps.detect.outputs.admin }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -54,6 +59,7 @@ jobs:
             echo "backend=${{ inputs.backend }}" >> "$GITHUB_OUTPUT"
             echo "pwa_backend=${{ inputs.pwa_backend }}" >> "$GITHUB_OUTPUT"
             echo "processor=${{ inputs.processor }}" >> "$GITHUB_OUTPUT"
+            echo "admin=${{ inputs.admin }}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -78,6 +84,7 @@ jobs:
             echo "backend=true" >> "$GITHUB_OUTPUT"
             echo "pwa_backend=true" >> "$GITHUB_OUTPUT"
             echo "processor=true" >> "$GITHUB_OUTPUT"
+            echo "admin=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -85,6 +92,7 @@ jobs:
           if has_change '^(backend/)'; then echo "backend=true" >> "$GITHUB_OUTPUT"; else echo "backend=false" >> "$GITHUB_OUTPUT"; fi
           if has_change '^(pwa-producao/backend/)'; then echo "pwa_backend=true" >> "$GITHUB_OUTPUT"; else echo "pwa_backend=false" >> "$GITHUB_OUTPUT"; fi
           if has_change '^(processor/)'; then echo "processor=true" >> "$GITHUB_OUTPUT"; else echo "processor=false" >> "$GITHUB_OUTPUT"; fi
+          if has_change '^(admin/)'; then echo "admin=true" >> "$GITHUB_OUTPUT"; else echo "admin=false" >> "$GITHUB_OUTPUT"; fi
 
   deploy:
     name: Deploy production
@@ -93,7 +101,8 @@ jobs:
       needs.detect.outputs.frontend == 'true' ||
       needs.detect.outputs.backend == 'true' ||
       needs.detect.outputs.pwa_backend == 'true' ||
-      needs.detect.outputs.processor == 'true'
+      needs.detect.outputs.processor == 'true' ||
+      needs.detect.outputs.admin == 'true'
     runs-on: [self-hosted, santilac-prod]
     environment: production
     env:
@@ -107,6 +116,9 @@ jobs:
       PROCESSOR_PATH: /var/www/processor
       PROCESSOR_INSTALL_REQUIREMENTS: "1"
       PROCESSOR_SERVICES: "santilac-processor.service"
+      ADMIN_FRONTEND_CT: "100"
+      ADMIN_BACKEND_CT: "101"
+      ADMIN_PATH: /var/www/santilac-admin
     steps:
       - uses: actions/checkout@v5
 
@@ -126,6 +138,8 @@ jobs:
           test "$BACKEND_CT" = "101"
           test "$PWA_PRODUCAO_BACKEND_CT" = "101"
           test "$PROCESSOR_CT" = "102"
+          test "$ADMIN_FRONTEND_CT" = "100"
+          test "$ADMIN_BACKEND_CT" = "101"
 
       - name: Validate deploy configuration
         run: bash deploy/scripts/validate-config.sh
@@ -134,6 +148,7 @@ jobs:
           DEPLOY_BACKEND: ${{ needs.detect.outputs.backend }}
           DEPLOY_PWA_PRODUCAO_BACKEND: ${{ needs.detect.outputs.pwa_backend }}
           DEPLOY_PROCESSOR: ${{ needs.detect.outputs.processor }}
+          DEPLOY_ADMIN: ${{ needs.detect.outputs.admin }}
 
       - name: Prepare backend
         if: needs.detect.outputs.backend == 'true'
@@ -174,3 +189,13 @@ jobs:
         run: bash deploy/scripts/publish-frontend.sh
         env:
           FRONTEND_HEALTH_URL: ${{ vars.FRONTEND_HEALTH_URL }}
+
+      - name: Prepare admin
+        if: needs.detect.outputs.admin == 'true'
+        run: bash deploy/scripts/prepare-admin.sh
+
+      - name: Deploy admin
+        if: needs.detect.outputs.admin == 'true'
+        run: bash deploy/scripts/publish-admin.sh
+        env:
+          ADMIN_HEALTH_URL: ${{ vars.ADMIN_HEALTH_URL }}

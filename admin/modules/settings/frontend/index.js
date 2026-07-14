@@ -1,0 +1,5 @@
+export async function renderSettings(root,{api}){
+  const data=await api.get('/api/settings');root.innerHTML=`<section class="panel"><div class="panel-head"><h2>Parâmetros do monitoramento</h2></div>${data.items.map(item=>`<article class="row"><div><strong>${text(item.chave)}</strong><span class="muted">${text(item.descricao)}</span></div><form data-key="${text(item.chave)}"><input name="value" inputmode="numeric" value="${text(item.valor)}"><button>Salvar</button></form></article>`).join('')}</section><div class="notice spaced">As credenciais do Proxmox são configuradas somente no arquivo de ambiente do servidor e nunca aparecem nesta tela.</div>`;
+  root.querySelectorAll('[data-key]').forEach(form=>form.onsubmit=async event=>{event.preventDefault();await api.patch(`/api/settings/${encodeURIComponent(form.dataset.key)}`,{value:new FormData(form).get('value')});form.querySelector('button').textContent='Salvo'});
+}
+const text=value=>String(value??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));

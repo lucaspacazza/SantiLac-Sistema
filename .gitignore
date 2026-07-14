@@ -69,3 +69,4 @@ Auditoria_Cloudflare_santilac.com.br_2026-07-12
 frontend/tests/*
 frontend/tests/ui-copy-layout.test.mjs
 ESTACAO_IMPRESSAO_ZEBRA/
+admin/.env
