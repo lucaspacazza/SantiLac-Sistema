@@ -201,11 +201,6 @@ export function DetalheProdutor({ codigo, produtorInicial, reloadKey, onRefresh,
 
   const milkData = dashboard?.leite
   const qualityData = dashboard?.qualidade
-  const periodCopy = qualityData?.periodo_atual && qualityData.comparados > 0
-    ? `${formatPeriod(qualityData.periodo_atual)} comparado a ${formatPeriod(qualityData.periodo_anterior)}`
-    : qualityData?.periodo_atual
-      ? `Média de ${formatPeriod(qualityData.periodo_atual)}; sem mês anterior comparável`
-      : 'Aguardando um segundo período para comparar'
   const milkReferenceCopy = milkData?.periodo_parcial && milkData.dia_comparacao && milkData.periodo_anterior
     ? `Até o dia ${milkData.dia_comparacao}; comparação com o mesmo intervalo de ${formatPeriod(milkData.periodo_anterior)}`
     : 'Total consolidado do mês de referência'
@@ -239,31 +234,22 @@ export function DetalheProdutor({ codigo, produtorInicial, reloadKey, onRefresh,
       )}
 
       <article className="producer-detail-hero">
+        <span className={`producer-status-badge ${produtor.ativo ? 'is-active' : 'is-inactive'}`}>
+          <span />
+          {produtor.ativo ? 'Ativo' : 'Inativo'}
+        </span>
         <div className="producer-detail-identity">
           <div className="producer-detail-title-row">
             <div>
               <span className="eyebrow">Produtor {produtor.codigo}</span>
               <h2>{produtor.nome}</h2>
             </div>
-            <span className={`producer-status-badge ${produtor.ativo ? 'is-active' : 'is-inactive'}`}>
-              <span />
-              {produtor.ativo ? 'Ativo' : 'Inativo'}
-            </span>
           </div>
           <div className="producer-detail-meta">
             <span><MapPin size={15} />{produtor.cidade || 'Cidade não informada'}</span>
             <span><Route size={15} />{produtor.rota || 'Rota não informada'}</span>
             <span><CalendarDays size={15} />Última análise: {formatDate(analysis?.data)}</span>
           </div>
-        </div>
-
-        <div className={`producer-quality-callout is-${trendTone(qualityData?.situacao ?? 'sem_comparacao')}`}>
-          <span>Evolução da qualidade</span>
-          <strong>
-            <TrendIcon status={qualityData?.situacao ?? 'sem_comparacao'} />
-            {qualityTrendLabel(qualityData?.situacao ?? 'sem_comparacao')}
-          </strong>
-          <small>{periodCopy}</small>
         </div>
       </article>
 

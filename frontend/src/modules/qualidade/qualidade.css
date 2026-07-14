@@ -1537,10 +1537,7 @@
 .producer-detail-hero {
   min-height: 148px;
   border-radius: 12px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(290px, 0.32fr);
-  gap: 28px;
-  align-items: stretch;
+  position: relative;
   padding: 22px;
 }
 
@@ -1549,6 +1546,7 @@
   display: grid;
   align-content: space-between;
   gap: 22px;
+  padding-right: 110px;
 }
 
 .producer-detail-title-row {
@@ -1578,6 +1576,9 @@
   font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
+  position: absolute;
+  top: 22px;
+  right: 22px;
 }
 
 .producer-status-badge > span {
@@ -1622,52 +1623,6 @@
 
 .producer-detail-meta svg {
   color: var(--muted);
-}
-
-.producer-quality-callout {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  display: grid;
-  align-content: center;
-  gap: 9px;
-  padding: 18px;
-  background: var(--surface-soft);
-}
-
-.producer-quality-callout > span {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.producer-quality-callout strong {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 22px;
-}
-
-.producer-quality-callout small {
-  color: var(--body);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.producer-quality-callout.is-positive {
-  border-color: color-mix(in srgb, var(--success) 28%, transparent);
-  background: color-mix(in srgb, var(--success) 7%, var(--panel));
-}
-
-.producer-quality-callout.is-positive strong {
-  color: var(--success);
-}
-
-.producer-quality-callout.is-negative {
-  border-color: color-mix(in srgb, var(--danger) 28%, transparent);
-  background: color-mix(in srgb, var(--danger) 7%, var(--panel));
-}
-
-.producer-quality-callout.is-negative strong {
-  color: var(--danger);
 }
 
 .producer-kpi-grid {
@@ -2293,16 +2248,8 @@
 }
 
 @media (max-width: 900px) {
-  .producer-detail-hero {
-    grid-template-columns: 1fr;
-  }
-
   .producer-overview-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .producer-quality-callout {
-    min-height: 112px;
   }
 
   .producer-section-heading {
@@ -2342,6 +2289,12 @@
 
   .producer-status-badge {
     width: fit-content;
+    top: 15px;
+    right: 15px;
+  }
+
+  .producer-detail-identity {
+    padding-right: 90px;
   }
 
   .producer-detail-meta {
