@@ -1,18 +1,18 @@
 :root {
-  color-scheme: light;
-  --canvas: #e9eef0;
-  --surface: #ffffff;
-  --surface-muted: #f4f6f6;
-  --ink: #20282a;
-  --ink-soft: #647074;
-  --line: #d5dddf;
-  --line-strong: #bdc9cc;
-  --graphite: #263135;
-  --graphite-soft: #344145;
-  --accent: #2f6f66;
-  --accent-soft: #e3efec;
-  --danger: #a3453f;
-  --warning: #987027;
+  color-scheme: dark;
+  --canvas: #050505;
+  --surface: #0b0b0c;
+  --surface-muted: #101012;
+  --ink: #f5f5f5;
+  --ink-soft: #9ca3af;
+  --line: #242428;
+  --line-strong: #35353b;
+  --graphite: #09090b;
+  --graphite-soft: #17171a;
+  --accent: #4ade80;
+  --accent-soft: #102419;
+  --danger: #f87171;
+  --warning: #fbbf24;
   --radius: 16px;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -51,7 +51,7 @@ button {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 3px solid rgba(47, 111, 102, 0.22);
+  outline: 3px solid rgba(74, 222, 128, 0.28);
   outline-offset: 1px;
 }
 
@@ -62,7 +62,7 @@ select:focus-visible {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);
   background: var(--surface-muted);
-  border-inline: 1px solid rgba(189, 201, 204, 0.7);
+  border-inline: 1px solid var(--line);
 }
 
 .process-rail {
@@ -110,9 +110,9 @@ select:focus-visible {
 }
 
 .process-rail button.is-active {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: #f8fbfa;
-  color: var(--graphite);
+  border-color: var(--line-strong);
+  background: var(--surface-muted);
+  color: var(--ink);
 }
 
 .process-rail .rail-home {
@@ -164,6 +164,46 @@ select:focus-visible {
   background: transparent;
   color: var(--ink);
   font-weight: 650;
+}
+
+.short-date-input {
+  position: relative;
+  min-height: 52px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.short-date-input > svg {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+}
+
+.short-date-input > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.field > .short-date-input {
+  min-height: 52px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 0 13px;
+  font-size: 14px;
+  font-weight: 560;
+}
+
+.field > .short-date-input:focus-within {
+  border-color: var(--accent);
 }
 
 .icon-button {
@@ -335,7 +375,7 @@ select:focus-visible {
 
 .compact-button:active,
 .primary-button:active {
-  background: #141b1d;
+  background: #202024;
 }
 
 .secondary-button,
@@ -534,7 +574,7 @@ select:focus-visible {
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   outline: 0;
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
   padding: 0 13px;
   font-size: 14px;
@@ -607,11 +647,11 @@ select:focus-visible {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  border: 1px solid rgba(189, 201, 204, 0.85);
+  border: 1px solid var(--line-strong);
   border-radius: 15px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(11, 11, 12, 0.96);
   padding: 8px;
-  box-shadow: 0 12px 36px rgba(31, 47, 51, 0.15);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.48);
 }
 
 .time-wheel-trigger {
@@ -623,7 +663,7 @@ select:focus-visible {
   gap: 10px;
   border: 1px solid var(--line-strong);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   color: var(--ink-soft);
   padding: 0 13px;
   text-align: left;
@@ -843,17 +883,12 @@ select:focus-visible {
   box-shadow: 0 18px 50px rgba(32, 48, 52, 0.09);
 }
 
-.auth-mark {
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  border-radius: 13px;
-  background: var(--graphite);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+.auth-logo {
+  width: min(220px, 72%);
+  height: auto;
+  display: block;
+  margin: 0 auto 10px;
+  object-fit: contain;
 }
 
 .auth-panel h1 {
