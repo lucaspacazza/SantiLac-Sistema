@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\Producao\ProducaoCremeController;
 use App\Http\Controllers\Api\Producao\SoroRefrigeradoController;
 use App\Http\Controllers\Api\Qualidade\QualidadeController;
 use App\Http\Controllers\Api\Qualidade\RelatoriosController;
+use App\Http\Controllers\Api\Qualidade\RelatoriosV2Controller;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -148,6 +149,7 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
         Route::get('/produtores/{codigo}/analises', [QualidadeController::class, 'analisesDoProdutor']);
 
         Route::get('/relatorios/resumo', [RelatoriosController::class, 'resumo']);
+        Route::get('/relatorios/v2/resumo', [RelatoriosV2Controller::class, 'resumo']);
         Route::get('/relatorios/produtores/{codigo}/pendencias', [RelatoriosController::class, 'pendenciasProdutor']);
         Route::post('/relatorios/exportacoes/produtores-analises', [RelatoriosController::class, 'exportarProdutoresAnalises']);
         Route::post('/relatorios/exportacoes/produtores-analises/pdf', [RelatoriosController::class, 'exportarProdutoresAnalisesPdf']);
