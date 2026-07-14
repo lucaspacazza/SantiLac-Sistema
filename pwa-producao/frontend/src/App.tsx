@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Beaker,
   CalendarDays,
+  CheckCircle2,
   ChevronRight,
   ClipboardList,
   Droplets,
@@ -21,6 +22,7 @@ import {
   producaoApi,
   type AuthUser,
   type FormulacaoCremePayload,
+  type FormulacaoQueijo,
   type FormulacaoQueijoCatalogos,
   type FormulacaoQueijoPayload,
   type OrdemProducaoCatalogos,
@@ -127,6 +129,9 @@ export function App() {
   const [ordens, setOrdens] = useState<OrdemProducaoResumo[]>([])
   const [cheeseCatalogs, setCheeseCatalogs] = useState<FormulacaoQueijoCatalogos>(EMPTY_CHEESE_CATALOGS)
   const [orderCatalogs, setOrderCatalogs] = useState<OrdemProducaoCatalogos>(EMPTY_ORDER_CATALOGS)
+  const [openCheeseFormulas, setOpenCheeseFormulas] = useState<FormulacaoQueijo[]>([])
+  const [cheeseEditorOpen, setCheeseEditorOpen] = useState(false)
+  const [activeCheeseFormula, setActiveCheeseFormula] = useState<FormulacaoQueijo | null>(null)
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
@@ -143,17 +148,19 @@ export function App() {
     setMessage('Atualizando dados')
 
     try {
-      const [overviewData, ordensData, cheeseData, orderData] = await Promise.all([
+      const [overviewData, ordensData, cheeseData, orderData, openFormulas] = await Promise.all([
         producaoApi.overview(),
         producaoApi.ordensProducao(nextDate),
         producaoApi.formulacaoQueijoCatalogos(),
         producaoApi.ordensProducaoCatalogos(),
+        producaoApi.formulacoesQueijoAbertas(),
       ])
 
       setOverview(overviewData)
       setOrdens(ordensData)
       setCheeseCatalogs(cheeseData)
       setOrderCatalogs(orderData)
+      setOpenCheeseFormulas(openFormulas.items)
       setState('ready')
       setMessage('')
     } catch (error) {
@@ -322,12 +329,31 @@ export function App() {
       }),
     }
 
-    await finishSave(
-      event,
-      payload.data_formulacao,
-      () => producaoApi.criarFormulacaoQueijo(payload),
-      producaoApi.finalizarFormulacaoQueijo,
-    )
+    const action = submitValue(event, 'acao')
+    setState('saving')
+    setMessage(action === 'finalizar' ? 'Salvando alterações' : 'Salvando formulação')
+
+    try {
+      const saved = activeCheeseFormula
+        ? await producaoApi.atualizarFormulacaoQueijo(activeCheeseFormula.id, payload)
+        : await producaoApi.criarFormulacaoQueijo(payload)
+
+      if (action === 'finalizar') {
+        await producaoApi.finalizarFormulacaoQueijo(saved.id)
+        setActiveCheeseFormula(null)
+        setCheeseEditorOpen(false)
+      } else {
+        setActiveCheeseFormula(saved)
+      }
+
+      setDate(payload.data_formulacao)
+      await loadBase(payload.data_formulacao)
+      setView('queijo')
+      setMessage(action === 'finalizar' ? 'Formulação finalizada' : 'Formulação salva. Você pode continuar editando.')
+    } catch (error) {
+      setState('error')
+      setMessage(error instanceof Error ? error.message : 'Não foi possível salvar a formulação.')
+    }
   }
 
   async function saveSoro(event: FormEvent<HTMLFormElement>) {
@@ -409,7 +435,10 @@ export function App() {
             className={view === workflow.id ? 'is-active' : ''}
             key={workflow.id}
             type="button"
-            onClick={() => setView(workflow.id)}
+            onClick={() => {
+              if (workflow.id === 'queijo') { setCheeseEditorOpen(false); setActiveCheeseFormula(null) }
+              setView(workflow.id)
+            }}
           >
             {workflowIcon(workflow.id)}
             <span>{workflow.shortLabel}</span>
@@ -465,7 +494,10 @@ export function App() {
               <aside className="launch-list">
                 <div className="section-heading"><div><span className="section-kicker">Novo</span><h2>Lançamento</h2></div></div>
                 {PRODUCTION_WORKFLOWS.map((workflow) => (
-                  <button key={workflow.id} type="button" onClick={() => setView(workflow.id)}>
+                  <button key={workflow.id} type="button" onClick={() => {
+                    if (workflow.id === 'queijo') { setCheeseEditorOpen(false); setActiveCheeseFormula(null) }
+                    setView(workflow.id)
+                  }}>
                     <span className="launch-icon">{workflowIcon(workflow.id, 20)}</span>
                     <strong>{workflow.label}</strong>
                     <ChevronRight size={19} />
@@ -477,7 +509,23 @@ export function App() {
         )}
 
         {view === 'ordens' && <OrderForm key={`${view}-${date}`} date={date} catalogs={orderCatalogs} onBack={() => setView('inicio')} onSubmit={saveOrdem} />}
-        {view === 'queijo' && <CheeseForm key={`${view}-${date}`} date={date} catalogs={cheeseCatalogs} onBack={() => setView('inicio')} onSubmit={saveQueijo} />}
+        {view === 'queijo' && (cheeseEditorOpen ? (
+          <CheeseForm
+            key={`queijo-${activeCheeseFormula?.id ?? 'nova'}`}
+            date={date}
+            catalogs={cheeseCatalogs}
+            initial={activeCheeseFormula}
+            onBack={() => { setCheeseEditorOpen(false); setActiveCheeseFormula(null) }}
+            onSubmit={saveQueijo}
+          />
+        ) : (
+          <CheeseFormulaList
+            items={openCheeseFormulas}
+            onBack={() => setView('inicio')}
+            onCreate={() => { setActiveCheeseFormula(null); setCheeseEditorOpen(true) }}
+            onEdit={(item) => { setActiveCheeseFormula(item); setCheeseEditorOpen(true) }}
+          />
+        ))}
         {view === 'soro' && <SoroForm key={`${view}-${date}`} date={date} onBack={() => setView('inicio')} onSubmit={saveSoro} />}
         {view === 'formulacao-creme' && <CreamFormulaForm key={`${view}-${date}`} date={date} onBack={() => setView('inicio')} onSubmit={saveFormulacaoCreme} />}
         {view === 'producao-creme' && <CreamProductionForm key={`${view}-${date}`} date={date} onBack={() => setView('inicio')} onSubmit={saveProducaoCreme} />}
@@ -486,13 +534,14 @@ export function App() {
   )
 }
 
-function FactoryForm({ title, code, children, onBack, onSubmit, singleAction = false }: {
+function FactoryForm({ title, code, children, onBack, onSubmit, singleAction = false, hideActions = false }: {
   title: string
   code: string
   children: ReactNode
   onBack: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   singleAction?: boolean
+  hideActions?: boolean
 }) {
   return (
     <form className="factory-form" onSubmit={onSubmit}>
@@ -501,10 +550,10 @@ function FactoryForm({ title, code, children, onBack, onSubmit, singleAction = f
         <div><span className="section-kicker">{code}</span><h1>{title}</h1></div>
       </div>
       <div className="form-body">{children}</div>
-      <div className="form-footer">
+      {!hideActions && <div className="form-footer">
         {!singleAction && <button className="secondary-button" type="submit" name="finalizar" value="0"><Save size={19} />Salvar rascunho</button>}
         <button className="primary-button" type="submit" name="finalizar" value={singleAction ? '0' : '1'}><Save size={19} />{singleAction ? 'Salvar OP' : 'Salvar e finalizar'}</button>
-      </div>
+      </div>}
     </form>
   )
 }
@@ -568,38 +617,73 @@ function OrderForm({ date, catalogs, onBack, onSubmit }: {
   )
 }
 
-function CheeseForm({ date, catalogs, onBack, onSubmit }: {
+function CheeseFormulaList({ items, onBack, onCreate, onEdit }: {
+  items: FormulacaoQueijo[]
+  onBack: () => void
+  onCreate: () => void
+  onEdit: (item: FormulacaoQueijo) => void
+}) {
+  return (
+    <section className="formula-module">
+      <div className="form-heading formula-module-heading">
+        <button className="back-button" type="button" onClick={onBack}><ArrowLeft size={20} />Voltar</button>
+        <div><span className="section-kicker">PLAN 6.3</span><h1>Formulações abertas</h1></div>
+        <button className="primary-button" type="button" onClick={onCreate}><Plus size={19} />Nova formulação</button>
+      </div>
+      <div className="formula-list">
+        {items.length === 0 ? (
+          <div className="empty-state"><FlaskConical size={25} /><span>Nenhuma formulação aberta</span></div>
+        ) : items.map((item) => (
+          <button className="formula-row" type="button" key={item.id} onClick={() => onEdit(item)}>
+            <span className="order-status is-rascunho" />
+            <div><strong>{item.tipo_queijo || 'Formulação sem tipo'}</strong><span>{item.codigo_formulacao} · Lote {item.lote_queijo || 'não informado'}</span></div>
+            <time>{formatDateInput(item.data_formulacao)}</time>
+            <ChevronRight size={20} />
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function CheeseForm({ date, catalogs, initial, onBack, onSubmit }: {
   date: string
   catalogs: FormulacaoQueijoCatalogos
+  initial: FormulacaoQueijo | null
   onBack: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
-  const [rows, setRows] = useState([1])
-  const [selectedInputs, setSelectedInputs] = useState<Record<number, string>>({})
+  const [rows, setRows] = useState(initial?.insumos.length ? initial.insumos.map((_, index) => index + 1) : [1])
+  const [selectedInputs, setSelectedInputs] = useState<Record<number, string>>(() => Object.fromEntries(
+    initial?.insumos.map((insumo, index) => {
+      const match = catalogs.insumos.find((item) => item.nome === insumo.nome_insumo || item.tipo_insumo === insumo.tipo_insumo)
+      return [index + 1, match ? String(match.id) : '']
+    }) ?? [],
+  ))
 
   return (
-    <FactoryForm title="Formulação de queijo" code="PLAN 6.3" onBack={onBack} onSubmit={onSubmit}>
+    <FactoryForm title="Formulação de queijo" code="PLAN 6.3" onBack={onBack} onSubmit={onSubmit} hideActions>
       <FormSection title="Lote">
-        <Field label="Data"><DateInput name="data_formulacao" defaultValue={date} required /></Field>
-        <Field label="Tipo de queijo"><select name="tipo_queijo" required><option value="">Selecionar</option>{catalogs.queijos.map((item) => <option key={item.id} value={item.nome}>{item.nome}</option>)}</select></Field>
-        <Field label="Lote do queijo"><input name="lote_queijo" required /></Field>
-        <Field label="Lote do leite"><input name="lote_leite" /></Field>
-        <Field label="Silo"><input name="silo" /></Field>
-        <Field label="Queijomatic"><input name="numero_queijomatic" /></Field>
+        <Field label="Data"><DateInput name="data_formulacao" defaultValue={initial?.data_formulacao ?? date} required /></Field>
+        <Field label="Tipo de queijo"><select name="tipo_queijo" defaultValue={initial?.tipo_queijo ?? ''} required><option value="">Selecionar</option>{catalogs.queijos.map((item) => <option key={item.id} value={item.nome}>{item.nome}</option>)}</select></Field>
+        <Field label="Lote do queijo"><input name="lote_queijo" defaultValue={initial?.lote_queijo ?? ''} required /></Field>
+        <Field label="Lote do leite"><input name="lote_leite" defaultValue={initial?.lote_leite ?? ''} /></Field>
+        <Field label="Silo"><input name="silo" defaultValue={initial?.silo ?? ''} /></Field>
+        <Field label="Queijomatic"><input name="numero_queijomatic" defaultValue={initial?.numero_queijomatic ?? ''} /></Field>
       </FormSection>
       <FormSection title="Processo">
-        <Field label="Início do enchimento"><TimeWheelInput name="inicio_enchimento" label="Início do enchimento" /></Field>
-        <Field label="Leite (L)"><input name="quantidade_leite" inputMode="decimal" /></Field>
-        <Field label="Pasteurização (°C)"><input name="temperatura_pasteurizacao" inputMode="decimal" /></Field>
-        <Field label="Fosfatase"><select name="fosfatase"><option value="">Selecionar</option><option value="negativo">Negativo</option><option value="positivo">Positivo</option><option value="nao_aplicavel">Não aplicável</option></select></Field>
-        <Field label="Peroxidase"><select name="peroxidase"><option value="">Selecionar</option><option value="negativo">Negativo</option><option value="positivo">Positivo</option><option value="nao_aplicavel">Não aplicável</option></select></Field>
-        <Field label="Gordura inicial"><input name="gordura_inicial" inputMode="decimal" /></Field>
-        <Field label="Gordura final"><input name="gordura_final" inputMode="decimal" /></Field>
-        <Field label="Acidez"><input name="acidez" inputMode="decimal" /></Field>
-        <Field label="Coagulação (°C)"><input name="temperatura_coagulacao" inputMode="decimal" /></Field>
-        <Field label="Hora da coagulação"><TimeWheelInput name="hora_coagulacao" label="Hora da coagulação" /></Field>
-        <Field label="Hora do corte"><TimeWheelInput name="hora_corte" label="Hora do corte" /></Field>
-        <Field label="Cozimento (°C)"><input name="temperatura_cozimento" inputMode="decimal" /></Field>
+        <Field label="Início do enchimento"><TimeWheelInput name="inicio_enchimento" label="Início do enchimento" defaultValue={initial?.inicio_enchimento ?? ''} /></Field>
+        <Field label="Leite (L)"><input name="quantidade_leite" inputMode="decimal" defaultValue={initial?.quantidade_leite ?? ''} /></Field>
+        <Field label="Pasteurização (°C)"><input name="temperatura_pasteurizacao" inputMode="decimal" defaultValue={initial?.temperatura_pasteurizacao ?? ''} /></Field>
+        <Field label="Fosfatase"><select name="fosfatase" defaultValue={initial?.fosfatase ?? ''}><option value="">Selecionar</option><option value="negativo">Negativo</option><option value="positivo">Positivo</option><option value="nao_aplicavel">Não aplicável</option></select></Field>
+        <Field label="Peroxidase"><select name="peroxidase" defaultValue={initial?.peroxidase ?? ''}><option value="">Selecionar</option><option value="negativo">Negativo</option><option value="positivo">Positivo</option><option value="nao_aplicavel">Não aplicável</option></select></Field>
+        <Field label="Gordura inicial"><input name="gordura_inicial" inputMode="decimal" defaultValue={initial?.gordura_inicial ?? ''} /></Field>
+        <Field label="Gordura final"><input name="gordura_final" inputMode="decimal" defaultValue={initial?.gordura_final ?? ''} /></Field>
+        <Field label="Acidez"><input name="acidez" inputMode="decimal" defaultValue={initial?.acidez ?? ''} /></Field>
+        <Field label="Coagulação (°C)"><input name="temperatura_coagulacao" inputMode="decimal" defaultValue={initial?.temperatura_coagulacao ?? ''} /></Field>
+        <Field label="Hora da coagulação"><TimeWheelInput name="hora_coagulacao" label="Hora da coagulação" defaultValue={initial?.hora_coagulacao ?? ''} /></Field>
+        <Field label="Hora do corte"><TimeWheelInput name="hora_corte" label="Hora do corte" defaultValue={initial?.hora_corte ?? ''} /></Field>
+        <Field label="Cozimento (°C)"><input name="temperatura_cozimento" inputMode="decimal" defaultValue={initial?.temperatura_cozimento ?? ''} /></Field>
       </FormSection>
       <FormSection title="Insumos">
         <div className="repeat-list is-wide">
@@ -609,8 +693,8 @@ function CheeseForm({ date, catalogs, onBack, onSubmit }: {
               <div className="repeat-row repeat-row-cheese" key={rowId}>
                 <span>{index + 1}</span>
                 <select aria-label={`Insumo ${index + 1}`} value={selectedInputs[rowId] ?? ''} onChange={(event) => setSelectedInputs((current) => ({ ...current, [rowId]: event.target.value }))}><option value="">Selecionar insumo</option>{catalogs.insumos.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select>
-                <input name="insumo_quantidade" inputMode="decimal" placeholder="Quantidade" />
-                <input name="insumo_lote" placeholder="Lote" />
+                <input name="insumo_quantidade" inputMode="decimal" placeholder="Quantidade" defaultValue={initial?.insumos[index]?.quantidade ?? ''} />
+                <input name="insumo_lote" placeholder="Lote" defaultValue={initial?.insumos[index]?.lote_insumo ?? ''} />
                 <strong>{selected?.unidade ?? '—'}</strong>
                 <input name="insumo_tipo" type="hidden" value={selected?.tipo_insumo ?? 'outro'} />
                 <input name="insumo_nome" type="hidden" value={selected?.nome ?? ''} />
@@ -622,6 +706,10 @@ function CheeseForm({ date, catalogs, onBack, onSubmit }: {
           <button className="add-row-button" type="button" onClick={() => setRows((current) => [...current, Math.max(...current) + 1])}><Plus size={18} />Adicionar insumo</button>
         </div>
       </FormSection>
+      <div className="form-footer">
+        <button className="secondary-button" type="submit" name="acao" value="salvar"><Save size={19} />Salvar</button>
+        {initial && <button className="primary-button" type="submit" name="acao" value="finalizar"><CheckCircle2 size={19} />Finalizar</button>}
+      </div>
     </FactoryForm>
   )
 }

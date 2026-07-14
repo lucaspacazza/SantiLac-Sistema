@@ -105,6 +105,17 @@ export type FormulacaoQueijoPayload = {
   }>
 }
 
+export type FormulacaoQueijo = FormulacaoQueijoPayload & {
+  id: number
+  codigo_formulacao: string
+  status: 'rascunho' | 'finalizada' | 'cancelada'
+}
+
+export type FormulacoesQueijoPage = {
+  items: FormulacaoQueijo[]
+  pagination: { current_page: number; per_page: number; total: number }
+}
+
 export type SoroRefrigeradoPayload = {
   data_registro: string
   entrada_diaria_estoque: number | null
@@ -243,10 +254,14 @@ export const producaoApi = {
     request<OrdemProducaoCatalogos>(`${API_BASE}/producao/ordens-producao/catalogos`),
   formulacaoQueijoCatalogos: () =>
     request<FormulacaoQueijoCatalogos>(`${API_BASE}/producao/formulacoes-queijo/catalogos`),
+  formulacoesQueijoAbertas: () =>
+    request<FormulacoesQueijoPage>(`${API_BASE}/producao/formulacoes-queijo?status=rascunho&per_page=100`),
   salvarOrdemProducao: (payload: OrdemProducaoPayload) =>
     jsonMutation(`${API_BASE}/producao/ordens-producao`, 'POST', payload),
   criarFormulacaoQueijo: (payload: FormulacaoQueijoPayload) =>
-    jsonMutation<{ id: number }>(`${API_BASE}/producao/formulacoes-queijo`, 'POST', payload),
+    jsonMutation<FormulacaoQueijo>(`${API_BASE}/producao/formulacoes-queijo`, 'POST', payload),
+  atualizarFormulacaoQueijo: (id: number, payload: FormulacaoQueijoPayload) =>
+    jsonMutation<FormulacaoQueijo>(`${API_BASE}/producao/formulacoes-queijo/${id}`, 'PATCH', payload),
   finalizarFormulacaoQueijo: (id: number) =>
     jsonMutation(`${API_BASE}/producao/formulacoes-queijo/${id}/finalizar`, 'PATCH'),
   criarSoroRefrigerado: (payload: SoroRefrigeradoPayload) =>
