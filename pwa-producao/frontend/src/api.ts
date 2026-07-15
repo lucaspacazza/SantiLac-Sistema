@@ -284,6 +284,8 @@ export const producaoApi = {
     jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao`, 'POST', payload),
   finalizarOrdemProducao: (id: number) =>
     jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao/${id}/finalizar`, 'PATCH'),
+  cancelarOrdemProducao: (id: number) =>
+    jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao/${id}/cancelar`, 'PATCH'),
   criarFormulacaoQueijo: (payload: FormulacaoQueijoPayload) =>
     jsonMutation<FormulacaoQueijo>(`${API_BASE}/producao/formulacoes-queijo`, 'POST', payload),
   atualizarFormulacaoQueijo: (id: number, payload: FormulacaoQueijoPayload) =>

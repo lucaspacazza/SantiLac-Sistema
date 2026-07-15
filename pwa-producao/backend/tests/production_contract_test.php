@@ -47,4 +47,16 @@ if (! str_contains((string) $ordemServiceSource, 'function finalizar')) {
     throw new RuntimeException('Service não permite finalizar OP.');
 }
 
+if (! str_contains((string) $routes, '/ordens-producao/{id}/cancelar')) {
+    throw new RuntimeException('Rota de cancelamento da OP ausente.');
+}
+
+if (! str_contains((string) $ordemControllerSource, 'function cancelar')) {
+    throw new RuntimeException('Controller não permite cancelar OP.');
+}
+
+if (! str_contains((string) $ordemServiceSource, 'function cancelar')) {
+    throw new RuntimeException('Service não permite cancelar OP.');
+}
+
 echo "production backend contract: ok\n";

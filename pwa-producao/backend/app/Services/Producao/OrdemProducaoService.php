@@ -119,6 +119,26 @@ class OrdemProducaoService
         return $this->formatarOrdem($ordem->refresh(), $this->formulacoesDaOrdem($ordem));
     }
 
+    public function cancelar(int $id): ?array
+    {
+        $alteradas = ProducaoOrdemProducao::query()
+            ->where('id', $id)
+            ->whereIn('status', ['rascunho', 'aguardando_formato'])
+            ->update(['status' => 'cancelada']);
+
+        $ordem = ProducaoOrdemProducao::query()->where('id', $id)->first();
+
+        if ($ordem === null) {
+            return null;
+        }
+
+        if ($alteradas === 0 && ($ordem->status ?? '') !== 'cancelada') {
+            throw new \DomainException('Uma OP finalizada não pode ser cancelada.');
+        }
+
+        return $this->formatarOrdem($ordem, $this->formulacoesDaOrdem($ordem));
+    }
+
     public function gerarDaFormulacao(int $formulacaoId): ?array
     {
         $formulacao = ProducaoFormulacaoQueijo::query()->where('id', $formulacaoId)->first();
