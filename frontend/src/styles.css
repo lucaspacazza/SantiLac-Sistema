@@ -479,6 +479,83 @@ button {
   color: var(--text);
 }
 
+.factory-auth.packaging-login {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: #000;
+  padding: 28px;
+}
+
+.packaging-login .auth-panel {
+  width: min(100%, 390px);
+  display: grid;
+  gap: 17px;
+  border: 1px solid #1c1c1c;
+  border-radius: 20px;
+  background: #030303;
+  padding: 30px;
+  box-shadow: 0 18px 50px rgba(32, 48, 52, 0.09);
+}
+
+.packaging-login .auth-logo {
+  width: min(220px, 72%);
+  height: auto;
+  display: block;
+  margin: 0 auto 10px;
+  object-fit: contain;
+}
+
+.packaging-login .auth-panel label {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.packaging-login .auth-panel input {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  outline: 0;
+  background: #030303;
+  color: #f5f5f5;
+  padding: 0 13px;
+  font-size: 14px;
+  font-weight: 560;
+}
+
+.packaging-login .auth-panel input:focus {
+  border-color: #4ade80;
+}
+
+.packaging-login .primary-button {
+  min-height: 52px;
+  border: 1px solid #000;
+  border-radius: 10px;
+  background: #000;
+  color: #fff;
+  font-weight: 700;
+}
+
+.packaging-login .primary-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+@media (max-width: 520px) {
+  .factory-auth.packaging-login {
+    padding: 18px;
+  }
+
+  .packaging-login .auth-panel {
+    padding: 24px;
+  }
+}
+
 .system-logo-stage {
   min-height: calc(100vh - 58px);
   display: grid;

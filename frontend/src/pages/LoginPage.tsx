@@ -14,10 +14,12 @@ export function LoginPage({
   loading,
   error,
   onLogin,
+  variant = 'default',
 }: {
   loading: boolean
   error: string | null
   onLogin: (login: string, password: string, remember: boolean) => Promise<void>
+  variant?: 'default' | 'factory'
 }) {
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
@@ -59,6 +61,22 @@ export function LoginPage({
     await installPrompt.prompt()
     await installPrompt.userChoice.catch(() => null)
     setInstallPrompt(null)
+  }
+
+  if (variant === 'factory') {
+    return (
+      <main className="factory-auth packaging-login">
+        <form className="auth-panel" onSubmit={handleSubmit}>
+          <img className="auth-logo" src="/assets/img/logo.png" alt="Santi'Lac" />
+          <label>Usuário<input autoComplete="username" value={login} onChange={(event) => setLogin(event.target.value)} required /></label>
+          <label>Senha<input autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} type="password" required /></label>
+          {error && <span className="form-error">{error}</span>}
+          <button className="primary-button" disabled={loading} type="submit">
+            {loading ? 'Entrando…' : 'Entrar'}
+          </button>
+        </form>
+      </main>
+    )
   }
 
   return (
