@@ -264,6 +264,11 @@ export const authApi = {
   me: () => request<{ user: AuthUser | null }>(`${API_BASE}/auth/me`),
   login: (login: string, password: string, remember = true) =>
     postForm<{ user: AuthUser }>(`${API_BASE}/auth/login`, { login, password, remember }),
+  logout: async () => {
+    const result = await jsonMutation<{ message: string }>(`${API_BASE}/auth/logout`, 'POST')
+    csrfToken = null
+    return result
+  },
 }
 
 export const producaoApi = {
@@ -284,6 +289,8 @@ export const producaoApi = {
     jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao`, 'POST', payload),
   atualizarOrdemProducao: (id: number, payload: OrdemProducaoPayload) =>
     jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao/${id}`, 'PATCH', payload),
+  definirFormatoOrdemProducao: (id: number, formato: 'f1' | 'f4' | 'f6') =>
+    jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao/${id}/definir-formato`, 'PATCH', { formato }),
   finalizarOrdemProducao: (id: number) =>
     jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao/${id}/finalizar`, 'PATCH'),
   cancelarOrdemProducao: (id: number) =>

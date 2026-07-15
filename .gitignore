@@ -36,6 +36,9 @@ testes/laboratorio
 testes 
 spool/
 database/
+!backend/database/
+!backend/database/migrations/
+!backend/database/migrations/*.php
 
 !.github/
 !.github/**

@@ -64,6 +64,19 @@ class OrdemProducaoController extends BaseProducaoController
         );
     }
 
+    public function definirFormato(Request $request, int $id): JsonResponse
+    {
+        $payload = $request->validate([
+            'formato' => ['required', 'string', 'in:f1,f4,f6'],
+        ]);
+
+        return $this->responderItem(
+            $this->ordens->definirFormato($id, (string) $payload['formato']),
+            'Ordem de producao nao encontrada.',
+            $id
+        );
+    }
+
     public function cancelar(int $id): JsonResponse
     {
         return $this->responderItem(

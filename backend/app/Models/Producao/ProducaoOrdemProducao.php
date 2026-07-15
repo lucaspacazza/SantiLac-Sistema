@@ -13,6 +13,7 @@ class ProducaoOrdemProducao extends Model
     protected $fillable = [
         'codigo_ordem',
         'formulacao_queijo_id',
+        'tipo_queijo',
         'data_ordem',
         'campos_json',
         'origem',

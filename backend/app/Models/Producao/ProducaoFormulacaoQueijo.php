@@ -12,6 +12,7 @@ class ProducaoFormulacaoQueijo extends Model
 
     protected $fillable = [
         'codigo_formulacao',
+        'ordem_producao_id',
         'documento_codigo',
         'documento_nome',
         'documento_revisao',
@@ -40,6 +41,7 @@ class ProducaoFormulacaoQueijo extends Model
     ];
 
     protected $casts = [
+        'ordem_producao_id' => 'integer',
         'data_formulacao' => 'date',
         'quantidade_leite' => 'float',
         'temperatura_pasteurizacao' => 'float',

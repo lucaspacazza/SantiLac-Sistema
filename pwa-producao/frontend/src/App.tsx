@@ -11,6 +11,7 @@ import {
   Factory,
   FlaskConical,
   Home,
+  LogOut,
   Plus,
   RefreshCw,
   Save,
@@ -218,6 +219,29 @@ export function App() {
     }
   }
 
+  async function logout() {
+    setState('saving')
+    setMessage('Encerrando sessão')
+
+    try {
+      await authApi.logout()
+      setUser(null)
+      setAuthState('guest')
+      setView('inicio')
+      setMessage('')
+      setLoginError(null)
+      setOverview(null)
+      setOrdens([])
+      setOpenOrders([])
+      setOpenCheeseFormulas([])
+      setActiveOrder(null)
+      setActiveCheeseFormula(null)
+    } catch (error) {
+      setState('error')
+      setMessage(error instanceof Error ? error.message : 'Não foi possível sair.')
+    }
+  }
+
   async function changeDate(nextDate: string) {
     setDate(nextDate)
     await loadBase(nextDate)
@@ -331,6 +355,27 @@ export function App() {
     } catch (error) {
       setState('error')
       setMessage(error instanceof Error ? error.message : 'Não foi possível finalizar a OP.')
+    } finally {
+      orderSavingRef.current = false
+    }
+  }
+
+  async function defineOrderFormat(format: 'f1' | 'f4' | 'f6') {
+    if (!activeOrder || orderSavingRef.current || activeOrder.status !== 'aguardando_formato') return
+
+    orderSavingRef.current = true
+    setState('saving')
+    setMessage('Definindo formato e finalizando OP')
+
+    try {
+      await producaoApi.definirFormatoOrdemProducao(activeOrder.id, format)
+      await loadBase(activeOrder.data ?? date)
+      setActiveOrder(null)
+      setMessage('Formato definido e OP finalizada')
+      setState('ready')
+    } catch (error) {
+      setState('error')
+      setMessage(error instanceof Error ? error.message : 'Não foi possível finalizar a OP de mussarela.')
     } finally {
       orderSavingRef.current = false
     }
@@ -608,6 +653,9 @@ export function App() {
             <RefreshCw size={20} className={state === 'loading' ? 'is-spinning' : ''} />
           </button>
           <div className="operator-chip"><UserRound size={18} /><span>{user?.nome ?? user?.usuario}</span></div>
+          <button className="icon-button logout-button" type="button" onClick={() => void logout()} aria-label="Sair" title="Sair">
+            <LogOut size={20} />
+          </button>
         </header>
 
         {message && (
@@ -669,6 +717,7 @@ export function App() {
             onBack={() => setActiveOrder(null)}
             onSave={(payload) => void updateOrder(payload)}
             onFinalize={() => void finalizeOrder()}
+            onDefineFormat={(format) => void defineOrderFormat(format)}
             onCancel={() => void cancelOrder()}
           />
         ) : orderEditorOpen ? (
@@ -765,18 +814,20 @@ function OpenOrderList({ items, onBack, onCreate, onOpen }: {
   )
 }
 
-function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onCancel }: {
+function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onDefineFormat, onCancel }: {
   order: OrdemProducaoDetalhe
   busy: boolean
   onBack: () => void
   onSave: (payload: OrdemProducaoPayload) => void
   onFinalize: () => void
+  onDefineFormat: (format: 'f1' | 'f4' | 'f6') => void
   onCancel: () => void
 }) {
   const editable = order.status === 'rascunho'
   const [editDate, setEditDate] = useState(order.data ?? '')
   const [editFields, setEditFields] = useState(order.campos)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [mozzarellaFormat, setMozzarellaFormat] = useState<'f1' | 'f4' | 'f6'>('f4')
 
   useEffect(() => {
     setEditDate(order.data ?? '')
@@ -827,6 +878,19 @@ function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onCancel }: 
           ))}
         </div>
       </div>
+      {order.status === 'aguardando_formato' && (
+        <div className="order-format-control">
+          <label>
+            <span>Formato da mussarela</span>
+            <select value={mozzarellaFormat} onChange={(event) => setMozzarellaFormat(event.target.value as 'f1' | 'f4' | 'f6')}>
+              <option value="f1">F1</option>
+              <option value="f4">F4</option>
+              <option value="f6">F6</option>
+            </select>
+          </label>
+          <p>Escolha o formato somente quando a OP diária estiver completa.</p>
+        </div>
+      )}
       {(order.status === 'rascunho' || order.status === 'aguardando_formato') && (
         <div className="form-footer">
           <button className="danger-button" type="button" disabled={busy} onClick={onCancel}>
@@ -852,6 +916,11 @@ function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onCancel }: 
                 <CheckCircle2 size={19} />{busy ? 'Processando…' : 'Finalizar OP'}
               </button>
             </>
+          )}
+          {order.status === 'aguardando_formato' && (
+            <button className="primary-button" type="button" disabled={busy} onClick={() => onDefineFormat(mozzarellaFormat)}>
+              <CheckCircle2 size={19} />{busy ? 'Processando…' : 'Finalizar OP'}
+            </button>
           )}
         </div>
       )}
