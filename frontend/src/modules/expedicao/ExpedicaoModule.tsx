@@ -8,11 +8,10 @@ import {
   PackageCheck,
   Plus,
   Search,
-  Send,
   X,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   expedicaoApi,
   type OrdemExpedicao,
@@ -186,14 +185,16 @@ function Ordens() {
 
   useEffect(() => { void load() }, [load])
 
-  async function action(id: number, type: 'lancar' | 'cancelar') {
-    if (type === 'cancelar' && !window.confirm('Cancelar esta ordem de expedição?')) return
+  async function action(id: number, type: 'lancar' | 'cancelar', reload = true): Promise<boolean> {
+    if (type === 'cancelar' && !window.confirm('Cancelar esta ordem de expedição?')) return false
     try {
       type === 'lancar' ? await expedicaoApi.lancar(id) : await expedicaoApi.cancelar(id)
       setFeedback(type === 'lancar' ? 'Ordem lançada para a embalagem.' : 'Ordem cancelada.')
-      await load()
+      if (reload) await load()
+      return true
     } catch (err) {
       setFeedback(message(err))
+      return false
     }
   }
 
@@ -225,7 +226,7 @@ function Ordens() {
                   <td><div className="exp-row-actions">
                     <IconButton label="Ver ordem" onClick={() => setDetail(ordem.id)}><Eye size={16} /></IconButton>
                     {ordem.status === 'rascunho' ? <IconButton label="Editar ordem" onClick={() => setEditor(ordem.id)}><ClipboardCheck size={16} /></IconButton> : null}
-                    {ordem.status === 'rascunho' ? <IconButton label="Lançar ordem" onClick={() => void action(ordem.id, 'lancar')}><Send size={16} /></IconButton> : null}
+                    {ordem.status === 'rascunho' ? <IssueOrderButton onIssue={() => action(ordem.id, 'lancar', false)} onComplete={() => void load()} /> : null}
                     {['rascunho', 'lancada'].includes(ordem.status) ? <IconButton label="Cancelar ordem" onClick={() => void action(ordem.id, 'cancelar')}><X size={16} /></IconButton> : null}
                   </div></td>
                 </tr>
@@ -312,29 +313,48 @@ function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () 
   }
 
   return (
-    <Modal title={step === 'review' ? 'Revisar ordem' : id ? 'Editar ordem' : 'Nova ordem'} onClose={onClose} wide>
+    <Modal title={step === 'review' ? 'Revisar carga' : id ? 'Editar carga' : 'Montar carga'} onClose={onClose} wide builder={step === 'form'}>
       {loading ? <Loading text="Carregando dados..." /> : step === 'form' ? (
-        <div className="exp-editor">
-          <div className="exp-form-grid">
-            <Field label="Cliente" required><input value={payload.cliente} onChange={(e) => setPayload({ ...payload, cliente: e.target.value })} /></Field>
-            <Field label="Destino" required><input value={payload.destino} onChange={(e) => setPayload({ ...payload, destino: e.target.value })} /></Field>
-            <Field label="Data prevista"><input type="date" value={payload.data_prevista} onChange={(e) => setPayload({ ...payload, data_prevista: e.target.value })} /></Field>
-            <Field label="Placa"><input value={payload.placa} onChange={(e) => setPayload({ ...payload, placa: e.target.value.toUpperCase() })} /></Field>
-            <Field label="Motorista"><input value={payload.motorista} onChange={(e) => setPayload({ ...payload, motorista: e.target.value })} /></Field>
-            <Field label="Observações"><input value={payload.observacoes} onChange={(e) => setPayload({ ...payload, observacoes: e.target.value })} /></Field>
-          </div>
-          <div className="exp-selector-head"><strong>Selecionar paletes</strong><span>{selected.length} selecionado(s) · {kg(total)}</span></div>
-          <div className="exp-pallet-selector">
-            {paletes.map((palete) => (
-              <label className={`exp-pallet-option ${payload.paletes.includes(palete.id) ? 'selected' : ''}`} key={palete.id}>
-                <input type="checkbox" checked={payload.paletes.includes(palete.id)} onChange={() => toggle(palete.id)} />
-                <span><strong>Palete #{palete.id}</strong><small>{productName(palete.produto)} · lote {palete.lote}</small></span>
-                <b>{kg(palete.peso_total)}</b>
-              </label>
-            ))}
-          </div>
-          {error ? <p className="exp-error">{error}</p> : null}
-          <div className="exp-modal-actions"><button className="exp-button" onClick={onClose}>Cancelar</button><button className="exp-button primary" onClick={review}>Revisar <ArrowLeft className="exp-arrow-next" size={16} /></button></div>
+        <div className="exp-load-builder">
+          <section className="exp-builder-products">
+            <header className="exp-builder-head">
+              <div><span>Produtos disponíveis</span><strong>Selecione os paletes da carga</strong></div>
+              <span>{paletes.length} disponível(is)</span>
+            </header>
+            <div className="exp-pallet-selector">
+              {paletes.map((palete) => (
+                <label className={`exp-pallet-option ${payload.paletes.includes(palete.id) ? 'selected' : ''}`} key={palete.id}>
+                  <input type="checkbox" checked={payload.paletes.includes(palete.id)} onChange={() => toggle(palete.id)} />
+                  <span><strong>Palete #{palete.id}</strong><small>{productName(palete.produto)} · lote {palete.lote}</small></span>
+                  <b>{kg(palete.peso_total)}</b>
+                </label>
+              ))}
+              {paletes.length === 0 ? <Empty text="Nenhum palete disponível." /> : null}
+            </div>
+          </section>
+
+          <aside className="exp-builder-summary">
+            <header className="exp-builder-head">
+              <div><span>Detalhes</span><strong>Informações da carga</strong></div>
+            </header>
+            <div className="exp-form-grid">
+              <Field label="Cliente" required><input value={payload.cliente} onChange={(e) => setPayload({ ...payload, cliente: e.target.value })} /></Field>
+              <Field label="Destino" required><input value={payload.destino} onChange={(e) => setPayload({ ...payload, destino: e.target.value })} /></Field>
+              <Field label="Data prevista"><input type="date" value={payload.data_prevista} onChange={(e) => setPayload({ ...payload, data_prevista: e.target.value })} /></Field>
+              <Field label="Placa"><input value={payload.placa} onChange={(e) => setPayload({ ...payload, placa: e.target.value.toUpperCase() })} /></Field>
+              <Field label="Motorista"><input value={payload.motorista} onChange={(e) => setPayload({ ...payload, motorista: e.target.value })} /></Field>
+              <Field label="Observações"><input value={payload.observacoes} onChange={(e) => setPayload({ ...payload, observacoes: e.target.value })} /></Field>
+            </div>
+            <div className="exp-builder-totals" aria-live="polite">
+              <Review label="Paletes selecionados" value={integer(selected.length)} />
+              <Review label="Peso da carga" value={kg(total)} />
+            </div>
+            {error ? <p className="exp-error">{error}</p> : null}
+            <div className="exp-modal-actions">
+              <button className="exp-button" type="button" onClick={onClose}>Cancelar</button>
+              <button className="exp-button primary" type="button" onClick={review}><Check size={16} /> Concluir montagem</button>
+            </div>
+          </aside>
         </div>
       ) : (
         <div className="exp-review">
@@ -408,10 +428,40 @@ function Empty({ text }: { text: string }) { return <div className="exp-empty"><
 function Loading({ text }: { text: string }) { return <div className="exp-loading"><span />{text}</div> }
 function Status({ value }: { value: string }) { return <span className={`exp-status is-${value}`}>{statusLabel(value)}</span> }
 function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) { return <button className="exp-icon-button" type="button" title={label} aria-label={label} onClick={onClick}>{children}</button> }
+function IssueOrderButton({ onIssue, onComplete }: { onIssue: () => Promise<boolean>; onComplete: () => void }) {
+  const [phase, setPhase] = useState<'idle' | 'loading' | 'animate'>('idle')
+  const timer = useRef<number | null>(null)
+
+  useEffect(() => () => {
+    if (timer.current !== null) window.clearTimeout(timer.current)
+  }, [])
+
+  async function issue() {
+    if (phase !== 'idle') return
+    setPhase('loading')
+    const issued = await onIssue()
+    if (!issued) {
+      setPhase('idle')
+      return
+    }
+    setPhase('animate')
+    timer.current = window.setTimeout(onComplete, 3800)
+  }
+
+  return (
+    <button className={`exp-issue-order ${phase === 'animate' ? 'animate' : ''}`} type="button" disabled={phase !== 'idle'} onClick={() => void issue()} aria-label="Emitir ordem">
+      <span className="default">{phase === 'loading' ? 'Emitindo…' : 'Emitir ordem'}</span>
+      <span className="success">Ordem emitida <svg viewBox="0 0 12 10" aria-hidden="true"><polyline points="1.5 6 4.5 9 10.5 1" /></svg></span>
+      <span className="box" aria-hidden="true" />
+      <span className="truck" aria-hidden="true"><span className="back" /><span className="front"><span className="window" /></span><span className="light top" /><span className="light bottom" /></span>
+      <span className="lines" aria-hidden="true" />
+    </button>
+  )
+}
 function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) { return <label className="exp-field"><span>{label}{required ? ' *' : ''}</span>{children}</label> }
 function Review({ label, value }: { label: string; value: string }) { return <div className="exp-review-item"><span>{label}</span><strong>{value}</strong></div> }
 function OrderRow({ ordem }: { ordem: OrdemExpedicao }) { return <article className="exp-order-row"><div><strong>{ordem.codigo}</strong><span>{ordem.cliente} · {ordem.destino}</span></div><div><Status value={ordem.status} /><strong>{kg(ordem.peso_total)}</strong></div></article> }
-function Modal({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) { return <div className="exp-modal-backdrop" role="presentation"><section className={`exp-modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}><header><h2>{title}</h2><IconButton label="Fechar" onClick={onClose}><X size={18} /></IconButton></header><div className="exp-modal-body">{children}</div></section></div> }
+function Modal({ title, onClose, children, wide = false, builder = false }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean; builder?: boolean }) { return <div className="exp-modal-backdrop" role="presentation"><section className={`exp-modal ${wide ? 'wide' : ''} ${builder ? 'is-builder' : ''}`} role="dialog" aria-modal="true" aria-label={title}><header><h2>{title}</h2><IconButton label="Fechar" onClick={onClose}><X size={18} /></IconButton></header><div className="exp-modal-body">{children}</div></section></div> }
 
 function viewFromHash(): View {
   const path = window.location.hash.replace(/^#\/?/, '').split('?')[0]
