@@ -30,4 +30,21 @@ foreach ($contracts as $controller => [$file, $route]) {
     }
 }
 
+$ordemController = $root.'/app/Http/Controllers/Api/Producao/OrdemProducaoController.php';
+$ordemService = $root.'/app/Services/Producao/OrdemProducaoService.php';
+$ordemControllerSource = file_get_contents($ordemController);
+$ordemServiceSource = file_get_contents($ordemService);
+
+if (! str_contains((string) $routes, '/ordens-producao/{id}/finalizar')) {
+    throw new RuntimeException('Rota de finalização da OP ausente.');
+}
+
+if (! str_contains((string) $ordemControllerSource, 'function finalizar')) {
+    throw new RuntimeException('Controller não permite finalizar OP.');
+}
+
+if (! str_contains((string) $ordemServiceSource, 'function finalizar')) {
+    throw new RuntimeException('Service não permite finalizar OP.');
+}
+
 echo "production backend contract: ok\n";

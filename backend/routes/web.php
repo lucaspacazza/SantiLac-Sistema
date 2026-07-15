@@ -241,6 +241,7 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
             ->whereNumber('id');
         Route::get('/ordens-producao/{id}', [OrdemProducaoController::class, 'show'])->whereNumber('id');
         Route::post('/ordens-producao', [OrdemProducaoController::class, 'store']);
+        Route::patch('/ordens-producao/{id}/finalizar', [OrdemProducaoController::class, 'finalizar'])->whereNumber('id');
         Route::post('/formulacoes-queijo/{id}/gerar-op', [OrdemProducaoController::class, 'gerarDaFormulacao']);
 
         Route::get('/formulacoes-queijo/catalogos', [FormulacaoQueijoController::class, 'catalogos']);

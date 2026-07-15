@@ -36,15 +36,17 @@ class OrdemProducaoService
     public function listar(Request $request): array
     {
         $data = trim((string) $request->query('data', ''));
+        $somenteAbertas = $request->query('status') === 'abertas';
 
-        if ($data === '') {
+        if ($data === '' && ! $somenteAbertas) {
             return [];
         }
 
         return ProducaoOrdemProducao::query()
-            ->whereDate('data_ordem', $data)
-            ->orderBy('codigo_ordem')
-            ->orderBy('id')
+            ->when($somenteAbertas, fn ($query) => $query->whereIn('status', ['rascunho', 'aguardando_formato']))
+            ->when(! $somenteAbertas, fn ($query) => $query->whereDate('data_ordem', $data))
+            ->orderByDesc('data_ordem')
+            ->orderByDesc('id')
             ->get()
             ->map(fn (ProducaoOrdemProducao $ordem): array => $this->resumoOrdem($ordem))
             ->values()
@@ -94,6 +96,27 @@ class OrdemProducaoService
         );
 
         return $this->formatarOrdem($ordem, collect());
+    }
+
+    public function finalizar(int $id): ?array
+    {
+        $ordem = ProducaoOrdemProducao::query()->where('id', $id)->first();
+
+        if ($ordem === null) {
+            return null;
+        }
+
+        if (($ordem->status ?? 'rascunho') === 'finalizada') {
+            return $this->formatarOrdem($ordem, $this->formulacoesDaOrdem($ordem));
+        }
+
+        if (($ordem->status ?? 'rascunho') !== 'rascunho') {
+            throw new \DomainException('Somente uma OP em rascunho pode ser finalizada por esta tela.');
+        }
+
+        $ordem->forceFill(['status' => 'finalizada'])->save();
+
+        return $this->formatarOrdem($ordem->refresh(), $this->formulacoesDaOrdem($ordem));
     }
 
     public function gerarDaFormulacao(int $formulacaoId): ?array

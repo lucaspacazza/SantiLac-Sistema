@@ -39,3 +39,33 @@ test('renders the time dialog outside the form label so action buttons remain cl
   assert.match(component, /import\s*\{\s*createPortal\s*\}\s*from\s*['"]react-dom['"]/)
   assert.match(component, /createPortal\([\s\S]+document\.body/)
 })
+
+test('does not feed wheel selection changes back into programmatic scrolling', () => {
+  const component = readFileSync(new URL('./TimeWheelPicker.tsx', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(component, /useEffect\(\(\) => \{[\s\S]*?scrollTo\([\s\S]*?\}, \[selectedIndex\]\)/)
+  assert.match(component, /scrollCommitRef/)
+  assert.match(component, /window\.setTimeout\(commitScrolledValue/)
+})
+
+test('normalizes a saved time before the hidden form field can submit it', () => {
+  const component = readFileSync(new URL('./TimeWheelPicker.tsx', import.meta.url), 'utf8')
+
+  assert.match(component, /useState\(\(\) => normalizeTimeValue\(defaultValue\)\)/)
+})
+
+test('lets the operator open and finalize an existing production order', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
+
+  assert.match(app, /OpenOrderList[\s\S]+onOpen=/)
+  assert.match(app, /Finalizar OP/)
+  assert.match(api, /finalizarOrdemProducao/)
+})
+
+test('guards production order saving against repeated submissions', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+
+  assert.match(app, /orderSavingRef/)
+  assert.match(app, /busy=\{state === 'saving'\}/)
+})

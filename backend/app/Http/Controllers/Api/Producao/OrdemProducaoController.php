@@ -57,6 +57,15 @@ class OrdemProducaoController extends BaseProducaoController
         ]);
     }
 
+    public function finalizar(int $id): JsonResponse
+    {
+        return $this->responderItem(
+            $this->ordens->finalizar($id),
+            'Ordem de produção não encontrada.',
+            $id
+        );
+    }
+
     public function gerarDaFormulacao(int $id): JsonResponse
     {
         return $this->responderItem(
