@@ -59,4 +59,11 @@ if (! str_contains((string) $ordemServiceSource, 'function cancelar')) {
     throw new RuntimeException('Service não permite cancelar OP.');
 }
 
+if (! str_contains(
+    (string) $ordemServiceSource,
+    "return ProducaoOrdemProducao::query()\n            ->where('status', '!=', 'cancelada')"
+)) {
+    throw new RuntimeException('Listagens do PWA ainda permitem exibir OP cancelada.');
+}
+
 echo "production backend contract: ok\n";
