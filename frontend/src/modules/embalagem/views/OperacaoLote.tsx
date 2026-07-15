@@ -31,7 +31,7 @@ export function OperacaoLote({
 
   return (
     <div className="operation">
-      <section className="summary-line">
+      <section className="summary-line operation-summary">
         <div>
           <span className="section-kicker">Ordem</span>
           <h2>{operacao.ordem.codigo}</h2>
