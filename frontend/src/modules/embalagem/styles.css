@@ -754,7 +754,7 @@ th {
     gap: 16px;
   }
 
-  .summary-line,
+  .summary-line:not(.operation-summary),
   .scale-row {
     grid-template-columns: 1fr;
   }
@@ -763,7 +763,41 @@ th {
     padding: 14px;
   }
 
-  .summary-line .icon-btn {
+  .operation-summary {
+    min-height: 58px;
+    padding: 9px 10px;
+    grid-template-columns: minmax(68px, .7fr) minmax(105px, 1.35fr) minmax(42px, .5fr) repeat(2, minmax(82px, .85fr)) 36px;
+    gap: 8px;
+  }
+
+  .operation-summary > div,
+  .operation-summary .info {
+    min-width: 0;
+  }
+
+  .operation-summary .section-kicker,
+  .operation-summary .info span {
+    margin-bottom: 3px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .operation-summary h2,
+  .operation-summary .info strong {
+    overflow: hidden;
+    font-size: 13px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .operation-summary .icon-btn {
+    width: 36px;
+    min-height: 36px;
+    justify-self: end;
+    flex-basis: 36px;
+  }
+
+  .summary-line:not(.operation-summary) .icon-btn {
     justify-self: start;
   }
 
@@ -823,6 +857,28 @@ th {
 
   .mini-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .operation-summary {
+    padding: 8px;
+    grid-template-columns: minmax(56px, .65fr) minmax(88px, 1.25fr) minmax(34px, .45fr) repeat(2, minmax(70px, .8fr)) 32px;
+    gap: 5px;
+  }
+
+  .operation-summary .section-kicker,
+  .operation-summary .info span {
+    font-size: 9px;
+  }
+
+  .operation-summary h2,
+  .operation-summary .info strong {
+    font-size: 11px;
+  }
+
+  .operation-summary .icon-btn {
+    width: 32px;
+    min-height: 32px;
+    flex-basis: 32px;
   }
 
   .label-ticket {
