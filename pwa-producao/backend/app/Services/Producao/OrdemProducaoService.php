@@ -36,15 +36,17 @@ class OrdemProducaoService
     public function listar(Request $request): array
     {
         $data = trim((string) $request->query('data', ''));
+        $somenteAbertas = $request->query('status') === 'abertas';
 
-        if ($data === '') {
+        if ($data === '' && ! $somenteAbertas) {
             return [];
         }
 
         return ProducaoOrdemProducao::query()
-            ->whereDate('data_ordem', $data)
-            ->orderBy('codigo_ordem')
-            ->orderBy('id')
+            ->when($somenteAbertas, fn ($query) => $query->whereIn('status', ['rascunho', 'aguardando_formato']))
+            ->when(! $somenteAbertas, fn ($query) => $query->whereDate('data_ordem', $data))
+            ->orderByDesc('data_ordem')
+            ->orderByDesc('id')
             ->get()
             ->map(fn (ProducaoOrdemProducao $ordem): array => $this->resumoOrdem($ordem))
             ->values()

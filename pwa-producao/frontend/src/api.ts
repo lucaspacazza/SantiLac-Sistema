@@ -250,6 +250,8 @@ export const producaoApi = {
   overview: () => request<Overview>(`${API_BASE}/producao/overview`),
   ordensProducao: (data: string) =>
     request<OrdemProducaoResumo[]>(`${API_BASE}/producao/ordens-producao?data=${encodeURIComponent(data)}`),
+  ordensProducaoAbertas: () =>
+    request<OrdemProducaoResumo[]>(`${API_BASE}/producao/ordens-producao?status=abertas`),
   ordensProducaoCatalogos: () =>
     request<OrdemProducaoCatalogos>(`${API_BASE}/producao/ordens-producao/catalogos`),
   formulacaoQueijoCatalogos: () =>

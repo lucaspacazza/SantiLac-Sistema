@@ -571,6 +571,17 @@ select:focus-visible {
   white-space: nowrap;
 }
 
+.open-order-row {
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+}
+
+.open-order-row em {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
 .form-heading {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -1114,6 +1125,10 @@ select:focus-visible {
 
   .formula-row time {
     display: none;
+  }
+
+  .open-order-row {
+    grid-template-columns: 10px minmax(0, 1fr) auto;
   }
 
   .back-button {
