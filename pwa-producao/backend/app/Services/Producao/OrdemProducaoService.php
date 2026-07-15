@@ -43,6 +43,7 @@ class OrdemProducaoService
         }
 
         return ProducaoOrdemProducao::query()
+            ->where('status', '!=', 'cancelada')
             ->when($somenteAbertas, fn ($query) => $query->whereIn('status', ['rascunho', 'aguardando_formato']))
             ->when(! $somenteAbertas, fn ($query) => $query->whereDate('data_ordem', $data))
             ->orderByDesc('data_ordem')
