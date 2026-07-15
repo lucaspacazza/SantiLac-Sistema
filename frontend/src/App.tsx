@@ -266,7 +266,7 @@ function EmbalagemPortal() {
     return <main className="core-loading"><img src="/assets/img/logo.png" alt="Santi'Lac" /><span>Carregando operação...</span></main>
   }
   if (state === 'guest' || !user) {
-    return <LoginPage loading={isLoggingIn} error={loginError} onLogin={login} />
+    return <LoginPage loading={isLoggingIn} error={loginError} onLogin={login} variant="factory" />
   }
 
   return (
