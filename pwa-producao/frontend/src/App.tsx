@@ -335,6 +335,28 @@ export function App() {
     }
   }
 
+  async function cancelOrder() {
+    if (!activeOrder || orderSavingRef.current) return
+    if (!window.confirm(`Cancelar a OP ${activeOrder.codigo_ordem}? Ela sairá das ordens abertas.`)) return
+
+    orderSavingRef.current = true
+    setState('saving')
+    setMessage('Cancelando OP')
+
+    try {
+      await producaoApi.cancelarOrdemProducao(activeOrder.id)
+      await loadBase(activeOrder.data ?? date)
+      setActiveOrder(null)
+      setMessage('OP cancelada')
+      setState('ready')
+    } catch (error) {
+      setState('error')
+      setMessage(error instanceof Error ? error.message : 'Não foi possível cancelar a OP.')
+    } finally {
+      orderSavingRef.current = false
+    }
+  }
+
   async function saveQueijo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
@@ -564,6 +586,7 @@ export function App() {
             busy={state === 'saving'}
             onBack={() => setActiveOrder(null)}
             onFinalize={() => void finalizeOrder()}
+            onCancel={() => void cancelOrder()}
           />
         ) : orderEditorOpen ? (
           <OrderForm key={`${view}-${date}`} date={date} catalogs={orderCatalogs} busy={state === 'saving'} onBack={() => setOrderEditorOpen(false)} onSubmit={saveOrdem} />
@@ -657,11 +680,12 @@ function OpenOrderList({ items, onBack, onCreate, onOpen }: {
   )
 }
 
-function OpenOrderDetail({ order, busy, onBack, onFinalize }: {
+function OpenOrderDetail({ order, busy, onBack, onFinalize, onCancel }: {
   order: OrdemProducaoDetalhe
   busy: boolean
   onBack: () => void
   onFinalize: () => void
+  onCancel: () => void
 }) {
   return (
     <section className="formula-module order-detail">
@@ -681,11 +705,16 @@ function OpenOrderDetail({ order, busy, onBack, onFinalize }: {
           ))}
         </div>
       </div>
-      {order.status === 'rascunho' && (
+      {(order.status === 'rascunho' || order.status === 'aguardando_formato') && (
         <div className="form-footer">
-          <button className="primary-button" type="button" disabled={busy} onClick={onFinalize}>
-            <CheckCircle2 size={19} />{busy ? 'Finalizando…' : 'Finalizar OP'}
+          <button className="danger-button" type="button" disabled={busy} onClick={onCancel}>
+            <Trash2 size={19} />Cancelar OP
           </button>
+          {order.status === 'rascunho' && (
+            <button className="primary-button" type="button" disabled={busy} onClick={onFinalize}>
+              <CheckCircle2 size={19} />{busy ? 'Processando…' : 'Finalizar OP'}
+            </button>
+          )}
         </div>
       )}
     </section>

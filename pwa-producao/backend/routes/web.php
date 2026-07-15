@@ -26,6 +26,7 @@ Route::middleware(['auth', 'audit.action'])
         Route::get('/ordens-producao/{id}', [OrdemProducaoController::class, 'show'])->whereNumber('id');
         Route::post('/ordens-producao', [OrdemProducaoController::class, 'store']);
         Route::patch('/ordens-producao/{id}/finalizar', [OrdemProducaoController::class, 'finalizar'])->whereNumber('id');
+        Route::patch('/ordens-producao/{id}/cancelar', [OrdemProducaoController::class, 'cancelar'])->whereNumber('id');
         Route::post('/formulacoes-queijo/{id}/gerar-op', [OrdemProducaoController::class, 'gerarDaFormulacao'])
             ->whereNumber('id');
 

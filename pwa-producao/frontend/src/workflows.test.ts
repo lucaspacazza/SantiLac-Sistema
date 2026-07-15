@@ -63,6 +63,15 @@ test('lets the operator open and finalize an existing production order', () => {
   assert.match(api, /finalizarOrdemProducao/)
 })
 
+test('lets the operator cancel an open production order with confirmation', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
+
+  assert.match(app, /Cancelar OP/)
+  assert.match(app, /window\.confirm/)
+  assert.match(api, /cancelarOrdemProducao/)
+})
+
 test('guards production order saving against repeated submissions', () => {
   const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
 

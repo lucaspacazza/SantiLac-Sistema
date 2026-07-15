@@ -366,6 +366,24 @@ select:focus-visible {
   font-weight: 700;
 }
 
+.danger-button {
+  min-height: 50px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  border-radius: 11px;
+  background: rgba(248, 113, 113, 0.1);
+  color: var(--danger);
+  padding: 0 17px;
+  font-weight: 700;
+}
+
+.danger-button:active {
+  background: rgba(248, 113, 113, 0.2);
+}
+
 .compact-button,
 .primary-button {
   border: 1px solid var(--graphite);
