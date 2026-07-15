@@ -31,33 +31,55 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    const scannerSelector = 'input.scan-input:not(:disabled), input.op-input:not(:disabled)'
-    const editableSelector = 'input:not(.scan-input):not(.op-input), textarea, select, [contenteditable="true"]'
+    const scannerSelector = 'input[data-scanner-input="true"]:not(:disabled)'
+    const editableSelector = 'input:not([data-scanner-input="true"]):not(:disabled), textarea:not(:disabled), select:not(:disabled), [contenteditable="true"]'
+    let manualEditing = false
 
-    const visibleScanner = () => Array.from(document.querySelectorAll<HTMLInputElement>(scannerSelector))
-      .find((input) => input.offsetParent !== null)
+    const visibleScanner = () => {
+      const scanners = Array.from(document.querySelectorAll<HTMLInputElement>(scannerSelector))
+        .filter((input) => input.offsetParent !== null)
+      const modalScanner = scanners.find((input) => input.closest('[role="dialog"]'))
+
+      return modalScanner ?? scanners[0]
+    }
 
     const focusScanner = () => {
+      if (manualEditing) return
       const active = document.activeElement
       if (active instanceof HTMLElement && active.matches(editableSelector)) return
       visibleScanner()?.focus({ preventScroll: true })
     }
 
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target
+      manualEditing = Boolean(target instanceof HTMLElement && target.closest(editableSelector))
+    }
+
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target
+      manualEditing = Boolean(target instanceof HTMLElement && target.closest(editableSelector))
+    }
+
     const handlePointerUp = (event: PointerEvent) => {
       const target = event.target
       if (target instanceof HTMLElement && target.closest(editableSelector)) return
+      manualEditing = false
       window.setTimeout(focusScanner, 0)
     }
 
     const observer = new MutationObserver(() => window.setTimeout(focusScanner, 0))
     observer.observe(document.body, { childList: true, subtree: true })
+    document.addEventListener('pointerdown', handlePointerDown, true)
     document.addEventListener('pointerup', handlePointerUp, true)
+    document.addEventListener('focusin', handleFocusIn, true)
     window.addEventListener('focus', focusScanner)
     window.setTimeout(focusScanner, 0)
 
     return () => {
       observer.disconnect()
+      document.removeEventListener('pointerdown', handlePointerDown, true)
       document.removeEventListener('pointerup', handlePointerUp, true)
+      document.removeEventListener('focusin', handleFocusIn, true)
       window.removeEventListener('focus', focusScanner)
     }
   }, [])
@@ -336,6 +358,7 @@ export function App() {
               <input
                 autoFocus
                 className="control scan-input"
+                data-scanner-input="true"
                 inputMode="none"
                 onPointerDown={(event) => { event.currentTarget.inputMode = 'numeric' }}
                 onBlur={(event) => { event.currentTarget.inputMode = 'none' }}
@@ -348,7 +371,7 @@ export function App() {
             <label className="field">
               <span>Peso manual</span>
               <input
-                className="control scan-input"
+                className="control"
                 inputMode="decimal"
                 placeholder="0,000"
                 value={pesoAvulsas}
