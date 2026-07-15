@@ -15,7 +15,7 @@ class ProducaoOverviewService
         return [
             'totais' => [
                 'formulacoes_queijo' => ProducaoFormulacaoQueijo::query()->count(),
-                'ordens_producao' => ProducaoOrdemProducao::query()->count(),
+                'ordens_producao' => ProducaoOrdemProducao::query()->where('status', '!=', 'cancelada')->count(),
                 'soro_refrigerado' => ProducaoSoroRefrigerado::query()->count(),
                 'formulacoes_creme' => ProducaoFormulacaoCreme::query()->count(),
                 'producoes_creme' => ProducaoCreme::query()->count(),

@@ -137,6 +137,7 @@ export function App() {
   const [openCheeseFormulas, setOpenCheeseFormulas] = useState<FormulacaoQueijo[]>([])
   const [cheeseEditorOpen, setCheeseEditorOpen] = useState(false)
   const [activeCheeseFormula, setActiveCheeseFormula] = useState<FormulacaoQueijo | null>(null)
+  const cheeseSavingRef = useRef(false)
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
@@ -335,6 +336,28 @@ export function App() {
     }
   }
 
+  async function updateOrder(payload: OrdemProducaoPayload) {
+    if (!activeOrder || orderSavingRef.current || activeOrder.status !== 'rascunho') return
+
+    orderSavingRef.current = true
+    setState('saving')
+    setMessage('Salvando alterações da OP')
+
+    try {
+      const updated = await producaoApi.atualizarOrdemProducao(activeOrder.id, payload)
+      setActiveOrder(updated)
+      setDate(payload.data)
+      await loadBase(payload.data)
+      setMessage('Alterações da OP salvas')
+      setState('ready')
+    } catch (error) {
+      setState('error')
+      setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar a OP.')
+    } finally {
+      orderSavingRef.current = false
+    }
+  }
+
   async function cancelOrder() {
     if (!activeOrder || orderSavingRef.current) return
     if (!window.confirm(`Cancelar a OP ${activeOrder.codigo_ordem}? Ela sairá das ordens abertas.`)) return
@@ -359,6 +382,9 @@ export function App() {
 
   async function saveQueijo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (cheeseSavingRef.current) return
+
+    cheeseSavingRef.current = true
     const form = new FormData(event.currentTarget)
     const insumoTypes = form.getAll('insumo_tipo')
     const insumoNames = form.getAll('insumo_nome')
@@ -400,6 +426,10 @@ export function App() {
     }
 
     const action = submitValue(event, 'acao')
+    const shouldGenerateOrder = action === 'finalizar' && window.confirm(
+      'Gerar OP automaticamente?\n\nOK: finalizar e gerar a OP com os dados atuais.\nCancelar: finalizar sem gerar OP.',
+    )
+    let generatedOrderCode: string | null = null
     setState('saving')
     setMessage(action === 'finalizar' ? 'Salvando alterações' : 'Salvando formulação')
 
@@ -410,6 +440,25 @@ export function App() {
 
       if (action === 'finalizar') {
         await producaoApi.finalizarFormulacaoQueijo(saved.id)
+
+        if (shouldGenerateOrder) {
+          try {
+            const generatedOrder = await producaoApi.gerarOpFormulacaoQueijo(saved.id)
+            generatedOrderCode = generatedOrder.codigo_ordem
+          } catch (error) {
+            setActiveCheeseFormula(null)
+            setCheeseEditorOpen(false)
+            setDate(payload.data_formulacao)
+            await loadBase(payload.data_formulacao)
+            setView('queijo')
+            setState('error')
+            setMessage(error instanceof Error
+              ? `Formulação finalizada, mas a OP não foi gerada: ${error.message}`
+              : 'Formulação finalizada, mas a OP não foi gerada.')
+            return
+          }
+        }
+
         setActiveCheeseFormula(null)
         setCheeseEditorOpen(false)
       } else {
@@ -419,10 +468,42 @@ export function App() {
       setDate(payload.data_formulacao)
       await loadBase(payload.data_formulacao)
       setView('queijo')
-      setMessage(action === 'finalizar' ? 'Formulação finalizada' : 'Formulação salva. Você pode continuar editando.')
+      if (action !== 'finalizar') {
+        setMessage('Formulação salva. Você pode continuar editando.')
+      } else if (generatedOrderCode) {
+        setMessage(`Formulação finalizada. OP ${generatedOrderCode} gerada.`)
+      } else if (!shouldGenerateOrder) {
+        setMessage('Formulação finalizada')
+      }
     } catch (error) {
       setState('error')
       setMessage(error instanceof Error ? error.message : 'Não foi possível salvar a formulação.')
+    } finally {
+      cheeseSavingRef.current = false
+    }
+  }
+
+  async function cancelCheeseFormula() {
+    if (!activeCheeseFormula || cheeseSavingRef.current) return
+    if (!window.confirm(`Cancelar a formulação ${activeCheeseFormula.codigo_formulacao}? Ela sairá das formulações abertas.`)) return
+
+    cheeseSavingRef.current = true
+    setState('saving')
+    setMessage('Cancelando formulação')
+
+    try {
+      await producaoApi.cancelarFormulacaoQueijo(activeCheeseFormula.id)
+      await loadBase(activeCheeseFormula.data_formulacao)
+      setActiveCheeseFormula(null)
+      setCheeseEditorOpen(false)
+      setView('queijo')
+      setMessage('Formulação cancelada')
+      setState('ready')
+    } catch (error) {
+      setState('error')
+      setMessage(error instanceof Error ? error.message : 'Não foi possível cancelar a formulação.')
+    } finally {
+      cheeseSavingRef.current = false
     }
   }
 
@@ -582,9 +663,11 @@ export function App() {
 
         {view === 'ordens' && (activeOrder ? (
           <OpenOrderDetail
+            key={activeOrder.id}
             order={activeOrder}
             busy={state === 'saving'}
             onBack={() => setActiveOrder(null)}
+            onSave={(payload) => void updateOrder(payload)}
             onFinalize={() => void finalizeOrder()}
             onCancel={() => void cancelOrder()}
           />
@@ -599,7 +682,9 @@ export function App() {
             date={date}
             catalogs={cheeseCatalogs}
             initial={activeCheeseFormula}
+            busy={state === 'saving'}
             onBack={() => { setCheeseEditorOpen(false); setActiveCheeseFormula(null) }}
+            onCancel={() => void cancelCheeseFormula()}
             onSubmit={saveQueijo}
           />
         ) : (
@@ -680,13 +765,40 @@ function OpenOrderList({ items, onBack, onCreate, onOpen }: {
   )
 }
 
-function OpenOrderDetail({ order, busy, onBack, onFinalize, onCancel }: {
+function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onCancel }: {
   order: OrdemProducaoDetalhe
   busy: boolean
   onBack: () => void
+  onSave: (payload: OrdemProducaoPayload) => void
   onFinalize: () => void
   onCancel: () => void
 }) {
+  const editable = order.status === 'rascunho'
+  const [editDate, setEditDate] = useState(order.data ?? '')
+  const [editFields, setEditFields] = useState(order.campos)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  useEffect(() => {
+    setEditDate(order.data ?? '')
+    setEditFields(order.campos)
+    setHasUnsavedChanges(false)
+  }, [order])
+
+  function updateField(index: number, value: string) {
+    setHasUnsavedChanges(true)
+    setEditFields((current) => current.map((field, fieldIndex) => (
+      fieldIndex === index ? { ...field, valor: value } : field
+    )))
+  }
+
+  function updateOrderDate(value: string) {
+    setEditDate(value)
+    setHasUnsavedChanges(true)
+    setEditFields((current) => current.map((field) => (
+      field.rotulo === 'PRODUÇÃO DIARIA / DATA' ? { ...field, valor: formatDateInput(value) } : field
+    )))
+  }
+
   return (
     <section className="formula-module order-detail">
       <div className="form-heading formula-module-heading">
@@ -695,13 +807,23 @@ function OpenOrderDetail({ order, busy, onBack, onFinalize, onCancel }: {
       </div>
       <div className="order-detail-card">
         <div className="order-detail-summary">
-          <div><span>Data</span><strong>{order.data ? formatDateInput(order.data) : 'Sem data'}</strong></div>
+          <div>
+            <span>Data</span>
+            {editable ? <DateInput value={editDate} required onChange={updateOrderDate} /> : <strong>{order.data ? formatDateInput(order.data) : 'Sem data'}</strong>}
+          </div>
           <div><span>Origem</span><strong>{order.manual ? 'Manual' : 'Formulação'}</strong></div>
           <div><span>Status</span><strong>{order.status.replace('_', ' ')}</strong></div>
         </div>
         <div className="order-detail-fields">
-          {order.campos.map((campo, index) => (
-            <div key={`${campo.rotulo}-${index}`}><span>{campo.rotulo}</span><strong>{campo.valor || '—'}</strong></div>
+          {editFields.map((campo, index) => (
+            <div key={`${campo.rotulo}-${index}`}>
+              <span>{campo.rotulo}</span>
+              {editable ? (
+                <input aria-label={campo.rotulo} value={campo.valor ?? ''} onChange={(event) => updateField(index, event.target.value)} />
+              ) : (
+                <strong>{campo.valor || '—'}</strong>
+              )}
+            </div>
           ))}
         </div>
       </div>
@@ -711,9 +833,25 @@ function OpenOrderDetail({ order, busy, onBack, onFinalize, onCancel }: {
             <Trash2 size={19} />Cancelar OP
           </button>
           {order.status === 'rascunho' && (
-            <button className="primary-button" type="button" disabled={busy} onClick={onFinalize}>
-              <CheckCircle2 size={19} />{busy ? 'Processando…' : 'Finalizar OP'}
-            </button>
+            <>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy || editDate === '' || !hasUnsavedChanges}
+                onClick={() => onSave({ data: editDate, codigo_ordem: order.codigo_ordem, campos: editFields })}
+              >
+                <Save size={19} />{busy ? 'Salvando…' : 'Salvar alterações'}
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={busy || hasUnsavedChanges}
+                title={hasUnsavedChanges ? 'Salve as alterações antes de finalizar' : undefined}
+                onClick={onFinalize}
+              >
+                <CheckCircle2 size={19} />{busy ? 'Processando…' : 'Finalizar OP'}
+              </button>
+            </>
           )}
         </div>
       )}
@@ -794,7 +932,7 @@ function CheeseFormulaList({ items, onBack, onCreate, onEdit }: {
             <span className="order-status is-rascunho" />
             <div><strong>{item.tipo_queijo || 'Formulação sem tipo'}</strong><span>{item.codigo_formulacao} · Lote {item.lote_queijo || 'não informado'}</span></div>
             <time>{formatDateInput(item.data_formulacao)}</time>
-            <ChevronRight size={20} />
+            <em className="formula-edit">Editar <ChevronRight size={20} /></em>
           </button>
         ))}
       </div>
@@ -802,11 +940,13 @@ function CheeseFormulaList({ items, onBack, onCreate, onEdit }: {
   )
 }
 
-function CheeseForm({ date, catalogs, initial, onBack, onSubmit }: {
+function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit }: {
   date: string
   catalogs: FormulacaoQueijoCatalogos
   initial: FormulacaoQueijo | null
+  busy: boolean
   onBack: () => void
+  onCancel: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
   const [rows, setRows] = useState(initial?.insumos.length ? initial.insumos.map((_, index) => index + 1) : [1])
@@ -863,8 +1003,9 @@ function CheeseForm({ date, catalogs, initial, onBack, onSubmit }: {
         </div>
       </FormSection>
       <div className="form-footer">
-        <button className="secondary-button" type="submit" name="acao" value="salvar"><Save size={19} />Salvar</button>
-        {initial && <button className="primary-button" type="submit" name="acao" value="finalizar"><CheckCircle2 size={19} />Finalizar</button>}
+        {initial && <button className="danger-button" type="button" disabled={busy} onClick={onCancel}><Trash2 size={19} />Cancelar formulação</button>}
+        <button className="secondary-button" type="submit" name="acao" value="salvar" disabled={busy}><Save size={19} />{busy ? 'Salvando…' : 'Salvar'}</button>
+        {initial && <button className="primary-button" type="submit" name="acao" value="finalizar" disabled={busy}><CheckCircle2 size={19} />{busy ? 'Processando…' : 'Finalizar'}</button>}
       </div>
     </FactoryForm>
   )

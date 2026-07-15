@@ -40,19 +40,19 @@ class OrdemProducaoController extends BaseProducaoController
 
     public function store(Request $request): JsonResponse
     {
-        $payload = $request->validate([
-            'data' => ['required', 'date'],
-            'codigo_ordem' => ['nullable', 'string', 'max:32'],
-            'campos' => ['required', 'array'],
-            'campos.*.rotulo' => ['required', 'string', 'max:120'],
-            'campos.*.valor' => ['nullable', 'string', 'max:120'],
-            'observacoes' => ['nullable', 'string'],
-        ]);
-
         return response()->json([
             'success' => true,
-            'data' => $this->ordens->salvar($payload),
+            'data' => $this->ordens->salvar($this->validar($request)),
         ], 201);
+    }
+
+    public function atualizar(Request $request, int $id): JsonResponse
+    {
+        return $this->responderAtualizacao(
+            $this->ordens->atualizar($id, $this->validar($request)),
+            'Ordem de producao nao encontrada.',
+            $id
+        );
     }
 
     public function finalizar(int $id): JsonResponse
@@ -80,5 +80,17 @@ class OrdemProducaoController extends BaseProducaoController
             'Formulacao de queijo nao encontrada para gerar OP.',
             $id
         );
+    }
+
+    private function validar(Request $request): array
+    {
+        return $request->validate([
+            'data' => ['required', 'date'],
+            'codigo_ordem' => ['nullable', 'string', 'max:32'],
+            'campos' => ['required', 'array'],
+            'campos.*.rotulo' => ['required', 'string', 'max:120'],
+            'campos.*.valor' => ['nullable', 'string', 'max:120'],
+            'observacoes' => ['nullable', 'string'],
+        ]);
     }
 }

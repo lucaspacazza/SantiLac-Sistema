@@ -282,6 +282,8 @@ export const producaoApi = {
     request<FormulacoesQueijoPage>(`${API_BASE}/producao/formulacoes-queijo?status=rascunho&per_page=100`),
   salvarOrdemProducao: (payload: OrdemProducaoPayload) =>
     jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao`, 'POST', payload),
+  atualizarOrdemProducao: (id: number, payload: OrdemProducaoPayload) =>
+    jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao/${id}`, 'PATCH', payload),
   finalizarOrdemProducao: (id: number) =>
     jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao/${id}/finalizar`, 'PATCH'),
   cancelarOrdemProducao: (id: number) =>
@@ -292,6 +294,10 @@ export const producaoApi = {
     jsonMutation<FormulacaoQueijo>(`${API_BASE}/producao/formulacoes-queijo/${id}`, 'PATCH', payload),
   finalizarFormulacaoQueijo: (id: number) =>
     jsonMutation(`${API_BASE}/producao/formulacoes-queijo/${id}/finalizar`, 'PATCH'),
+  cancelarFormulacaoQueijo: (id: number) =>
+    jsonMutation<FormulacaoQueijo>(`${API_BASE}/producao/formulacoes-queijo/${id}/cancelar`, 'PATCH'),
+  gerarOpFormulacaoQueijo: (id: number) =>
+    jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/formulacoes-queijo/${id}/gerar-op`, 'POST'),
   criarSoroRefrigerado: (payload: SoroRefrigeradoPayload) =>
     jsonMutation<{ id: number }>(`${API_BASE}/producao/soro-refrigerado`, 'POST', payload),
   finalizarSoroRefrigerado: (id: number) =>

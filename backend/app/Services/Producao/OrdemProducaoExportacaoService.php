@@ -39,6 +39,7 @@ class OrdemProducaoExportacaoService
         }
 
         $ids = ProducaoOrdemProducao::query()
+            ->where('status', '!=', 'cancelada')
             ->whereDate('data_ordem', $data)
             ->orderBy('codigo_ordem')
             ->orderBy('id')

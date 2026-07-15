@@ -589,6 +589,17 @@ select:focus-visible {
   white-space: nowrap;
 }
 
+.formula-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
 .open-order-row {
   grid-template-columns: 10px minmax(0, 1fr) auto auto;
 }
@@ -638,6 +649,23 @@ select:focus-visible {
 .order-detail-summary strong,
 .order-detail-fields strong {
   overflow-wrap: anywhere;
+}
+
+.order-detail-fields input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  outline: 0;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.order-detail-fields input:focus {
+  border-color: var(--accent);
 }
 
 .form-heading {
@@ -1178,7 +1206,7 @@ select:focus-visible {
   }
 
   .formula-row {
-    grid-template-columns: 10px minmax(0, 1fr) 20px;
+    grid-template-columns: 10px minmax(0, 1fr) auto;
   }
 
   .formula-row time {

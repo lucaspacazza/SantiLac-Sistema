@@ -43,6 +43,7 @@ class OrdemProducaoService
         }
 
         return ProducaoOrdemProducao::query()
+            ->where('status', '!=', 'cancelada')
             ->when($somenteAbertas, fn ($query) => $query->whereIn('status', ['rascunho', 'aguardando_formato']))
             ->when(! $somenteAbertas, fn ($query) => $query->whereDate('data_ordem', $data))
             ->orderByDesc('data_ordem')
@@ -55,7 +56,10 @@ class OrdemProducaoService
 
     public function buscar(int $id): ?array
     {
-        $ordem = ProducaoOrdemProducao::query()->where('id', $id)->first();
+        $ordem = ProducaoOrdemProducao::query()
+            ->where('id', $id)
+            ->where('status', '!=', 'cancelada')
+            ->first();
 
         return $ordem === null ? null : $this->formatarOrdem($ordem, $this->formulacoesDaOrdem($ordem));
     }
