@@ -59,6 +59,30 @@ if (! str_contains((string) $ordemServiceSource, 'function cancelar')) {
     throw new RuntimeException('Service não permite cancelar OP.');
 }
 
+if (! str_contains((string) $routes, "Route::patch('/ordens-producao/{id}',")) {
+    throw new RuntimeException('Rota de edição da OP ausente.');
+}
+
+if (! str_contains((string) $ordemControllerSource, 'function atualizar')) {
+    throw new RuntimeException('Controller não permite editar OP.');
+}
+
+if (! str_contains((string) $ordemServiceSource, 'function atualizar')) {
+    throw new RuntimeException('Service não permite editar OP.');
+}
+
+if (! str_contains((string) $ordemServiceSource, "status ?? 'rascunho') !== 'rascunho'")) {
+    throw new RuntimeException('Edição da OP não está bloqueada depois do rascunho.');
+}
+
+if (! str_contains((string) $ordemServiceSource, 'lockForUpdate()')) {
+    throw new RuntimeException('Edição da OP não protege a transição concorrente de status.');
+}
+
+if (! str_contains((string) $ordemServiceSource, "'campos_json' => \$this->camposDaFormulacao(\$formulacao)")) {
+    throw new RuntimeException('A OP automática não usa somente os campos atuais derivados da formulação.');
+}
+
 if (! str_contains(
     (string) $ordemServiceSource,
     "return ProducaoOrdemProducao::query()\n            ->where('status', '!=', 'cancelada')"

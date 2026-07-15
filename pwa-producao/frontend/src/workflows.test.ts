@@ -78,3 +78,29 @@ test('guards production order saving against repeated submissions', () => {
   assert.match(app, /orderSavingRef/)
   assert.match(app, /busy=\{state === 'saving'\}/)
 })
+
+test('lets the operator edit a saved draft production order', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
+
+  assert.match(app, /Salvar alterações/)
+  assert.match(app, /activeOrder\.status !== 'rascunho'/)
+  assert.match(app, /Salve as alterações antes de finalizar/)
+  assert.match(api, /atualizarOrdemProducao/)
+})
+
+test('lets the operator cancel a saved cheese formulation', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
+
+  assert.match(app, /Cancelar formulação/)
+  assert.match(api, /cancelarFormulacaoQueijo/)
+})
+
+test('offers to generate the current production order when finalizing a cheese formulation', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
+
+  assert.match(app, /Gerar OP automaticamente/)
+  assert.match(api, /gerarOpFormulacaoQueijo/)
+})

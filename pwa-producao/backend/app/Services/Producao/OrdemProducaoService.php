@@ -73,14 +73,7 @@ class OrdemProducaoService
     {
         $data = (string) $payload['data'];
         $codigo = $this->normalizarCodigo((string) ($payload['codigo_ordem'] ?? ''));
-        $campos = collect($payload['campos'] ?? [])
-            ->map(fn (array $campo): array => [
-                'rotulo' => trim((string) ($campo['rotulo'] ?? '')),
-                'valor' => trim((string) ($campo['valor'] ?? '')),
-            ])
-            ->filter(fn (array $campo): bool => $campo['rotulo'] !== '')
-            ->values()
-            ->all();
+        $campos = $this->normalizarCampos($payload['campos'] ?? []);
 
         $codigo = $codigo !== '' ? $codigo : $this->gerarCodigo($data);
 
@@ -97,6 +90,37 @@ class OrdemProducaoService
         );
 
         return $this->formatarOrdem($ordem, collect());
+    }
+
+    public function atualizar(int $id, array $payload): array|bool|null
+    {
+        return DB::transaction(function () use ($id, $payload): array|bool|null {
+            $ordem = ProducaoOrdemProducao::query()
+                ->where('id', $id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($ordem === null) {
+                return null;
+            }
+
+            if (($ordem->status ?? 'rascunho') !== 'rascunho') {
+                return false;
+            }
+
+            $attributes = [
+                'data_ordem' => (string) $payload['data'],
+                'campos_json' => $this->normalizarCampos($payload['campos'] ?? []),
+            ];
+
+            if (array_key_exists('observacoes', $payload)) {
+                $attributes['observacoes'] = $payload['observacoes'];
+            }
+
+            $ordem->forceFill($attributes)->save();
+
+            return $this->formatarOrdem($ordem->refresh(), $this->formulacoesDaOrdem($ordem));
+        });
     }
 
     public function finalizar(int $id): ?array
@@ -724,6 +748,18 @@ class OrdemProducaoService
     private function normalizarCodigo(string $codigo): string
     {
         return preg_replace('/[^a-z0-9]/', '', strtolower(trim($codigo))) ?? '';
+    }
+
+    private function normalizarCampos(array $campos): array
+    {
+        return collect($campos)
+            ->map(fn (array $campo): array => [
+                'rotulo' => trim((string) ($campo['rotulo'] ?? '')),
+                'valor' => trim((string) ($campo['valor'] ?? '')),
+            ])
+            ->filter(fn (array $campo): bool => $campo['rotulo'] !== '')
+            ->values()
+            ->all();
     }
 
     private function normalizar(string $valor): string
