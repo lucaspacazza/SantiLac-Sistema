@@ -582,6 +582,46 @@ select:focus-visible {
   text-transform: uppercase;
 }
 
+.order-detail-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.order-detail-summary,
+.order-detail-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.order-detail-summary {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+
+.order-detail-summary > div,
+.order-detail-fields > div {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 18px 20px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.order-detail-summary span,
+.order-detail-fields span {
+  color: var(--ink-soft);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.order-detail-summary strong,
+.order-detail-fields strong {
+  overflow-wrap: anywhere;
+}
+
 .form-heading {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -1129,6 +1169,17 @@ select:focus-visible {
 
   .open-order-row {
     grid-template-columns: 10px minmax(0, 1fr) auto;
+  }
+
+  .order-detail-summary,
+  .order-detail-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .order-detail-summary > div,
+  .order-detail-fields > div {
+    padding: 15px;
+    border-right: 0;
   }
 
   .back-button {

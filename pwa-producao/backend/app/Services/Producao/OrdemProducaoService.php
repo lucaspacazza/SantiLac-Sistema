@@ -98,6 +98,27 @@ class OrdemProducaoService
         return $this->formatarOrdem($ordem, collect());
     }
 
+    public function finalizar(int $id): ?array
+    {
+        $ordem = ProducaoOrdemProducao::query()->where('id', $id)->first();
+
+        if ($ordem === null) {
+            return null;
+        }
+
+        if (($ordem->status ?? 'rascunho') === 'finalizada') {
+            return $this->formatarOrdem($ordem, $this->formulacoesDaOrdem($ordem));
+        }
+
+        if (($ordem->status ?? 'rascunho') !== 'rascunho') {
+            throw new \DomainException('Somente uma OP em rascunho pode ser finalizada por esta tela.');
+        }
+
+        $ordem->forceFill(['status' => 'finalizada'])->save();
+
+        return $this->formatarOrdem($ordem->refresh(), $this->formulacoesDaOrdem($ordem));
+    }
+
     public function gerarDaFormulacao(int $formulacaoId): ?array
     {
         $formulacao = ProducaoFormulacaoQueijo::query()->where('id', $formulacaoId)->first();

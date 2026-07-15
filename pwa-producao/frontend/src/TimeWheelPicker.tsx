@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Clock3, X } from 'lucide-react'
-import { formatTimeValue, parseTimeValue } from './dateTime'
+import { formatTimeValue, normalizeTimeValue, parseTimeValue, wheelIndexFromScroll } from './dateTime'
 
 const ITEM_HEIGHT = 52
 const hours = Array.from({ length: 24 }, (_, index) => index)
@@ -12,10 +12,14 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
   label: string
   defaultValue?: string
 }) {
-  const [value, setValue] = useState(defaultValue)
+  const [value, setValue] = useState(() => normalizeTimeValue(defaultValue))
   const [open, setOpen] = useState(false)
   const [draftHour, setDraftHour] = useState(0)
   const [draftMinute, setDraftMinute] = useState(0)
+
+  useEffect(() => {
+    setValue(normalizeTimeValue(defaultValue))
+  }, [defaultValue])
 
   function openPicker() {
     const parsed = parseTimeValue(value)
@@ -96,37 +100,47 @@ function WheelColumn({ label, values, selected, onChange }: {
   onChange: (value: number) => void
 }) {
   const listRef = useRef<HTMLDivElement>(null)
-  const frameRef = useRef<number | null>(null)
-  const selectedIndex = useMemo(() => Math.max(0, values.indexOf(selected)), [selected, values])
+  const initialIndexRef = useRef(Math.max(0, values.indexOf(selected)))
+  const lastCommittedIndexRef = useRef(initialIndexRef.current)
+  const scrollCommitRef = useRef<number | null>(null)
 
   useEffect(() => {
-    listRef.current?.scrollTo({ top: selectedIndex * ITEM_HEIGHT, behavior: 'instant' as ScrollBehavior })
-  }, [selectedIndex])
-
-  useEffect(() => () => {
-    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
+    listRef.current?.scrollTo({ top: initialIndexRef.current * ITEM_HEIGHT, behavior: 'instant' as ScrollBehavior })
   }, [])
 
-  function updateFromScroll() {
-    if (frameRef.current !== null) return
-    frameRef.current = requestAnimationFrame(() => {
-      frameRef.current = null
-      const list = listRef.current
-      if (!list) return
-      const index = Math.max(0, Math.min(values.length - 1, Math.round(list.scrollTop / ITEM_HEIGHT)))
-      onChange(values[index])
-    })
+  useEffect(() => () => {
+    if (scrollCommitRef.current !== null) window.clearTimeout(scrollCommitRef.current)
+  }, [])
+
+  function commitScrolledValue() {
+    scrollCommitRef.current = null
+    const list = listRef.current
+    if (!list) return
+
+    const index = wheelIndexFromScroll(list.scrollTop, ITEM_HEIGHT, values.length)
+    if (index === lastCommittedIndexRef.current) return
+
+    lastCommittedIndexRef.current = index
+    onChange(values[index])
+  }
+
+  function scheduleScrollCommit() {
+    if (scrollCommitRef.current !== null) window.clearTimeout(scrollCommitRef.current)
+    scrollCommitRef.current = window.setTimeout(commitScrolledValue, 120)
   }
 
   function select(index: number, value: number) {
-    onChange(value)
+    if (index !== lastCommittedIndexRef.current) {
+      lastCommittedIndexRef.current = index
+      onChange(value)
+    }
     listRef.current?.scrollTo({ top: index * ITEM_HEIGHT, behavior: 'smooth' })
   }
 
   return (
     <div className="time-wheel-column-wrap">
       <span>{label}</span>
-      <div className="time-wheel-column" ref={listRef} role="listbox" aria-label={label} onScroll={updateFromScroll}>
+      <div className="time-wheel-column" ref={listRef} role="listbox" aria-label={label} onScroll={scheduleScrollCommit}>
         <div className="time-wheel-spacer" aria-hidden="true" />
         {values.map((item, index) => (
           <button

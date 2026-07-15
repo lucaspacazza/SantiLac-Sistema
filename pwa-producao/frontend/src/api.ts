@@ -39,6 +39,26 @@ export type OrdemProducaoResumo = {
   pendencia_formato: boolean
 }
 
+export type OrdemProducaoDetalhe = {
+  id: number
+  codigo_ordem: string
+  data: string | null
+  manual: boolean
+  origem: string
+  status: 'rascunho' | 'aguardando_formato' | 'finalizada' | 'cancelada'
+  pendencia_formato: boolean
+  total_formulacoes: number
+  campos: Array<{ rotulo: string; valor: string }>
+  formulacoes: Array<{
+    id: number
+    codigo_formulacao: string
+    tipo_queijo: string
+    lote_queijo: string | null
+    quantidade_leite: number
+    status: string
+  }>
+}
+
 export type FormulacaoQueijoCatalogos = {
   queijos: Array<{
     id: number
@@ -252,6 +272,8 @@ export const producaoApi = {
     request<OrdemProducaoResumo[]>(`${API_BASE}/producao/ordens-producao?data=${encodeURIComponent(data)}`),
   ordensProducaoAbertas: () =>
     request<OrdemProducaoResumo[]>(`${API_BASE}/producao/ordens-producao?status=abertas`),
+  ordemProducao: (id: number) =>
+    request<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao/${id}`),
   ordensProducaoCatalogos: () =>
     request<OrdemProducaoCatalogos>(`${API_BASE}/producao/ordens-producao/catalogos`),
   formulacaoQueijoCatalogos: () =>
@@ -259,7 +281,9 @@ export const producaoApi = {
   formulacoesQueijoAbertas: () =>
     request<FormulacoesQueijoPage>(`${API_BASE}/producao/formulacoes-queijo?status=rascunho&per_page=100`),
   salvarOrdemProducao: (payload: OrdemProducaoPayload) =>
-    jsonMutation(`${API_BASE}/producao/ordens-producao`, 'POST', payload),
+    jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao`, 'POST', payload),
+  finalizarOrdemProducao: (id: number) =>
+    jsonMutation<OrdemProducaoDetalhe>(`${API_BASE}/producao/ordens-producao/${id}/finalizar`, 'PATCH'),
   criarFormulacaoQueijo: (payload: FormulacaoQueijoPayload) =>
     jsonMutation<FormulacaoQueijo>(`${API_BASE}/producao/formulacoes-queijo`, 'POST', payload),
   atualizarFormulacaoQueijo: (id: number, payload: FormulacaoQueijoPayload) =>

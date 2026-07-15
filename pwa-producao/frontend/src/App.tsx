@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import {
   ArrowLeft,
@@ -26,6 +26,7 @@ import {
   type FormulacaoQueijoCatalogos,
   type FormulacaoQueijoPayload,
   type OrdemProducaoCatalogos,
+  type OrdemProducaoDetalhe,
   type OrdemProducaoPayload,
   type OrdemProducaoResumo,
   type Overview,
@@ -129,6 +130,8 @@ export function App() {
   const [ordens, setOrdens] = useState<OrdemProducaoResumo[]>([])
   const [openOrders, setOpenOrders] = useState<OrdemProducaoResumo[]>([])
   const [orderEditorOpen, setOrderEditorOpen] = useState(false)
+  const [activeOrder, setActiveOrder] = useState<OrdemProducaoDetalhe | null>(null)
+  const orderSavingRef = useRef(false)
   const [cheeseCatalogs, setCheeseCatalogs] = useState<FormulacaoQueijoCatalogos>(EMPTY_CHEESE_CATALOGS)
   const [orderCatalogs, setOrderCatalogs] = useState<OrdemProducaoCatalogos>(EMPTY_ORDER_CATALOGS)
   const [openCheeseFormulas, setOpenCheeseFormulas] = useState<FormulacaoQueijo[]>([])
@@ -246,6 +249,9 @@ export function App() {
 
   async function saveOrdem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (orderSavingRef.current) return
+
+    orderSavingRef.current = true
     const formElement = event.currentTarget
     const form = new FormData(formElement)
     const data = field(form, 'data')
@@ -289,6 +295,43 @@ export function App() {
     } catch (error) {
       setState('error')
       setMessage(error instanceof Error ? error.message : 'Não foi possível salvar a OP.')
+    } finally {
+      orderSavingRef.current = false
+    }
+  }
+
+  async function openOrder(id: number) {
+    setState('loading')
+    setMessage('Carregando OP')
+
+    try {
+      setActiveOrder(await producaoApi.ordemProducao(id))
+      setMessage('')
+      setState('ready')
+    } catch (error) {
+      setState('error')
+      setMessage(error instanceof Error ? error.message : 'Não foi possível abrir a OP.')
+    }
+  }
+
+  async function finalizeOrder() {
+    if (!activeOrder || orderSavingRef.current) return
+
+    orderSavingRef.current = true
+    setState('saving')
+    setMessage('Finalizando OP')
+
+    try {
+      await producaoApi.finalizarOrdemProducao(activeOrder.id)
+      await loadBase(activeOrder.data ?? date)
+      setActiveOrder(null)
+      setMessage('OP finalizada')
+      setState('ready')
+    } catch (error) {
+      setState('error')
+      setMessage(error instanceof Error ? error.message : 'Não foi possível finalizar a OP.')
+    } finally {
+      orderSavingRef.current = false
     }
   }
 
@@ -441,7 +484,7 @@ export function App() {
             key={workflow.id}
             type="button"
             onClick={() => {
-              if (workflow.id === 'ordens') setOrderEditorOpen(false)
+              if (workflow.id === 'ordens') { setOrderEditorOpen(false); setActiveOrder(null) }
               if (workflow.id === 'queijo') { setCheeseEditorOpen(false); setActiveCheeseFormula(null) }
               setView(workflow.id)
             }}
@@ -482,7 +525,7 @@ export function App() {
               <section className="work-list">
                 <div className="section-heading">
                   <div><span className="section-kicker">Hoje</span><h1>Ordens de produção</h1></div>
-                  <button className="compact-button" type="button" onClick={() => { setOrderEditorOpen(true); setView('ordens') }}><Plus size={18} />Nova OP</button>
+                  <button className="compact-button" type="button" onClick={() => { setActiveOrder(null); setOrderEditorOpen(true); setView('ordens') }}><Plus size={18} />Nova OP</button>
                 </div>
                 <div className="order-list">
                   {ordens.length === 0 ? (
@@ -501,7 +544,7 @@ export function App() {
                 <div className="section-heading"><div><span className="section-kicker">Novo</span><h2>Lançamento</h2></div></div>
                 {PRODUCTION_WORKFLOWS.map((workflow) => (
                   <button key={workflow.id} type="button" onClick={() => {
-                    if (workflow.id === 'ordens') setOrderEditorOpen(false)
+                    if (workflow.id === 'ordens') { setOrderEditorOpen(false); setActiveOrder(null) }
                     if (workflow.id === 'queijo') { setCheeseEditorOpen(false); setActiveCheeseFormula(null) }
                     setView(workflow.id)
                   }}>
@@ -515,10 +558,17 @@ export function App() {
           </div>
         )}
 
-        {view === 'ordens' && (orderEditorOpen ? (
-          <OrderForm key={`${view}-${date}`} date={date} catalogs={orderCatalogs} onBack={() => setOrderEditorOpen(false)} onSubmit={saveOrdem} />
+        {view === 'ordens' && (activeOrder ? (
+          <OpenOrderDetail
+            order={activeOrder}
+            busy={state === 'saving'}
+            onBack={() => setActiveOrder(null)}
+            onFinalize={() => void finalizeOrder()}
+          />
+        ) : orderEditorOpen ? (
+          <OrderForm key={`${view}-${date}`} date={date} catalogs={orderCatalogs} busy={state === 'saving'} onBack={() => setOrderEditorOpen(false)} onSubmit={saveOrdem} />
         ) : (
-          <OpenOrderList items={openOrders} onBack={() => setView('inicio')} onCreate={() => setOrderEditorOpen(true)} />
+          <OpenOrderList items={openOrders} onBack={() => setView('inicio')} onCreate={() => setOrderEditorOpen(true)} onOpen={(id) => void openOrder(id)} />
         ))}
         {view === 'queijo' && (cheeseEditorOpen ? (
           <CheeseForm
@@ -545,7 +595,7 @@ export function App() {
   )
 }
 
-function FactoryForm({ title, code, children, onBack, onSubmit, singleAction = false, hideActions = false }: {
+function FactoryForm({ title, code, children, onBack, onSubmit, singleAction = false, hideActions = false, busy = false }: {
   title: string
   code: string
   children: ReactNode
@@ -553,6 +603,7 @@ function FactoryForm({ title, code, children, onBack, onSubmit, singleAction = f
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   singleAction?: boolean
   hideActions?: boolean
+  busy?: boolean
 }) {
   return (
     <form className="factory-form" onSubmit={onSubmit}>
@@ -562,8 +613,8 @@ function FactoryForm({ title, code, children, onBack, onSubmit, singleAction = f
       </div>
       <div className="form-body">{children}</div>
       {!hideActions && <div className="form-footer">
-        {!singleAction && <button className="secondary-button" type="submit" name="finalizar" value="0"><Save size={19} />Salvar rascunho</button>}
-        <button className="primary-button" type="submit" name="finalizar" value={singleAction ? '0' : '1'}><Save size={19} />{singleAction ? 'Salvar OP' : 'Salvar e finalizar'}</button>
+        {!singleAction && <button className="secondary-button" type="submit" name="finalizar" value="0" disabled={busy}><Save size={19} />Salvar rascunho</button>}
+        <button className="primary-button" type="submit" name="finalizar" value={singleAction ? '0' : '1'} disabled={busy}><Save size={19} />{busy ? 'Salvando…' : singleAction ? 'Salvar OP' : 'Salvar e finalizar'}</button>
       </div>}
     </form>
   )
@@ -577,10 +628,11 @@ function Field({ label, wide = false, children }: { label: string; wide?: boolea
   return <label className={wide ? 'field is-wide' : 'field'}><span>{label}</span>{children}</label>
 }
 
-function OpenOrderList({ items, onBack, onCreate }: {
+function OpenOrderList({ items, onBack, onCreate, onOpen }: {
   items: OrdemProducaoResumo[]
   onBack: () => void
   onCreate: () => void
+  onOpen: (id: number) => void
 }) {
   return (
     <section className="formula-module">
@@ -593,21 +645,57 @@ function OpenOrderList({ items, onBack, onCreate }: {
         {items.length === 0 ? (
           <div className="empty-state"><ClipboardList size={25} /><span>Nenhuma OP aberta</span></div>
         ) : items.map((item) => (
-          <article className="formula-row open-order-row" key={item.id}>
+          <button className="formula-row open-order-row" key={item.id} type="button" onClick={() => onOpen(item.id)}>
             <span className={`order-status is-${item.status ?? 'rascunho'}`} />
             <div><strong>{item.codigo_ordem}</strong><span>{item.tipo_queijo || item.lote_queijo || 'Ordem manual'}</span></div>
             <time>{item.data ? formatDateInput(item.data) : 'Sem data'}</time>
             <em>{item.status?.replace('_', ' ') ?? 'rascunho'}</em>
-          </article>
+          </button>
         ))}
       </div>
     </section>
   )
 }
 
-function OrderForm({ date, catalogs, onBack, onSubmit }: {
+function OpenOrderDetail({ order, busy, onBack, onFinalize }: {
+  order: OrdemProducaoDetalhe
+  busy: boolean
+  onBack: () => void
+  onFinalize: () => void
+}) {
+  return (
+    <section className="formula-module order-detail">
+      <div className="form-heading formula-module-heading">
+        <button className="back-button" type="button" onClick={onBack}><ArrowLeft size={20} />Voltar</button>
+        <div><span className="section-kicker">OP</span><h1>{order.codigo_ordem}</h1></div>
+      </div>
+      <div className="order-detail-card">
+        <div className="order-detail-summary">
+          <div><span>Data</span><strong>{order.data ? formatDateInput(order.data) : 'Sem data'}</strong></div>
+          <div><span>Origem</span><strong>{order.manual ? 'Manual' : 'Formulação'}</strong></div>
+          <div><span>Status</span><strong>{order.status.replace('_', ' ')}</strong></div>
+        </div>
+        <div className="order-detail-fields">
+          {order.campos.map((campo, index) => (
+            <div key={`${campo.rotulo}-${index}`}><span>{campo.rotulo}</span><strong>{campo.valor || '—'}</strong></div>
+          ))}
+        </div>
+      </div>
+      {order.status === 'rascunho' && (
+        <div className="form-footer">
+          <button className="primary-button" type="button" disabled={busy} onClick={onFinalize}>
+            <CheckCircle2 size={19} />{busy ? 'Finalizando…' : 'Finalizar OP'}
+          </button>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function OrderForm({ date, catalogs, busy, onBack, onSubmit }: {
   date: string
   catalogs: OrdemProducaoCatalogos
+  busy: boolean
   onBack: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
@@ -623,7 +711,7 @@ function OrderForm({ date, catalogs, onBack, onSubmit }: {
   }, [catalogs.queijos, cheeseId])
 
   return (
-    <FactoryForm title="Ordem de produção" code="OP" onBack={onBack} onSubmit={onSubmit} singleAction>
+    <FactoryForm title="Ordem de produção" code="OP" onBack={onBack} onSubmit={onSubmit} singleAction busy={busy}>
       <FormSection title="Identificação">
         <Field label="Data"><DateInput name="data" defaultValue={date} required /></Field>
         <Field label="Produto"><select value={cheeseId} onChange={(event) => setCheeseId(event.target.value)} required><option value="">Selecionar</option>{catalogs.queijos.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select></Field>
