@@ -75,6 +75,7 @@ export function OperacaoLote({
               <span>Código da balança</span>
               <input
                 className="control scan-input"
+                data-scanner-input="true"
                 value={codigoBarra}
                 onChange={(event) => onCodigoChange(event.target.value)}
                 placeholder="Escaneie o código"

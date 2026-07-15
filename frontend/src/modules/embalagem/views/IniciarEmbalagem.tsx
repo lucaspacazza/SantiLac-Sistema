@@ -30,6 +30,7 @@ export function IniciarEmbalagem({
           <input
             autoFocus
             className="control op-input"
+            data-scanner-input="true"
             inputMode="none"
             onPointerDown={(event) => { event.currentTarget.inputMode = 'text' }}
             onBlur={(event) => { event.currentTarget.inputMode = 'none' }}
