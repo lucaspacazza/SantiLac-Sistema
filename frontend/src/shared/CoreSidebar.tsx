@@ -71,7 +71,7 @@ export function CoreSidebar({
         <span className="nav-section-title">Sistema</span>
         <button className={`nav-item nav-motion-home ${showSystemHomeActive ? 'is-active' : ''}`} type="button" onClick={onBackToSystem}>
           <Home size={16} />
-          Início do sistema
+          Início
         </button>
 
         {modules.map((module) => {
