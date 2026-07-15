@@ -79,8 +79,16 @@ if (! str_contains((string) $ordemServiceSource, 'lockForUpdate()')) {
     throw new RuntimeException('Edição da OP não protege a transição concorrente de status.');
 }
 
-if (! str_contains((string) $ordemServiceSource, "'campos_json' => \$this->camposDaFormulacao(\$formulacao)")) {
-    throw new RuntimeException('A OP automática não usa somente os campos atuais derivados da formulação.');
+foreach ([
+    "whereDate('data_ordem', \$data)",
+    "where('tipo_queijo', \$tipoQueijo)",
+    'camposAutomaticos($formulacoes)',
+    "'status' => \$this->isMussarela(\$tipoQueijo) ? 'aguardando_formato' : 'rascunho'",
+    "'ordem_producao_id' => \$ordem->id",
+] as $contract) {
+    if (! str_contains((string) $ordemServiceSource, $contract)) {
+        throw new RuntimeException("Agrupamento diário da OP ausente: {$contract}");
+    }
 }
 
 if (! str_contains(

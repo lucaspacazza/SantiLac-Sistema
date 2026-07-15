@@ -59,7 +59,7 @@ class FormulacaoQueijoService extends BaseFormularioService
     {
         $id = DB::connection('raw')->transaction(function () use ($payload, $usuarioId): int {
             $insumos = $payload['insumos'] ?? [];
-            unset($payload['insumos']);
+            unset($payload['insumos'], $payload['ordem_producao_id']);
             $payload['tipo_queijo'] = (string) ($payload['tipo_queijo'] ?? '');
             $payload['lote_queijo'] = (string) ($payload['lote_queijo'] ?? '');
 
@@ -94,7 +94,7 @@ class FormulacaoQueijoService extends BaseFormularioService
 
         DB::connection('raw')->transaction(function () use ($formulacao, $payload, $usuarioId): void {
             $insumos = $payload['insumos'] ?? [];
-            unset($payload['insumos']);
+            unset($payload['insumos'], $payload['ordem_producao_id']);
             $payload['tipo_queijo'] = (string) ($payload['tipo_queijo'] ?? '');
             $payload['lote_queijo'] = (string) ($payload['lote_queijo'] ?? '');
 
@@ -158,7 +158,7 @@ class FormulacaoQueijoService extends BaseFormularioService
         return [
             'id' => (int) $formulacao->id,
             'codigo_formulacao' => $formulacao->codigo_formulacao ?: $this->codigo($formulacao),
-            'ordem_producao_id' => null,
+            'ordem_producao_id' => $formulacao->ordem_producao_id !== null ? (int) $formulacao->ordem_producao_id : null,
             'documento_codigo' => (string) $formulacao->documento_codigo,
             'tipo_queijo' => (string) $formulacao->tipo_queijo,
             'data_formulacao' => optional($formulacao->data_formulacao)->toDateString(),

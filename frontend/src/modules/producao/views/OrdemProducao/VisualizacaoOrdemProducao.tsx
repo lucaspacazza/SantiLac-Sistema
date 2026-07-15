@@ -1,4 +1,4 @@
-import { Save } from 'lucide-react'
+import { CheckCircle2, Save } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { OrdemExportFormat, OrdemProducao, OrdemProducaoPayload } from '../../api/producaoApi'
 import { OrdemExportMenu } from '../../shared/OrdemExportMenu'
@@ -10,6 +10,7 @@ export function VisualizacaoOrdemProducao({
   salvando,
   onBack,
   onSave,
+  onFinalize,
   onDefinirFormato,
   onExport,
 }: {
@@ -17,6 +18,7 @@ export function VisualizacaoOrdemProducao({
   salvando: boolean
   onBack: () => void
   onSave: (campos: CampoOrdem[]) => void
+  onFinalize: () => void
   onDefinirFormato: (formato: 'f1' | 'f4' | 'f6') => void
   onExport: (format: OrdemExportFormat) => void
 }) {
@@ -24,6 +26,7 @@ export function VisualizacaoOrdemProducao({
   const [formato, setFormato] = useState<'f1' | 'f4' | 'f6'>('f4')
   const editavel = ordem.status === 'rascunho'
   const pendenteFormato = ordem.pendencia_formato
+  const alterado = useMemo(() => JSON.stringify(campos) !== JSON.stringify(ordem.campos), [campos, ordem.campos])
 
   useEffect(() => {
     setCampos(ordem.campos)
@@ -94,6 +97,15 @@ export function VisualizacaoOrdemProducao({
             <div className="form-actions compact-actions">
               <button className="btn primary" type="submit" disabled={salvando}>
                 <Save size={16} />{salvando ? 'Salvando...' : 'Salvar ordem'}
+              </button>
+              <button
+                className="btn secondary"
+                type="button"
+                disabled={salvando || alterado || ordem.id === null}
+                title={alterado ? 'Salve as alterações antes de finalizar.' : undefined}
+                onClick={onFinalize}
+              >
+                <CheckCircle2 size={16} />Finalizar OP
               </button>
             </div>
           )}

@@ -104,3 +104,23 @@ test('offers to generate the current production order when finalizing a cheese f
   assert.match(app, /Gerar OP automaticamente/)
   assert.match(api, /gerarOpFormulacaoQueijo/)
 })
+
+test('lets the operator choose the mozzarella format and manually finalize its daily order', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
+
+  assert.match(app, /Formato da mussarela/)
+  assert.match(app, /Finalizar OP/)
+  assert.match(api, /definirFormatoOrdemProducao/)
+})
+
+test('lets the operator end the current PWA session', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
+
+  assert.match(api, /logout:\s*(?:async\s*)?\(\)\s*=>/)
+  assert.match(app, /async function logout/)
+  assert.match(app, /authApi\.logout\(\)/)
+  assert.match(app, /aria-label="Sair"/)
+  assert.match(app, /setAuthState\('guest'\)/)
+})

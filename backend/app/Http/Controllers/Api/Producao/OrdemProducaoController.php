@@ -42,18 +42,30 @@ class OrdemProducaoController extends BaseProducaoController
 
     public function store(Request $request): JsonResponse
     {
-        $payload = $request->validate([
+        return response()->json([
+            'success' => true,
+            'data' => $this->ordens->salvar($this->validar($request)),
+        ]);
+    }
+
+    public function atualizar(Request $request, int $id): JsonResponse
+    {
+        return $this->responderAtualizacao(
+            $this->ordens->atualizar($id, $this->validar($request)),
+            'Ordem de produção não encontrada.',
+            $id
+        );
+    }
+
+    private function validar(Request $request): array
+    {
+        return $request->validate([
             'data' => ['required', 'date'],
             'codigo_ordem' => ['nullable', 'string', 'max:32'],
             'campos' => ['required', 'array'],
             'campos.*.rotulo' => ['required', 'string', 'max:120'],
             'campos.*.valor' => ['nullable', 'string', 'max:120'],
             'observacoes' => ['nullable', 'string'],
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'data' => $this->ordens->salvar($payload),
         ]);
     }
 

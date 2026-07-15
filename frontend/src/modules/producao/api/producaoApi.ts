@@ -285,6 +285,15 @@ export const producaoApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  atualizarOrdemProducao: (id: number, payload: OrdemProducaoPayload) =>
+    request<OrdemProducao>(`/api/producao/ordens-producao/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  finalizarOrdemProducao: (id: number) =>
+    request<OrdemProducao>(`/api/producao/ordens-producao/${id}/finalizar`, {
+      method: 'PATCH',
+    }),
   definirFormatoOrdemProducao: (id: number, formato: 'f1' | 'f4' | 'f6') =>
     request<OrdemProducao>(`/api/producao/ordens-producao/${id}/definir-formato`, {
       method: 'PATCH',

@@ -76,14 +76,7 @@ class OrdemProducaoService
     {
         $data = (string) $payload['data'];
         $codigo = $this->normalizarCodigo((string) ($payload['codigo_ordem'] ?? ''));
-        $campos = collect($payload['campos'] ?? [])
-            ->map(fn (array $campo): array => [
-                'rotulo' => trim((string) ($campo['rotulo'] ?? '')),
-                'valor' => trim((string) ($campo['valor'] ?? '')),
-            ])
-            ->filter(fn (array $campo): bool => $campo['rotulo'] !== '')
-            ->values()
-            ->all();
+        $campos = $this->normalizarCampos($payload['campos'] ?? []);
 
         $codigo = $codigo !== '' ? $codigo : $this->gerarCodigo($data);
 
@@ -100,6 +93,37 @@ class OrdemProducaoService
         );
 
         return $this->formatarOrdem($ordem, collect());
+    }
+
+    public function atualizar(int $id, array $payload): array|bool|null
+    {
+        return DB::connection('raw')->transaction(function () use ($id, $payload): array|bool|null {
+            $ordem = ProducaoOrdemProducao::query()
+                ->where('id', $id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($ordem === null) {
+                return null;
+            }
+
+            if (($ordem->status ?? 'rascunho') !== 'rascunho') {
+                return false;
+            }
+
+            $attributes = [
+                'data_ordem' => (string) $payload['data'],
+                'campos_json' => $this->normalizarCampos($payload['campos'] ?? []),
+            ];
+
+            if (array_key_exists('observacoes', $payload)) {
+                $attributes['observacoes'] = $payload['observacoes'];
+            }
+
+            $ordem->forceFill($attributes)->save();
+
+            return $this->formatarOrdem($ordem->refresh(), $this->formulacoesDaOrdem($ordem));
+        });
     }
 
     public function finalizar(int $id): ?array
@@ -152,23 +176,265 @@ class OrdemProducaoService
         }
 
         $data = optional($formulacao->data_formulacao)->toDateString();
-        if ($data === null) {
+        $tipoQueijo = trim((string) $formulacao->tipo_queijo);
+        if ($data === null || $tipoQueijo === '') {
             return null;
         }
 
-        $ordem = ProducaoOrdemProducao::query()->updateOrCreate(
-            ['formulacao_queijo_id' => $formulacao->id],
-            [
-                'codigo_ordem' => $this->gerarCodigoDaFormulacao($formulacao),
-                'data_ordem' => $data,
-                'campos_json' => $this->camposDaFormulacao($formulacao),
-                'origem' => 'automatica',
-                'status' => $this->isMussarela((string) $formulacao->tipo_queijo) ? 'aguardando_formato' : 'finalizada',
-                'observacoes' => 'Gerada pela formulação ' . ($formulacao->codigo_formulacao ?? $formulacao->id),
-            ],
-        );
+        return $this->comLockDoGrupo($data, $tipoQueijo, function () use ($formulacaoId, $data, $tipoQueijo): ?array {
+            return DB::connection('raw')->transaction(function () use ($formulacaoId, $data, $tipoQueijo): ?array {
+                $formulacao = ProducaoFormulacaoQueijo::query()
+                    ->where('id', $formulacaoId)
+                    ->lockForUpdate()
+                    ->first();
 
-        return $this->formatarOrdem($ordem, collect([$formulacao]));
+                if ($formulacao === null || $formulacao->status !== 'finalizada') {
+                    return null;
+                }
+
+                $ordens = ProducaoOrdemProducao::query()
+                    ->whereDate('data_ordem', $data)
+                    ->where('tipo_queijo', $tipoQueijo)
+                    ->where('origem', 'automatica')
+                    ->where('status', '!=', 'cancelada')
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
+
+                [$ordem, , $camposManuais] = $this->consolidarOrdensDoGrupo($ordens);
+
+                if ($ordem === null) {
+                    $ordem = ProducaoOrdemProducao::query()->create([
+                        'codigo_ordem' => $this->gerarCodigoDiario($formulacao, $data),
+                        'formulacao_queijo_id' => $formulacao->id,
+                        'tipo_queijo' => $tipoQueijo,
+                        'data_ordem' => $data,
+                        'campos_json' => [],
+                        'origem' => 'automatica',
+                        'status' => $this->isMussarela($tipoQueijo) ? 'aguardando_formato' : 'rascunho',
+                        'observacoes' => 'OP diária gerada automaticamente.',
+                    ]);
+                }
+
+                $jaVinculada = (int) ($formulacao->ordem_producao_id ?? 0) === (int) $ordem->id;
+                if (($ordem->status ?? '') === 'finalizada' && ! $jaVinculada) {
+                    throw new \DomainException('A OP deste queijo e dia já foi finalizada e não pode receber outra formulação.');
+                }
+
+                $formulacao->forceFill(['ordem_producao_id' => $ordem->id])->save();
+                $formulacoes = $this->formulacoesDaOrdem($ordem);
+
+                if (($ordem->status ?? '') !== 'finalizada') {
+                    $ordem->forceFill([
+                        'formulacao_queijo_id' => $formulacoes->first()?->id,
+                        'tipo_queijo' => $tipoQueijo,
+                        'campos_json' => $this->mesclarCamposCalculadosEManuais($this->camposAutomaticos($formulacoes), $camposManuais),
+                        'observacoes' => $formulacoes->count() . ' formulação(ões) agrupada(s) nesta OP diária.',
+                    ])->save();
+                }
+
+                return $this->formatarOrdem($ordem->refresh(), $formulacoes);
+            });
+        });
+    }
+
+    public function reconciliarOrdensDiarias(?string $data = null): array
+    {
+        $this->backfillVinculosLegados();
+
+        $grupos = ProducaoOrdemProducao::query()
+            ->where('origem', 'automatica')
+            ->whereNotNull('tipo_queijo')
+            ->when($data !== null && $data !== '', fn ($query) => $query->whereDate('data_ordem', $data))
+            ->orderBy('data_ordem')
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn (ProducaoOrdemProducao $ordem): string => optional($ordem->data_ordem)->toDateString() . '|' . $this->normalizar((string) $ordem->tipo_queijo));
+
+        $resultado = ['grupos' => 0, 'ordens_mescladas' => 0, 'conflitos' => []];
+
+        foreach ($grupos as $grupo) {
+            $base = $grupo->first();
+            if (! $base instanceof ProducaoOrdemProducao) {
+                continue;
+            }
+
+            $dataGrupo = optional($base->data_ordem)->toDateString();
+            $tipoQueijo = (string) $base->tipo_queijo;
+            if ($dataGrupo === null || $tipoQueijo === '') {
+                continue;
+            }
+
+            try {
+                $mescladas = $this->comLockDoGrupo($dataGrupo, $tipoQueijo, function () use ($dataGrupo, $tipoQueijo): int {
+                    return DB::connection('raw')->transaction(function () use ($dataGrupo, $tipoQueijo): int {
+                        $ordens = ProducaoOrdemProducao::query()
+                            ->whereDate('data_ordem', $dataGrupo)
+                            ->where('tipo_queijo', $tipoQueijo)
+                            ->where('origem', 'automatica')
+                            ->orderBy('id')
+                            ->lockForUpdate()
+                            ->get();
+                        [$ordem, $totalMescladas, $camposManuais] = $this->consolidarOrdensDoGrupo($ordens);
+
+                        if ($ordem instanceof ProducaoOrdemProducao) {
+                            $formulacoes = $this->formulacoesDaOrdem($ordem);
+                            if ($formulacoes->isNotEmpty()) {
+                                $ordem->forceFill([
+                                    'formulacao_queijo_id' => $formulacoes->first()?->id,
+                                    'campos_json' => $this->mesclarCamposCalculadosEManuais($this->camposAutomaticos($formulacoes), $camposManuais),
+                                    'observacoes' => $formulacoes->count() . ' formulação(ões) agrupada(s) nesta OP diária.',
+                                ])->save();
+                            }
+                        }
+
+                        return $totalMescladas;
+                    });
+                });
+                $resultado['grupos']++;
+                $resultado['ordens_mescladas'] += $mescladas;
+            } catch (\DomainException $exception) {
+                $resultado['conflitos'][] = $dataGrupo . ' - ' . $tipoQueijo . ': ' . $exception->getMessage();
+            }
+        }
+
+        return $resultado;
+    }
+
+    private function backfillVinculosLegados(): void
+    {
+        $connection = DB::connection('raw');
+        $connection->statement(
+            'UPDATE producao_formulacoes_queijo f '
+            .'INNER JOIN ordens_producao o ON o.formulacao_queijo_id = f.id '
+            .'SET f.ordem_producao_id = o.id '
+            .'WHERE f.ordem_producao_id IS NULL'
+        );
+        $connection->statement(
+            'UPDATE ordens_producao o '
+            .'INNER JOIN producao_formulacoes_queijo f ON f.id = o.formulacao_queijo_id '
+            .'SET o.tipo_queijo = f.tipo_queijo '
+            .'WHERE o.tipo_queijo IS NULL OR o.tipo_queijo = \'\''
+        );
+    }
+
+    private function comLockDoGrupo(string $data, string $tipoQueijo, callable $callback): mixed
+    {
+        $connection = DB::connection('raw');
+        $lock = 'santilac_op_diaria_' . sha1($data . '|' . $this->normalizar($tipoQueijo));
+        $result = $connection->selectOne('SELECT GET_LOCK(?, 10) AS acquired', [$lock]);
+
+        if ((int) ($result->acquired ?? 0) !== 1) {
+            throw new \DomainException('Não foi possível bloquear a OP diária para atualização. Tente novamente.');
+        }
+
+        try {
+            return $callback();
+        } finally {
+            $connection->selectOne('SELECT RELEASE_LOCK(?) AS released', [$lock]);
+        }
+    }
+
+    private function consolidarOrdensDoGrupo(Collection $ordens): array
+    {
+        if ($ordens->isEmpty()) {
+            return [null, 0, []];
+        }
+
+        $ordens = $ordens->sortBy('id')->values();
+        $camposManuais = $this->camposManuaisDasOrdens($ordens);
+        if ($ordens->count() === 1) {
+            return [$ordens->first(), 0, $camposManuais];
+        }
+
+        $ids = $ordens->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $idsComEmbalagem = $this->tabelaExiste('embalagem_lotes')
+            ? DB::connection('raw')->table('embalagem_lotes')->whereIn('ordem_producao_id', $ids)->pluck('ordem_producao_id')->unique()->values()
+            : collect();
+
+        if ($idsComEmbalagem->count() > 1) {
+            throw new \DomainException('há mais de uma OP com movimentação na embalagem; consolidação automática bloqueada.');
+        }
+
+        $ordemPrincipal = $idsComEmbalagem->isNotEmpty()
+            ? $ordens->first(fn (ProducaoOrdemProducao $ordem): bool => $idsComEmbalagem->contains((int) $ordem->id))
+            : ($ordens->first(fn (ProducaoOrdemProducao $ordem): bool => ($ordem->status ?? '') === 'finalizada')
+                ?? $ordens->first(fn (ProducaoOrdemProducao $ordem): bool => ($ordem->status ?? '') !== 'cancelada')
+                ?? $ordens->first());
+
+        if (! $ordemPrincipal instanceof ProducaoOrdemProducao) {
+            return [null, 0, $camposManuais];
+        }
+
+        $mescladas = 0;
+        foreach ($ordens as $ordem) {
+            if ((int) $ordem->id === (int) $ordemPrincipal->id) {
+                continue;
+            }
+
+            ProducaoFormulacaoQueijo::query()
+                ->where('ordem_producao_id', $ordem->id)
+                ->update(['ordem_producao_id' => $ordemPrincipal->id]);
+
+            if ($ordemPrincipal->formulacao_queijo_id === null && $ordem->formulacao_queijo_id !== null) {
+                $ordemPrincipal->formulacao_queijo_id = $ordem->formulacao_queijo_id;
+            }
+
+            $ordem->forceFill([
+                'tipo_queijo' => null,
+                'status' => 'cancelada',
+                'observacoes' => 'Consolidada na OP ' . $ordemPrincipal->codigo_ordem . '.',
+            ])->save();
+            $mescladas++;
+        }
+
+        $ordemPrincipal->save();
+
+        return [$ordemPrincipal->refresh(), $mescladas, $camposManuais];
+    }
+
+    private function camposManuaisDasOrdens(Collection $ordens): array
+    {
+        $campos = [];
+
+        foreach ($ordens as $ordem) {
+            foreach (($ordem->campos_json ?? []) as $campo) {
+                $rotulo = trim((string) ($campo['rotulo'] ?? ''));
+                $chave = $this->normalizar($rotulo);
+                $valor = trim((string) ($campo['valor'] ?? ''));
+
+                if (! str_starts_with($chave, 'pecas ') || $valor === '') {
+                    continue;
+                }
+
+                $campos[$chave] ??= ['rotulo' => $rotulo, 'total' => 0.0];
+                $campos[$chave]['total'] += $this->numeroDeCampo($valor);
+            }
+        }
+
+        return collect($campos)
+            ->map(fn (array $campo): array => [
+                'rotulo' => $campo['rotulo'],
+                'valor' => $this->valor((float) $campo['total']),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function mesclarCamposCalculadosEManuais(array $calculados, array $manuais): array
+    {
+        $porRotulo = collect($manuais)->keyBy(fn (array $campo): string => $this->normalizar((string) ($campo['rotulo'] ?? '')));
+        $resultado = collect($calculados)->map(function (array $campo) use ($porRotulo): array {
+            $manual = $porRotulo->get($this->normalizar((string) ($campo['rotulo'] ?? '')));
+
+            return is_array($manual) ? $manual : $campo;
+        });
+        $existentes = $resultado->map(fn (array $campo): string => $this->normalizar((string) ($campo['rotulo'] ?? '')));
+
+        return $resultado
+            ->concat(collect($manuais)->reject(fn (array $campo): bool => $existentes->contains($this->normalizar((string) ($campo['rotulo'] ?? '')))))
+            ->values()
+            ->all();
     }
 
     public function definirFormato(int $id, string $formato): ?array
@@ -207,7 +473,7 @@ class OrdemProducaoService
             'id' => (int) $ordem->id,
             'codigo_ordem' => (string) $ordem->codigo_ordem,
             'data' => optional($ordem->data_ordem)->toDateString(),
-            'tipo_queijo' => $formulacao?->tipo_queijo ?? $this->tipoQueijoDosCampos($ordem->campos_json),
+            'tipo_queijo' => $ordem->tipo_queijo ?? $formulacao?->tipo_queijo ?? $this->tipoQueijoDosCampos($ordem->campos_json),
             'lote_queijo' => $formulacao?->lote_queijo,
             'origem' => (string) $ordem->origem,
             'status' => $ordem->status ?? 'rascunho',
@@ -217,6 +483,16 @@ class OrdemProducaoService
 
     private function formulacoesDaOrdem(ProducaoOrdemProducao $ordem): Collection
     {
+        $formulacoes = ProducaoFormulacaoQueijo::query()
+            ->where('ordem_producao_id', $ordem->id)
+            ->where('status', 'finalizada')
+            ->orderBy('id')
+            ->get();
+
+        if ($formulacoes->isNotEmpty()) {
+            return $formulacoes;
+        }
+
         if ($ordem->formulacao_queijo_id !== null) {
             return ProducaoFormulacaoQueijo::query()
                 ->where('id', $ordem->formulacao_queijo_id)
@@ -703,6 +979,16 @@ class OrdemProducaoService
         return $this->codigoUnicoDaFormulacao($base, $formulacao);
     }
 
+    private function gerarCodigoDiario(ProducaoFormulacaoQueijo $formulacao, string $data): string
+    {
+        $queijo = $this->buscarQueijo($formulacao);
+        $produto = preg_replace('/[^a-z0-9]/', '', strtolower((string) ($queijo['codigo_balanca'] ?? $formulacao->tipo_queijo)));
+        $dia = preg_replace('/[^0-9]/', '', $data);
+        $base = substr('op' . ($produto !== '' ? $produto : 'queijo') . $dia, 0, 32);
+
+        return $this->codigoUnicoDaFormulacao($base, $formulacao);
+    }
+
     private function codigoUnicoDaFormulacao(string $base, ProducaoFormulacaoQueijo $formulacao): string
     {
         $existente = ProducaoOrdemProducao::query()
@@ -727,6 +1013,18 @@ class OrdemProducaoService
     private function normalizarCodigo(string $codigo): string
     {
         return preg_replace('/[^a-z0-9]/', '', strtolower(trim($codigo))) ?? '';
+    }
+
+    private function normalizarCampos(array $campos): array
+    {
+        return collect($campos)
+            ->map(fn (array $campo): array => [
+                'rotulo' => trim((string) ($campo['rotulo'] ?? '')),
+                'valor' => trim((string) ($campo['valor'] ?? '')),
+            ])
+            ->filter(fn (array $campo): bool => $campo['rotulo'] !== '')
+            ->values()
+            ->all();
     }
 
     private function normalizar(string $valor): string

@@ -70,7 +70,6 @@ class FormulacaoQueijoController extends BaseProducaoController
     private function validar(Request $request): array
     {
         return $request->validate([
-            'ordem_producao_id' => ['nullable', 'integer'],
             'tipo_queijo' => ['nullable', 'string', 'max:120'],
             'data_formulacao' => ['required', 'date'],
             'silo' => ['nullable', 'string', 'max:60'],
