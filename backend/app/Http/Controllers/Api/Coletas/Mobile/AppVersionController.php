@@ -3,21 +3,20 @@
 namespace App\Http\Controllers\Api\Coletas\Mobile;
 
 use App\Http\Controllers\Controller;
+use App\Services\AppVersionRegistry;
 use App\Services\Coletas\Mobile\MobileResponse;
 use Illuminate\Http\JsonResponse;
 
 class AppVersionController extends Controller
 {
+    public function __construct(private readonly AppVersionRegistry $versions)
+    {
+    }
+
     public function __invoke(): JsonResponse
     {
-        $defaultApkUrl = rtrim((string) config('app.url'), '/') . '/downloads/SantiLac-Coletas-Release.apk';
-
-        return response()->json(MobileResponse::ok([
-            'version_code' => (int) env('APP_COLETAS_VERSION_CODE', 10),
-            'version_name' => (string) env('APP_COLETAS_VERSION_NAME', '1.0.9'),
-            'apk_url' => (string) env('APP_COLETAS_APK_URL', $defaultApkUrl),
-            'required' => filter_var(env('APP_COLETAS_UPDATE_REQUIRED', false), FILTER_VALIDATE_BOOLEAN),
-            'message' => (string) env('APP_COLETAS_UPDATE_MESSAGE', 'Nova versão disponível.'),
-        ]));
+        return response()->json(MobileResponse::ok($this->versions->get('coletas')))
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache');
     }
 }

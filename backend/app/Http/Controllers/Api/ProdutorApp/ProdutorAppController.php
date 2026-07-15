@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\ProdutorApp;
 
 use App\Http\Controllers\Controller;
+use App\Services\AppVersionRegistry;
 use App\Services\ProdutorApp\ProdutorAppService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,7 +12,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class ProdutorAppController extends Controller
 {
     public function __construct(
-        private readonly ProdutorAppService $produtorApp
+        private readonly ProdutorAppService $produtorApp,
+        private readonly AppVersionRegistry $versions
     ) {
     }
 
@@ -60,18 +62,9 @@ class ProdutorAppController extends Controller
 
     public function version(): JsonResponse
     {
-        $defaultApkUrl = rtrim((string) config('app.url'), '/') . '/api/produtor-app/download';
-        $apkUrl = (string) (config('services.produtor_app.apk_url') ?: $defaultApkUrl);
-
         return response()->json([
             'ok' => true,
-            'data' => [
-                'version_code' => (int) config('services.produtor_app.version_code', 1),
-                'version_name' => (string) config('services.produtor_app.version_name', '0.1.0'),
-                'apk_url' => $apkUrl,
-                'required' => (bool) config('services.produtor_app.update_required', false),
-                'message' => (string) config('services.produtor_app.update_message', 'Nova versão disponível.'),
-            ],
+            'data' => $this->versions->get('produtor'),
         ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             ->header('Pragma', 'no-cache');
     }
