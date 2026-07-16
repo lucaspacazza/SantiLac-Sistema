@@ -49,3 +49,11 @@ test('shows the keyboard for OP and manual fields but hides it only on barcode r
   assert.match(operation, /autoFocus/)
   assert.match(loading, /autoFocus/)
 })
+
+test('keeps the active scale scanner focused without stealing manual input focus', () => {
+  assert.match(operation, /const scannerRef = useRef<HTMLInputElement>\(null\)/)
+  assert.match(operation, /ref=\{scannerRef\}/)
+  assert.match(operation, /scannerRef\.current\?\.focus\(\{ preventScroll: true \}\)/)
+  assert.match(operation, /target\.closest\(interactiveSelector\)/)
+  assert.match(operation, /input, textarea, select/)
+})
