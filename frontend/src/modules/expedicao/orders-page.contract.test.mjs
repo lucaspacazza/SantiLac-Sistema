@@ -8,6 +8,8 @@ test('ordens abertas e historico sao apresentados separadamente', () => {
   assert.match(source, /const ordensAbertas = useMemo/)
   assert.match(source, /const ordensHistorico = useMemo/)
   assert.match(source, /title="Ordens abertas"/)
+  assert.doesNotMatch(source, /canceladas preservadas/i)
+  assert.doesNotMatch(source, /cancelada:\s*'Cancelada'/)
   assert.match(source, /title="Histórico"/)
 })
 

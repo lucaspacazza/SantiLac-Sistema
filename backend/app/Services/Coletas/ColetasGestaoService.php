@@ -45,7 +45,6 @@ class ColetasGestaoService
         $statusHaving = match ($status) {
             'aberta' => 'HAVING status_codigo = 1',
             'finalizada' => 'HAVING status_codigo = 0',
-            'cancelada' => 'HAVING status_codigo = 2',
             default => 'HAVING status_codigo <> 2',
         };
 
@@ -292,6 +291,7 @@ class ColetasGestaoService
                 FROM rotas r
                 WHERE r.uuid = :uuid
                 GROUP BY r.uuid
+                HAVING status_codigo <> 2
             ) base
             LEFT JOIN (
                 SELECT rota_uuid, COALESCE(SUM(litros), 0) AS total_litros, COUNT(*) AS total_coletas

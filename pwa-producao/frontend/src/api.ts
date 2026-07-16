@@ -35,7 +35,7 @@ export type OrdemProducaoResumo = {
   tipo_queijo: string
   lote_queijo: string | null
   origem: string
-  status: 'rascunho' | 'aguardando_formato' | 'finalizada' | 'cancelada' | null
+  status: 'rascunho' | 'aguardando_formato' | 'finalizada' | null
   pendencia_formato: boolean
 }
 
@@ -45,7 +45,7 @@ export type OrdemProducaoDetalhe = {
   data: string | null
   manual: boolean
   origem: string
-  status: 'rascunho' | 'aguardando_formato' | 'finalizada' | 'cancelada'
+  status: 'rascunho' | 'aguardando_formato' | 'finalizada'
   pendencia_formato: boolean
   total_formulacoes: number
   campos: Array<{ rotulo: string; valor: string }>
@@ -128,7 +128,7 @@ export type FormulacaoQueijoPayload = {
 export type FormulacaoQueijo = FormulacaoQueijoPayload & {
   id: number
   codigo_formulacao: string
-  status: 'rascunho' | 'finalizada' | 'cancelada'
+  status: 'rascunho' | 'finalizada'
 }
 
 export type FormulacoesQueijoPage = {

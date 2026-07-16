@@ -63,12 +63,15 @@ test('lets the operator open and finalize an existing production order', () => {
   assert.match(api, /finalizarOrdemProducao/)
 })
 
-test('lets the operator cancel an open production order with confirmation', () => {
+test('lets the operator delete an open production order with custom confirmation', () => {
   const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
   const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
 
   assert.match(app, /Cancelar OP/)
-  assert.match(app, /window\.confirm/)
+  assert.doesNotMatch(app, /window\.confirm/)
+  assert.match(app, /function ConfirmationDialog/)
+  assert.match(app, /\{request\.cancelLabel\}/)
+  assert.match(app, /\{request\.confirmLabel\}/)
   assert.match(api, /cancelarOrdemProducao/)
 })
 
@@ -97,11 +100,14 @@ test('lets the operator cancel a saved cheese formulation', () => {
   assert.match(api, /cancelarFormulacaoQueijo/)
 })
 
-test('offers to generate the current production order when finalizing a cheese formulation', () => {
+test('asks with a custom yes-or-no dialog before generating the production order', () => {
   const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
   const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
 
   assert.match(app, /Gerar OP automaticamente/)
+  assert.match(app, /await askConfirmation/)
+  assert.match(app, /confirmLabel: 'Sim'/)
+  assert.match(app, /cancelLabel: 'N\u00e3o'/)
   assert.match(api, /gerarOpFormulacaoQueijo/)
 })
 

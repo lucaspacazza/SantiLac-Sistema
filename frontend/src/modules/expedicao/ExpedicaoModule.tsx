@@ -215,7 +215,7 @@ function Ordens() {
   async function action(ordem: OrdemExpedicao, type: 'lancar' | 'cancelar', reload = true): Promise<boolean> {
     try {
       type === 'lancar' ? await expedicaoApi.lancar(ordem.id) : await expedicaoApi.cancelar(ordem.id)
-      setFeedback(type === 'lancar' ? 'Ordem lançada para a embalagem.' : 'Ordem cancelada.')
+      setFeedback(type === 'lancar' ? 'Ordem lançada para a embalagem.' : 'Ordem excluída.')
       if (reload) await load()
       return true
     } catch (err) {
@@ -253,7 +253,7 @@ function Ordens() {
         />
         <OrderSection
           title="Histórico"
-          subtitle="Ordens concluídas e canceladas preservadas para consulta."
+          subtitle="Ordens concluídas disponíveis para consulta."
           ordens={ordensHistorico}
           empty="Nenhuma ordem no histórico."
         />
@@ -350,7 +350,7 @@ function CancellationDialog({ ordem, onClose, onConfirm }: {
         {loadingWarning
           ? 'O carregamento em andamento será interrompido e os paletes voltarão para o estoque.'
           : 'Os paletes reservados voltarão para o estoque.'}
-        {' '}A ordem continuará disponível no histórico para consulta.
+        {' '}A ordem será excluída definitivamente. Essa ação não pode ser desfeita.
       </p>
       <div className="exp-confirm-actions">
         <button className="exp-button subtle" type="button" disabled={busy} onClick={onClose} autoFocus>Não</button>
@@ -528,8 +528,7 @@ function OrderDetailPage({ id }: { id: number }) {
     if (!ordem) return false
     try {
       await expedicaoApi.cancelar(id)
-      setFeedback('Ordem cancelada e preservada no histórico.')
-      await load()
+      navigate('ordens')
       return true
     } catch (err) {
       setFeedback(message(err))
@@ -548,7 +547,6 @@ function OrderDetailPage({ id }: { id: number }) {
     { label: 'Ordem lançada', at: ordem.lancada_em, operator: ordem.operadores?.lancado_por },
     { label: 'Carregamento iniciado', at: ordem.iniciada_em, operator: ordem.operadores?.iniciado_por },
     { label: 'Carregamento concluído', at: ordem.concluida_em, operator: ordem.operadores?.concluido_por },
-    { label: 'Ordem cancelada', at: ordem.cancelada_em, operator: ordem.operadores?.cancelado_por },
   ].filter((item) => item.at)
 
   return <>
@@ -610,7 +608,7 @@ function OrderDetailPage({ id }: { id: number }) {
                 <td>{palete.operador_conferencia || '-'}</td>
               </tr>)}</tbody>
             </table>
-            {paletes.length === 0 ? <Empty text={ordem.status === 'cancelada' ? 'Esta ordem foi cancelada antes da preservação detalhada dos paletes.' : 'Nenhum palete registrado nesta ordem.'} /> : null}
+            {paletes.length === 0 ? <Empty text="Nenhum palete registrado nesta ordem." /> : null}
           </div>
         </section>
       </main>
@@ -740,5 +738,5 @@ function kg(value: number) { return `${Number(value || 0).toLocaleString('pt-BR'
 function date(value?: string | null) { if (!value) return '-'; const plain = value.slice(0, 10).split('-'); return plain.length === 3 ? `${plain[2]}/${plain[1]}/${plain[0]}` : value }
 function dateTime(value?: string | null) { if (!value) return '-'; const parsed = new Date(value.replace(' ', 'T')); return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) }
 function productName(value: string) { return value ? value.replace(/[-_]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) : '-' }
-function statusLabel(value: string) { return ({ rascunho: 'Rascunho', lancada: 'Lançada', carregando: 'Carregando', concluida: 'Concluída', cancelada: 'Cancelada', reservado: 'Reservado', carregado: 'Carregado', disponível: 'Disponível', pendente: 'Pendente', impressa: 'Impressa', erro: 'Erro' } as Record<string, string>)[value] ?? value }
+function statusLabel(value: string) { return ({ rascunho: 'Rascunho', lancada: 'Lançada', carregando: 'Carregando', concluida: 'Concluída', reservado: 'Reservado', carregado: 'Carregado', disponível: 'Disponível', pendente: 'Pendente', impressa: 'Impressa', erro: 'Erro' } as Record<string, string>)[value] ?? value }
 function message(error: unknown) { return error instanceof Error ? error.message : 'Não foi possível concluir a operação.' }

@@ -94,18 +94,22 @@ abstract class BaseFormularioService
 
     protected function cancelarFormulario(string $modelClass, int $id, Closure $finder): ?array
     {
-        $registro = $modelClass::query()->where('id', $id)->first();
+        return DB::connection('raw')->transaction(function () use ($modelClass, $id, $finder): ?array {
+            $registro = $modelClass::query()->where('id', $id)->lockForUpdate()->first();
 
-        if ($registro === null) {
-            return null;
-        }
+            if ($registro === null) {
+                return null;
+            }
 
-        if ($registro->status === 'rascunho') {
-            $registro->status = 'cancelada';
-            $registro->save();
-        }
+            if ($registro->status !== 'rascunho') {
+                throw new \DomainException('Somente um rascunho pode ser excluído.');
+            }
 
-        return $finder($id);
+            $resultado = $finder($id);
+            $registro->delete();
+
+            return $resultado;
+        });
     }
 
     protected function status(Model $registro): string

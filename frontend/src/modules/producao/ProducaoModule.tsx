@@ -782,17 +782,17 @@ export function ProducaoModule() {
 
   async function cancelCurrent(id: number, action: (id: number) => Promise<unknown>, reload: () => Promise<void>, nextView?: View) {
     setStatus('loading')
-    setStatusText('Cancelando ficha...')
+    setStatusText('Excluindo ficha...')
 
     try {
       await action(id)
       await reload()
       if (nextView) navigate(nextView)
       setStatus('live')
-      setStatusText('Ficha cancelada.')
+      setStatusText('Ficha excluída.')
     } catch (error) {
       setStatus('error')
-      setStatusText(error instanceof Error ? error.message : 'Não foi possível cancelar a ficha.')
+      setStatusText(error instanceof Error ? error.message : 'Não foi possível excluir a ficha.')
     }
   }
 

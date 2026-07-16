@@ -55,7 +55,7 @@ export function ListagemProducoesCreme({
                       <button className="btn secondary compact" type="button" onClick={(event) => { event.stopPropagation(); onCancel(item.id) }}><XCircle size={15} />Cancelar</button>
                       <button className="btn secondary compact" type="button" onClick={(event) => { event.stopPropagation(); onFinalize(item.id) }}><CheckCircle2 size={15} />Finalizar</button>
                     </span>
-                  : <span className="locked">{item.status === 'cancelada' ? 'Cancelada' : 'Bloqueada'}</span>}
+                  : <span className="locked">Bloqueada</span>}
               </div>
             )
           })}
