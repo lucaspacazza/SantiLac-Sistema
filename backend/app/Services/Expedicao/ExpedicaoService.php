@@ -390,8 +390,7 @@ class ExpedicaoService
 
             $identificador = $this->extrairToken($codigo);
             $paleteIdCodigoBarras = $this->extrairPaleteIdCodigoBarras($identificador);
-            $paleteQuery = DB::connection('raw')->table('embalagem_paletes')
-                ->where('expedicao_status', 'reservado');
+            $paleteQuery = DB::connection('raw')->table('embalagem_paletes');
 
             if ($paleteIdCodigoBarras !== null) {
                 $paleteQuery->where('id', $paleteIdCodigoBarras);
@@ -399,10 +398,11 @@ class ExpedicaoService
                 $paleteQuery->where('etiqueta_token', $identificador);
             }
 
-            $paleteId = $paleteQuery->value('id');
-            if ($paleteId === null) {
+            $palete = $paleteQuery->first(['id', 'expedicao_status']);
+            if ($palete === null) {
                 throw new DomainException('Código de palete inválido.');
             }
+            $paleteId = (int) $palete->id;
 
             $item = ExpedicaoOrdemPalete::query()
                 ->where('ordem_id', $id)
@@ -414,6 +414,14 @@ class ExpedicaoService
             }
             if ($item->status === 'carregado') {
                 throw new DomainException('Este palete já foi conferido.');
+            }
+            if ((string) $palete->expedicao_status === 'expedido') {
+                throw new DomainException('Este palete já foi expedido.');
+            }
+            if ((string) $palete->expedicao_status === 'estoque') {
+                DB::connection('raw')->table('embalagem_paletes')
+                    ->where('id', $paleteId)
+                    ->update(['expedicao_status' => 'reservado']);
             }
 
             $item->forceFill([
@@ -705,7 +713,7 @@ class ExpedicaoService
 
     private function extrairToken(string $codigo): string
     {
-        $valor = trim($codigo);
+        $valor = preg_replace('/[\x00-\x1F\x7F]/', '', trim($codigo)) ?? '';
         if ($valor === '') {
             throw new DomainException('Escaneie o código do palete.');
         }
@@ -726,7 +734,10 @@ class ExpedicaoService
 
     private function extrairPaleteIdCodigoBarras(string $identificador): ?int
     {
-        if (preg_match('/^PAL-([0-9]+)$/i', trim($identificador), $partes) !== 1) {
+        $valor = preg_replace('/[\x00-\x1F\x7F]/', '', trim($identificador)) ?? '';
+        $valor = preg_replace('/^\]C[0-2]/i', '', $valor) ?? $valor;
+
+        if (preg_match('/^(?:PAL-)?([0-9]+)$/i', $valor, $partes) !== 1) {
             return null;
         }
 
