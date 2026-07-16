@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { embalagemApi, type OperacaoEmbalagem } from './api/embalagemApi'
+import { closeScannerKeyboard, openScannerKeyboard } from './scannerKeyboard'
 import { HistoricoCaixas } from './views/HistoricoCaixas'
 import { IniciarEmbalagem } from './views/IniciarEmbalagem'
 import { OperacaoLote } from './views/OperacaoLote'
@@ -32,7 +33,7 @@ export function App() {
 
   useEffect(() => {
     const scannerSelector = 'input[data-scanner-input="true"]:not(:disabled)'
-    const editableSelector = 'input:not([data-scanner-input="true"]):not(:disabled), textarea:not(:disabled), select:not(:disabled), [contenteditable="true"]'
+    const editableSelector = 'input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [contenteditable="true"]'
     let manualEditing = false
 
     const visibleScanner = () => {
@@ -360,8 +361,8 @@ export function App() {
                 className="control scan-input"
                 data-scanner-input="true"
                 inputMode="none"
-                onPointerDown={(event) => { event.currentTarget.inputMode = 'numeric' }}
-                onBlur={(event) => { event.currentTarget.inputMode = 'none' }}
+                onPointerDown={(event) => openScannerKeyboard(event, 'numeric')}
+                onBlur={closeScannerKeyboard}
                 placeholder="Escaneie a etiqueta"
                 value={codigoAvulsas}
                 onChange={(event) => atualizarCodigoAvulsas(event.target.value)}

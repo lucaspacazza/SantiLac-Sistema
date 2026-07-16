@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react'
 import type { FormEvent } from 'react'
+import { closeScannerKeyboard, openScannerKeyboard } from '../scannerKeyboard'
 
 export function IniciarEmbalagem({
   codigo,
@@ -32,8 +33,8 @@ export function IniciarEmbalagem({
             className="control op-input"
             data-scanner-input="true"
             inputMode="none"
-            onPointerDown={(event) => { event.currentTarget.inputMode = 'text' }}
-            onBlur={(event) => { event.currentTarget.inputMode = 'none' }}
+            onPointerDown={(event) => openScannerKeyboard(event, 'text')}
+            onBlur={closeScannerKeyboard}
             value={codigo}
             onChange={(event) => onCodigoChange(event.target.value)}
             placeholder="Ex.: op1122"
