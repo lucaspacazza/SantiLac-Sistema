@@ -28,11 +28,22 @@ class ExpedicaoBarcodeTest extends TestCase
         self::assertNull($method->invoke(new ExpedicaoService, 'PAL-42 OR 1=1'));
     }
 
+    public function test_removes_scanner_control_characters_before_parsing_urls(): void
+    {
+        $method = new ReflectionMethod(ExpedicaoService::class, 'extrairToken');
+
+        self::assertSame('PAL-42', $method->invoke(new ExpedicaoService, "\x02PAL-42\x03"));
+    }
+
     public static function validBarcodeProvider(): array
     {
         return [
             'standard' => ['PAL-42', 42],
             'case insensitive' => ['pal-987', 987],
+            'scanner AIM Code 128 prefix' => [']C0PAL-42', 42],
+            'scanner AIM GS1-128 prefix' => [']C1PAL-42', 42],
+            'scanner control characters' => ["\x02PAL-42\x03", 42],
+            'legacy numeric pallet id' => ['42', 42],
         ];
     }
 }
