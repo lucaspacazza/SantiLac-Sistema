@@ -388,13 +388,20 @@ class ExpedicaoService
                 throw new DomainException('Inicie o carregamento antes de escanear.');
             }
 
-            $token = $this->extrairToken($codigo);
-            $paleteId = DB::connection('raw')->table('embalagem_paletes')
-                ->where('etiqueta_token', $token)
-                ->where('expedicao_status', 'reservado')
-                ->value('id');
+            $identificador = $this->extrairToken($codigo);
+            $paleteIdCodigoBarras = $this->extrairPaleteIdCodigoBarras($identificador);
+            $paleteQuery = DB::connection('raw')->table('embalagem_paletes')
+                ->where('expedicao_status', 'reservado');
+
+            if ($paleteIdCodigoBarras !== null) {
+                $paleteQuery->where('id', $paleteIdCodigoBarras);
+            } else {
+                $paleteQuery->where('etiqueta_token', $identificador);
+            }
+
+            $paleteId = $paleteQuery->value('id');
             if ($paleteId === null) {
-                throw new DomainException('QR Code de palete inválido.');
+                throw new DomainException('Código de palete inválido.');
             }
 
             $item = ExpedicaoOrdemPalete::query()
@@ -700,7 +707,7 @@ class ExpedicaoService
     {
         $valor = trim($codigo);
         if ($valor === '') {
-            throw new DomainException('Escaneie o QR Code do palete.');
+            throw new DomainException('Escaneie o código do palete.');
         }
 
         $path = parse_url($valor, PHP_URL_PATH);
@@ -715,6 +722,17 @@ class ExpedicaoService
         }
 
         return $valor;
+    }
+
+    private function extrairPaleteIdCodigoBarras(string $identificador): ?int
+    {
+        if (preg_match('/^PAL-([0-9]+)$/i', trim($identificador), $partes) !== 1) {
+            return null;
+        }
+
+        $id = filter_var($partes[1], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+        return is_int($id) ? $id : null;
     }
 
     private function valorOuNull(mixed $valor): ?string
