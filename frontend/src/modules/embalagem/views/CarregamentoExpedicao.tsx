@@ -1,7 +1,6 @@
 import { ArrowLeft, Check, PackageCheck, Play, QrCode, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { carregamentoApi, type Carregamento, type CarregamentoResumo } from '../api/embalagemApi'
-import { closeScannerKeyboard, openScannerKeyboard } from '../scannerKeyboard'
 
 export function CarregamentoExpedicao() {
   const [ordens, setOrdens] = useState<CarregamentoResumo[]>([])
@@ -133,7 +132,7 @@ export function CarregamentoExpedicao() {
               <div className="panel">
                 <div className="panel-head"><div><span className="section-kicker">Leitor</span><h2>Escanear palete</h2></div><QrCode size={24} /></div>
                 <form className="scan-form loading-scan" onSubmit={(event) => { event.preventDefault(); void escanear() }}>
-                  <label className="field"><span>Código do palete</span><input ref={scannerRef} autoFocus className="control scan-input" data-scanner-input="true" inputMode="none" onPointerDown={(event) => openScannerKeyboard(event, 'text')} onBlur={closeScannerKeyboard} value={codigo} onChange={(event) => setCodigo(event.target.value)} placeholder="Escaneie ou digite o código" /></label>
+                  <label className="field"><span>Código do palete</span><input ref={scannerRef} autoFocus className="control scan-input" data-scanner-input="true" inputMode="none" value={codigo} onChange={(event) => setCodigo(event.target.value)} placeholder="Escaneie ou digite o código" /></label>
                   <button className="btn primary" disabled={!codigo.trim() || status === 'loading'} type="submit">Conferir</button>
                 </form>
                 <div className="loading-progress"><span style={{ width: `${ordem.paletes_total ? (carregados / ordem.paletes_total) * 100 : 0}%` }} /></div>
