@@ -876,6 +876,8 @@ select:focus-visible {
   position: fixed;
   inset: 0;
   z-index: 1000;
+  min-height: 100dvh;
+  overflow-y: auto;
   display: grid;
   place-items: center;
   background: rgba(20, 27, 29, 0.58);
@@ -932,6 +934,7 @@ select:focus-visible {
 
 .time-wheel-dialog {
   width: min(100%, 470px);
+  max-height: calc(100dvh - 48px);
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 22px;
