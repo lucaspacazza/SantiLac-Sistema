@@ -40,6 +40,15 @@ test('renders the time dialog outside the form label so action buttons remain cl
   assert.match(component, /createPortal\([\s\S]+document\.body/)
 })
 
+test('closes the soft keyboard and moves focus away from inputs before showing the time wheel', () => {
+  const component = readFileSync(new URL('./TimeWheelPicker.tsx', import.meta.url), 'utf8')
+
+  assert.match(component, /document\.activeElement/)
+  assert.match(component, /activeElement\.blur\(\)/)
+  assert.match(component, /dialogRef\.current\?\.focus\(\{\s*preventScroll:\s*true\s*\}\)/)
+  assert.match(component, /tabIndex=\{-1\}/)
+})
+
 test('does not feed wheel selection changes back into programmatic scrolling', () => {
   const component = readFileSync(new URL('./TimeWheelPicker.tsx', import.meta.url), 'utf8')
 

@@ -16,12 +16,19 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
   const [open, setOpen] = useState(false)
   const [draftHour, setDraftHour] = useState(0)
   const [draftMinute, setDraftMinute] = useState(0)
+  const dialogRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     setValue(normalizeTimeValue(defaultValue))
   }, [defaultValue])
 
+  function dismissSoftKeyboard() {
+    const activeElement = document.activeElement
+    if (activeElement instanceof HTMLElement) activeElement.blur()
+  }
+
   function openPicker() {
+    dismissSoftKeyboard()
     const parsed = parseTimeValue(value)
     setDraftHour(parsed.hour)
     setDraftMinute(parsed.minute)
@@ -42,6 +49,10 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
     if (!open) return
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    dismissSoftKeyboard()
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialogRef.current?.focus({ preventScroll: true })
+    })
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') setOpen(false)
@@ -49,6 +60,7 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
 
     window.addEventListener('keydown', closeOnEscape)
     return () => {
+      window.cancelAnimationFrame(focusFrame)
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', closeOnEscape)
     }
@@ -57,7 +69,7 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
   return (
     <>
       <input name={name} type="hidden" value={value} readOnly />
-      <button className={`time-wheel-trigger ${value ? 'has-value' : ''}`} type="button" onClick={openPicker} aria-haspopup="dialog">
+      <button className={`time-wheel-trigger ${value ? 'has-value' : ''}`} type="button" inputMode="none" onPointerDown={dismissSoftKeyboard} onClick={openPicker} aria-haspopup="dialog">
         <Clock3 size={19} aria-hidden="true" />
         <span>{value || 'Selecionar horário'}</span>
         <ChevronDown size={18} aria-hidden="true" />
@@ -67,7 +79,7 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
         <div className="time-wheel-backdrop" role="presentation" onPointerDown={(event) => {
           if (event.currentTarget === event.target) setOpen(false)
         }}>
-          <section className="time-wheel-dialog" role="dialog" aria-modal="true" aria-label={label}>
+          <section ref={dialogRef} className="time-wheel-dialog" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
             <header className="time-wheel-header">
               <div><span>Horário</span><h2>{label}</h2></div>
               <strong>{formatTimeValue(draftHour, draftMinute)}</strong>
