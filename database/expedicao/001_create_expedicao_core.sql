@@ -18,10 +18,12 @@ CREATE TABLE IF NOT EXISTS expedicao_ordens (
   lancado_por bigint unsigned DEFAULT NULL,
   iniciado_por bigint unsigned DEFAULT NULL,
   concluido_por bigint unsigned DEFAULT NULL,
+  cancelado_por bigint unsigned DEFAULT NULL,
   lancada_at timestamp NULL DEFAULT NULL,
   iniciada_at timestamp NULL DEFAULT NULL,
   concluida_at timestamp NULL DEFAULT NULL,
   cancelada_at timestamp NULL DEFAULT NULL,
+  cancelamento_snapshot json DEFAULT NULL,
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -47,6 +49,38 @@ CREATE TABLE IF NOT EXISTS expedicao_ordem_paletes (
     FOREIGN KEY (ordem_id) REFERENCES expedicao_ordens (id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @has_cancelado_por := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'expedicao_ordens'
+    AND COLUMN_NAME = 'cancelado_por'
+);
+SET @sql_cancelado_por := IF(
+  @has_cancelado_por = 0,
+  "ALTER TABLE expedicao_ordens ADD COLUMN cancelado_por bigint unsigned DEFAULT NULL AFTER concluido_por",
+  "SELECT 1"
+);
+PREPARE stmt_cancelado_por FROM @sql_cancelado_por;
+EXECUTE stmt_cancelado_por;
+DEALLOCATE PREPARE stmt_cancelado_por;
+
+SET @has_cancelamento_snapshot := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'expedicao_ordens'
+    AND COLUMN_NAME = 'cancelamento_snapshot'
+);
+SET @sql_cancelamento_snapshot := IF(
+  @has_cancelamento_snapshot = 0,
+  "ALTER TABLE expedicao_ordens ADD COLUMN cancelamento_snapshot json DEFAULT NULL AFTER cancelada_at",
+  "SELECT 1"
+);
+PREPARE stmt_cancelamento_snapshot FROM @sql_cancelamento_snapshot;
+EXECUTE stmt_cancelamento_snapshot;
+DEALLOCATE PREPARE stmt_cancelamento_snapshot;
 
 SET @has_expedicao_status := (
   SELECT COUNT(*)

@@ -70,9 +70,9 @@ class ExpedicaoController extends Controller
         return $this->executar(fn (): array => $this->expedicao->lancar($id, (int) $request->user()->id));
     }
 
-    public function cancelar(int $id): JsonResponse
+    public function cancelar(Request $request, int $id): JsonResponse
     {
-        return $this->executar(fn (): array => $this->expedicao->cancelar($id));
+        return $this->executar(fn (): array => $this->expedicao->cancelar($id, (int) $request->user()->id));
     }
 
     public function relatorio(Request $request): JsonResponse
