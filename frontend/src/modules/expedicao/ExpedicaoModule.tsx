@@ -185,6 +185,7 @@ function Ordens() {
   const [ordens, setOrdens] = useState<OrdemExpedicao[]>([])
   const [busca, setBusca] = useState('')
   const [editor, setEditor] = useState<number | 'new' | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<OrdemExpedicao | null>(null)
   const [feedback, setFeedback] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -212,12 +213,6 @@ function Ordens() {
   )
 
   async function action(ordem: OrdemExpedicao, type: 'lancar' | 'cancelar', reload = true): Promise<boolean> {
-    if (type === 'cancelar') {
-      const warning = ordem.status === 'carregando'
-        ? 'Cancelar o carregamento em andamento? Os paletes serão devolvidos ao estoque e a ordem permanecerá no histórico.'
-        : 'Cancelar esta ordem de expedição? Os paletes serão devolvidos ao estoque e a ordem permanecerá no histórico.'
-      if (!window.confirm(warning)) return false
-    }
     try {
       type === 'lancar' ? await expedicaoApi.lancar(ordem.id) : await expedicaoApi.cancelar(ordem.id)
       setFeedback(type === 'lancar' ? 'Ordem lançada para a embalagem.' : 'Ordem cancelada.')
@@ -253,7 +248,7 @@ function Ordens() {
           empty="Nenhuma ordem aberta."
           onEdit={setEditor}
           onIssue={(ordem) => action(ordem, 'lancar', false)}
-          onCancel={(ordem) => void action(ordem, 'cancelar')}
+          onCancel={setCancelTarget}
           onReload={() => void load()}
         />
         <OrderSection
@@ -264,6 +259,11 @@ function Ordens() {
         />
       </>}
       {editor ? <OrderEditor id={editor === 'new' ? null : editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load() }} /> : null}
+      {cancelTarget ? <CancellationDialog
+        ordem={cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={() => action(cancelTarget, 'cancelar')}
+      /> : null}
     </>
   )
 }
@@ -311,6 +311,55 @@ function OrderSection({
       {ordens.length === 0 ? <Empty text={empty} /> : null}
     </div>
   </section>
+}
+
+function CancellationDialog({ ordem, onClose, onConfirm }: {
+  ordem: OrdemExpedicao
+  onClose: () => void
+  onConfirm: () => Promise<boolean>
+}) {
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busy) onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [busy, onClose])
+
+  async function confirmCancellation() {
+    if (busy) return
+    setBusy(true)
+    const success = await onConfirm()
+    setBusy(false)
+    if (success) onClose()
+  }
+
+  const loadingWarning = ordem.status === 'carregando'
+
+  return <div
+    className="exp-confirm-backdrop"
+    role="presentation"
+    onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose() }}
+  >
+    <section className="exp-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="exp-cancel-title" aria-describedby="exp-cancel-description">
+      <div className="exp-confirm-icon"><Ban size={20} /></div>
+      <h2 id="exp-cancel-title">{loadingWarning ? 'Cancelar carregamento?' : 'Cancelar ordem?'}</h2>
+      <p id="exp-cancel-description">
+        {loadingWarning
+          ? 'O carregamento em andamento será interrompido e os paletes voltarão para o estoque.'
+          : 'Os paletes reservados voltarão para o estoque.'}
+        {' '}A ordem continuará disponível no histórico para consulta.
+      </p>
+      <div className="exp-confirm-actions">
+        <button className="exp-button subtle" type="button" disabled={busy} onClick={onClose} autoFocus>Não</button>
+        <button className="exp-button danger" type="button" disabled={busy} onClick={() => void confirmCancellation()}>
+          {busy ? 'Cancelando...' : 'Sim'}
+        </button>
+      </div>
+    </section>
+  </div>
 }
 
 function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () => void; onSaved: () => void }) {
@@ -445,6 +494,7 @@ function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () 
 function OrderDetailPage({ id }: { id: number }) {
   const [ordem, setOrdem] = useState<OrdemExpedicao | null>(null)
   const [editor, setEditor] = useState(false)
+  const [cancelDialog, setCancelDialog] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -474,18 +524,16 @@ function OrderDetailPage({ id }: { id: number }) {
     }
   }
 
-  async function cancel() {
-    if (!ordem) return
-    const warning = ordem.status === 'carregando'
-      ? 'Cancelar o carregamento em andamento? Os paletes serão devolvidos ao estoque e a ordem permanecerá no histórico.'
-      : 'Cancelar esta ordem de expedição? Os paletes serão devolvidos ao estoque e a ordem permanecerá no histórico.'
-    if (!window.confirm(warning)) return
+  async function cancel(): Promise<boolean> {
+    if (!ordem) return false
     try {
       await expedicaoApi.cancelar(id)
       setFeedback('Ordem cancelada e preservada no histórico.')
       await load()
+      return true
     } catch (err) {
       setFeedback(message(err))
+      return false
     }
   }
 
@@ -514,7 +562,7 @@ function OrderDetailPage({ id }: { id: number }) {
       <div className="exp-detail-actions">
         {ordem.status === 'rascunho' ? <button className="exp-button" type="button" onClick={() => setEditor(true)}><ClipboardCheck size={16} /> Editar</button> : null}
         {ordem.status === 'rascunho' ? <IssueOrderButton onIssue={issue} onComplete={() => void load()} /> : null}
-        {OPEN_ORDER_STATUSES.includes(ordem.status as (typeof OPEN_ORDER_STATUSES)[number]) ? <button className="exp-button danger" type="button" onClick={() => void cancel()}><Ban size={16} /> Cancelar ordem</button> : null}
+        {OPEN_ORDER_STATUSES.includes(ordem.status as (typeof OPEN_ORDER_STATUSES)[number]) ? <button className="exp-button danger" type="button" onClick={() => setCancelDialog(true)}><Ban size={16} /> Cancelar ordem</button> : null}
       </div>
     </header>
 
@@ -590,6 +638,7 @@ function OrderDetailPage({ id }: { id: number }) {
       </aside>
     </div>
     {editor ? <OrderEditor id={id} onClose={() => setEditor(false)} onSaved={() => { setEditor(false); void load() }} /> : null}
+    {cancelDialog ? <CancellationDialog ordem={ordem} onClose={() => setCancelDialog(false)} onConfirm={cancel} /> : null}
   </>
 }
 
@@ -677,7 +726,7 @@ function Modal({ title, onClose, children, wide = false, builder = false }: { ti
 
 function routeFromHash(): ExpedicaoRoute {
   const path = window.location.hash.replace(/^#\/?/, '').split('?')[0]
-  const orderMatch = path.match(/\/expedicao\/ordens\/(\d+)$/)
+  const orderMatch = path.match(/^expedicao\/ordens\/(\d+)$/)
   if (orderMatch) return { view: 'ordens', orderId: Number(orderMatch[1]) }
   if (path.includes('/estoque')) return { view: 'estoque', orderId: null }
   if (path.includes('/ordens')) return { view: 'ordens', orderId: null }
