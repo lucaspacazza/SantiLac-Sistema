@@ -513,6 +513,45 @@
 }
 .exp-loading > span { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); }
 
+.exp-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  padding: 20px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .78);
+  backdrop-filter: blur(5px);
+}
+
+.exp-confirm-dialog {
+  width: min(100%, 400px);
+  padding: 22px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: #050505;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .65);
+}
+
+.exp-confirm-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 91, 91, .4);
+  border-radius: 10px;
+  background: rgba(255, 91, 91, .09);
+  color: var(--danger);
+}
+
+.exp-confirm-dialog h2 { margin: 4px 0 0; font-size: 19px; }
+.exp-confirm-dialog > p { margin: 0; color: var(--body); font-size: 13px; line-height: 1.6; }
+.exp-confirm-actions { margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.exp-confirm-actions .exp-button { min-height: 42px; }
+.exp-confirm-actions .exp-button:disabled { opacity: .55; cursor: wait; }
+
 .exp-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -858,4 +897,7 @@
   .exp-detail-actions .exp-issue-order { width: 100%; }
   .exp-detail-aside { grid-template-columns: 1fr; }
   .exp-pallet-detail-table { min-width: 760px; }
+  .exp-confirm-backdrop { padding: 14px; }
+  .exp-confirm-dialog { padding: 20px; }
+  .exp-confirm-actions { grid-template-columns: 1fr; }
 }

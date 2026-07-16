@@ -13,6 +13,7 @@ test('ordens abertas e historico sao apresentados separadamente', () => {
 
 test('detalhe da ordem usa rota propria em vez de modal', () => {
   assert.match(source, /function routeFromHash\(\): ExpedicaoRoute/)
+  assert.match(source, /path\.match\(\/\^expedicao/)
   assert.match(source, /function navigateOrder\(id: number\)/)
   assert.match(source, /<OrderDetailPage id=\{route\.orderId\}/)
 
@@ -26,7 +27,10 @@ test('detalhe da ordem usa rota propria em vez de modal', () => {
 
 test('ordem em carregamento pode ser cancelada com confirmacao', () => {
   assert.match(source, /OPEN_ORDER_STATUSES = \['rascunho', 'lancada', 'carregando'\]/)
-  assert.match(source, /window\.confirm/)
+  assert.doesNotMatch(source, /window\.confirm/)
+  assert.match(source, /function CancellationDialog/)
+  assert.match(source, />Não<\/button>/)
+  assert.match(source, /busy \? 'Cancelando\.\.\.' : 'Sim'/)
   assert.match(source, /carregamento em andamento/i)
 })
 
