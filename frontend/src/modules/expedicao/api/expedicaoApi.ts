@@ -48,6 +48,7 @@ export type OrdemExpedicao = {
   lancada_em: string | null
   iniciada_em: string | null
   concluida_em: string | null
+  cancelada_em: string | null
   paletes?: OrdemPalete[]
   produtos?: Array<{ produto: string; paletes: number; carregados: number; peso_total: number }>
   operadores?: {
@@ -55,6 +56,7 @@ export type OrdemExpedicao = {
     lancado_por?: string | null
     iniciado_por?: string | null
     concluido_por?: string | null
+    cancelado_por?: string | null
   }
 }
 

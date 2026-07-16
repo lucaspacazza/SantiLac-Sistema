@@ -177,6 +177,7 @@ class ExpedicaoService
                 $ordem->lancado_por,
                 $ordem->iniciado_por,
                 $ordem->concluido_por,
+                $ordem->cancelado_por,
             ]))
             ->pluck('nome', 'id');
         $dados['operadores'] = [
@@ -184,13 +185,19 @@ class ExpedicaoService
             'lancado_por' => $usuarios[$ordem->lancado_por] ?? null,
             'iniciado_por' => $usuarios[$ordem->iniciado_por] ?? null,
             'concluido_por' => $usuarios[$ordem->concluido_por] ?? null,
+            'cancelado_por' => $usuarios[$ordem->cancelado_por] ?? null,
         ];
         if ($tablet) {
             unset($dados['cliente'], $dados['destino'], $dados['data_prevista'], $dados['placa'], $dados['motorista'], $dados['observacoes'], $dados['operadores']['criado_por'], $dados['operadores']['lancado_por']);
         }
 
-        $dados['paletes'] = $this->itensOrdem($id);
-        $dados['produtos'] = collect($dados['paletes'])
+        $snapshot = is_array($ordem->cancelamento_snapshot) ? $ordem->cancelamento_snapshot : [];
+        $dados['paletes'] = $ordem->status === 'cancelada' && isset($snapshot['paletes'])
+            ? (array) $snapshot['paletes']
+            : $this->itensOrdem($id);
+        $dados['produtos'] = $ordem->status === 'cancelada' && isset($snapshot['produtos'])
+            ? (array) $snapshot['produtos']
+            : collect($dados['paletes'])
             ->groupBy('produto')
             ->map(fn (Collection $itens, string $produto): array => [
                 'produto' => $produto,
@@ -311,14 +318,25 @@ class ExpedicaoService
         });
     }
 
-    public function cancelar(int $id): array
+    public function cancelar(int $id, int $usuarioId): array
     {
-        return DB::connection('raw')->transaction(function () use ($id): array {
+        return DB::connection('raw')->transaction(function () use ($id, $usuarioId): array {
             $ordem = ExpedicaoOrdem::query()->where('id', $id)->lockForUpdate()->first();
-            if ($ordem === null || ! in_array($ordem->status, ['rascunho', 'lancada'], true)) {
+            if ($ordem === null || ! $this->ordemPodeSerCancelada((string) $ordem->status)) {
                 throw new DomainException('Esta ordem não pode mais ser cancelada.');
             }
 
+            $paletesSnapshot = $this->itensOrdem($id);
+            $produtosSnapshot = collect($paletesSnapshot)
+                ->groupBy('produto')
+                ->map(fn (Collection $itens, string $produto): array => [
+                    'produto' => $produto,
+                    'paletes' => $itens->count(),
+                    'carregados' => $itens->where('status_carregamento', 'carregado')->count(),
+                    'peso_total' => round((float) $itens->sum('peso_total'), 3),
+                ])
+                ->values()
+                ->all();
             $paletes = ExpedicaoOrdemPalete::query()
                 ->where('ordem_id', $id)
                 ->pluck('palete_id')
@@ -331,13 +349,15 @@ class ExpedicaoService
                 ->update(['expedicao_status' => 'estoque']);
             $ordem->forceFill([
                 'status' => 'cancelada',
+                'cancelado_por' => $usuarioId,
                 'cancelada_at' => now('America/Sao_Paulo'),
-                'paletes_total' => 0,
-                'caixas_total' => 0,
-                'peso_total' => 0,
+                'cancelamento_snapshot' => [
+                    'paletes' => $paletesSnapshot,
+                    'produtos' => $produtosSnapshot,
+                ],
             ])->save();
 
-            return $this->formatarOrdem($ordem);
+            return $this->ordem($id);
         });
     }
 
@@ -594,7 +614,13 @@ class ExpedicaoService
             'lancada_em' => optional($ordem->lancada_at)->format('Y-m-d H:i:s'),
             'iniciada_em' => optional($ordem->iniciada_at)->format('Y-m-d H:i:s'),
             'concluida_em' => optional($ordem->concluida_at)->format('Y-m-d H:i:s'),
+            'cancelada_em' => optional($ordem->cancelada_at)->format('Y-m-d H:i:s'),
         ];
+    }
+
+    private function ordemPodeSerCancelada(string $status): bool
+    {
+        return in_array($status, self::STATUS_ATIVOS, true);
     }
 
     private function itensOrdem(int $ordemId): array

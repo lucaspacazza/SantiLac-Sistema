@@ -1,13 +1,20 @@
 import {
   ArrowLeft,
+  Ban,
+  CalendarDays,
   Check,
+  ChevronRight,
   ClipboardCheck,
+  Clock3,
   Download,
   Eye,
   FileSpreadsheet,
+  MapPin,
   PackageCheck,
   Plus,
   Search,
+  Truck,
+  UserRound,
   X,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -22,7 +29,10 @@ import {
 import './expedicao.css'
 
 type View = 'resumo' | 'estoque' | 'ordens' | 'relatorios'
+type ExpedicaoRoute = { view: View; orderId: number | null }
 type ResumoData = Awaited<ReturnType<typeof expedicaoApi.resumo>>
+
+const OPEN_ORDER_STATUSES = ['rascunho', 'lancada', 'carregando'] as const
 
 const emptyPayload: OrdemPayload = {
   cliente: '',
@@ -35,20 +45,21 @@ const emptyPayload: OrdemPayload = {
 }
 
 export function ExpedicaoModule() {
-  const [view, setView] = useState<View>(() => viewFromHash())
+  const [route, setRoute] = useState<ExpedicaoRoute>(() => routeFromHash())
 
   useEffect(() => {
-    const onHash = () => setView(viewFromHash())
+    const onHash = () => setRoute(routeFromHash())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
   return (
     <section className="exp-page">
-      {view === 'resumo' ? <Resumo /> : null}
-      {view === 'estoque' ? <Estoque /> : null}
-      {view === 'ordens' ? <Ordens /> : null}
-      {view === 'relatorios' ? <Relatorios /> : null}
+      {route.view === 'resumo' ? <Resumo /> : null}
+      {route.view === 'estoque' ? <Estoque /> : null}
+      {route.view === 'ordens' && route.orderId === null ? <Ordens /> : null}
+      {route.view === 'ordens' && route.orderId !== null ? <OrderDetailPage id={route.orderId} /> : null}
+      {route.view === 'relatorios' ? <Relatorios /> : null}
     </section>
   )
 }
@@ -172,23 +183,43 @@ function Estoque() {
 
 function Ordens() {
   const [ordens, setOrdens] = useState<OrdemExpedicao[]>([])
-  const [status, setStatus] = useState('')
   const [busca, setBusca] = useState('')
   const [editor, setEditor] = useState<number | 'new' | null>(null)
-  const [detail, setDetail] = useState<number | null>(null)
   const [feedback, setFeedback] = useState('')
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    const result = await expedicaoApi.ordens({ busca, status })
-    setOrdens(result.itens)
-  }, [busca, status])
+    setLoading(true)
+    try {
+      const result = await expedicaoApi.ordens({ busca })
+      setOrdens(result.itens)
+    } catch (err) {
+      setFeedback(message(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [busca])
 
   useEffect(() => { void load() }, [load])
 
-  async function action(id: number, type: 'lancar' | 'cancelar', reload = true): Promise<boolean> {
-    if (type === 'cancelar' && !window.confirm('Cancelar esta ordem de expedição?')) return false
+  const ordensAbertas = useMemo(
+    () => ordens.filter((ordem) => OPEN_ORDER_STATUSES.includes(ordem.status as (typeof OPEN_ORDER_STATUSES)[number])),
+    [ordens],
+  )
+  const ordensHistorico = useMemo(
+    () => ordens.filter((ordem) => !OPEN_ORDER_STATUSES.includes(ordem.status as (typeof OPEN_ORDER_STATUSES)[number])),
+    [ordens],
+  )
+
+  async function action(ordem: OrdemExpedicao, type: 'lancar' | 'cancelar', reload = true): Promise<boolean> {
+    if (type === 'cancelar') {
+      const warning = ordem.status === 'carregando'
+        ? 'Cancelar o carregamento em andamento? Os paletes serão devolvidos ao estoque e a ordem permanecerá no histórico.'
+        : 'Cancelar esta ordem de expedição? Os paletes serão devolvidos ao estoque e a ordem permanecerá no histórico.'
+      if (!window.confirm(warning)) return false
+    }
     try {
-      type === 'lancar' ? await expedicaoApi.lancar(id) : await expedicaoApi.cancelar(id)
+      type === 'lancar' ? await expedicaoApi.lancar(ordem.id) : await expedicaoApi.cancelar(ordem.id)
       setFeedback(type === 'lancar' ? 'Ordem lançada para a embalagem.' : 'Ordem cancelada.')
       if (reload) await load()
       return true
@@ -205,41 +236,81 @@ function Ordens() {
       } />
       <section className="exp-toolbar">
         <label className="exp-search"><Search size={15} /><input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Ordem, cliente ou destino" /></label>
-        <select value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="">Todos os status</option>
-          <option value="rascunho">Rascunho</option><option value="lancada">Lançada</option>
-          <option value="carregando">Carregando</option><option value="concluida">Concluída</option>
-          <option value="cancelada">Cancelada</option>
-        </select>
         {feedback ? <span className="exp-feedback">{feedback}</span> : null}
       </section>
-      <section className="exp-panel exp-table-panel">
-        <div className="exp-table-wrap">
-          <table className="exp-table">
-            <thead><tr><th>Ordem</th><th>Cliente</th><th>Destino</th><th>Data prevista</th><th>Paletes</th><th>Peso</th><th>Status</th><th /></tr></thead>
-            <tbody>
-              {ordens.map((ordem) => (
-                <tr key={ordem.id}>
-                  <td><strong>{ordem.codigo}</strong></td><td>{ordem.cliente}</td><td>{ordem.destino}</td>
-                  <td>{date(ordem.data_prevista)}</td><td>{integer(ordem.paletes_total)}</td><td>{kg(ordem.peso_total)}</td>
-                  <td><Status value={ordem.status} /></td>
-                  <td><div className="exp-row-actions">
-                    <IconButton label="Ver ordem" onClick={() => setDetail(ordem.id)}><Eye size={16} /></IconButton>
-                    {ordem.status === 'rascunho' ? <IconButton label="Editar ordem" onClick={() => setEditor(ordem.id)}><ClipboardCheck size={16} /></IconButton> : null}
-                    {ordem.status === 'rascunho' ? <IssueOrderButton onIssue={() => action(ordem.id, 'lancar', false)} onComplete={() => void load()} /> : null}
-                    {['rascunho', 'lancada'].includes(ordem.status) ? <IconButton label="Cancelar ordem" onClick={() => void action(ordem.id, 'cancelar')}><X size={16} /></IconButton> : null}
-                  </div></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {ordens.length === 0 ? <Empty text="Nenhuma ordem encontrada." /> : null}
-        </div>
-      </section>
+      <div className="exp-order-kpis" aria-label="Resumo das ordens">
+        <Kpi label="Abertas" value={integer(ordensAbertas.length)} />
+        <Kpi label="Rascunhos" value={integer(ordensAbertas.filter((item) => item.status === 'rascunho').length)} />
+        <Kpi label="Em carregamento" value={integer(ordensAbertas.filter((item) => item.status === 'carregando').length)} />
+        <Kpi label="Concluídas" value={integer(ordensHistorico.filter((item) => item.status === 'concluida').length)} />
+      </div>
+
+      {loading ? <Loading text="Carregando ordens..." /> : <>
+        <OrderSection
+          title="Ordens abertas"
+          subtitle="Cargas que ainda exigem preparação, emissão ou acompanhamento."
+          ordens={ordensAbertas}
+          empty="Nenhuma ordem aberta."
+          onEdit={setEditor}
+          onIssue={(ordem) => action(ordem, 'lancar', false)}
+          onCancel={(ordem) => void action(ordem, 'cancelar')}
+          onReload={() => void load()}
+        />
+        <OrderSection
+          title="Histórico"
+          subtitle="Ordens concluídas e canceladas preservadas para consulta."
+          ordens={ordensHistorico}
+          empty="Nenhuma ordem no histórico."
+        />
+      </>}
       {editor ? <OrderEditor id={editor === 'new' ? null : editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load() }} /> : null}
-      {detail ? <OrderDetail id={detail} onClose={() => setDetail(null)} /> : null}
     </>
   )
+}
+
+function OrderSection({
+  title,
+  subtitle,
+  ordens,
+  empty,
+  onEdit,
+  onIssue,
+  onCancel,
+  onReload,
+}: {
+  title: string
+  subtitle: string
+  ordens: OrdemExpedicao[]
+  empty: string
+  onEdit?: (id: number) => void
+  onIssue?: (ordem: OrdemExpedicao) => Promise<boolean>
+  onCancel?: (ordem: OrdemExpedicao) => void
+  onReload?: () => void
+}) {
+  return <section className="exp-order-section">
+    <header className="exp-order-section-head">
+      <div><h2>{title}</h2><p>{subtitle}</p></div>
+      <span>{ordens.length} ordem(ns)</span>
+    </header>
+    <div className="exp-order-cards">
+      {ordens.map((ordem) => <article className="exp-order-card" key={ordem.id}>
+        <button className="exp-order-card-main" type="button" onClick={() => navigateOrder(ordem.id)} aria-label={`Abrir ${ordem.codigo}`}>
+          <span className="exp-order-code"><strong>{ordem.codigo}</strong><Status value={ordem.status} /></span>
+          <span><small>Cliente</small><strong>{ordem.cliente}</strong></span>
+          <span><small>Destino</small><strong>{ordem.destino}</strong></span>
+          <span><small>Previsão</small><strong>{date(ordem.data_prevista)}</strong></span>
+          <span><small>Carga</small><strong>{integer(ordem.paletes_total)} palete(s) · {kg(ordem.peso_total)}</strong></span>
+          <ChevronRight className="exp-order-arrow" size={18} />
+        </button>
+        {onEdit || onIssue || onCancel ? <div className="exp-order-card-actions">
+          {ordem.status === 'rascunho' && onEdit ? <button className="exp-button subtle" type="button" onClick={() => onEdit(ordem.id)}><ClipboardCheck size={15} /> Editar</button> : null}
+          {ordem.status === 'rascunho' && onIssue && onReload ? <IssueOrderButton onIssue={() => onIssue(ordem)} onComplete={onReload} /> : null}
+          {OPEN_ORDER_STATUSES.includes(ordem.status as (typeof OPEN_ORDER_STATUSES)[number]) && onCancel ? <button className="exp-button danger" type="button" onClick={() => onCancel(ordem)}><Ban size={15} /> Cancelar</button> : null}
+        </div> : null}
+      </article>)}
+      {ordens.length === 0 ? <Empty text={empty} /> : null}
+    </div>
+  </section>
 }
 
 function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () => void; onSaved: () => void }) {
@@ -371,15 +442,155 @@ function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () 
   )
 }
 
-function OrderDetail({ id, onClose }: { id: number; onClose: () => void }) {
+function OrderDetailPage({ id }: { id: number }) {
   const [ordem, setOrdem] = useState<OrdemExpedicao | null>(null)
-  useEffect(() => { expedicaoApi.ordem(id).then(setOrdem) }, [id])
-  return <Modal title={ordem?.codigo ?? 'Ordem de expedição'} onClose={onClose} wide>
-    {!ordem ? <Loading text="Carregando ordem..." /> : <div className="exp-review">
-      <div className="exp-review-grid"><Review label="Cliente" value={ordem.cliente} /><Review label="Destino" value={ordem.destino} /><Review label="Data prevista" value={date(ordem.data_prevista)} /><Review label="Status" value={statusLabel(ordem.status)} /><Review label="Motorista" value={ordem.motorista || '-'} /><Review label="Placa" value={ordem.placa || '-'} /><Review label="Iniciado por" value={ordem.operadores?.iniciado_por || '-'} /><Review label="Concluído por" value={ordem.operadores?.concluido_por || '-'} /></div>
-      <div className="exp-review-list">{ordem.paletes?.map((item) => <div key={item.id}><span>Palete #{item.id} · {productName(item.produto)} <Status value={item.status_carregamento} /></span><strong>{kg(item.peso_total)}</strong></div>)}</div>
-    </div>}
-  </Modal>
+  const [editor, setEditor] = useState(false)
+  const [feedback, setFeedback] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setOrdem(await expedicaoApi.ordem(id))
+      setFeedback('')
+    } catch (err) {
+      setFeedback(message(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [id])
+
+  useEffect(() => { void load() }, [load])
+
+  async function issue() {
+    try {
+      await expedicaoApi.lancar(id)
+      setFeedback('Ordem lançada para a embalagem.')
+      await load()
+      return true
+    } catch (err) {
+      setFeedback(message(err))
+      return false
+    }
+  }
+
+  async function cancel() {
+    if (!ordem) return
+    const warning = ordem.status === 'carregando'
+      ? 'Cancelar o carregamento em andamento? Os paletes serão devolvidos ao estoque e a ordem permanecerá no histórico.'
+      : 'Cancelar esta ordem de expedição? Os paletes serão devolvidos ao estoque e a ordem permanecerá no histórico.'
+    if (!window.confirm(warning)) return
+    try {
+      await expedicaoApi.cancelar(id)
+      setFeedback('Ordem cancelada e preservada no histórico.')
+      await load()
+    } catch (err) {
+      setFeedback(message(err))
+    }
+  }
+
+  if (loading && !ordem) return <Loading text={feedback || 'Carregando ordem...'} />
+  if (!ordem) return <div className="exp-detail-error"><Empty text={feedback || 'Ordem não encontrada.'} /><button className="exp-button" onClick={() => navigate('ordens')}><ArrowLeft size={16} /> Voltar</button></div>
+
+  const paletes = ordem.paletes ?? []
+  const carregados = paletes.filter((item) => item.status_carregamento === 'carregado').length
+  const progresso = paletes.length > 0 ? Math.round((carregados / paletes.length) * 100) : 0
+  const timeline = [
+    { label: 'Ordem criada', at: ordem.criada_em, operator: ordem.operadores?.criado_por },
+    { label: 'Ordem lançada', at: ordem.lancada_em, operator: ordem.operadores?.lancado_por },
+    { label: 'Carregamento iniciado', at: ordem.iniciada_em, operator: ordem.operadores?.iniciado_por },
+    { label: 'Carregamento concluído', at: ordem.concluida_em, operator: ordem.operadores?.concluido_por },
+    { label: 'Ordem cancelada', at: ordem.cancelada_em, operator: ordem.operadores?.cancelado_por },
+  ].filter((item) => item.at)
+
+  return <>
+    <header className="exp-detail-header">
+      <button className="exp-button subtle" type="button" onClick={() => navigate('ordens')}><ArrowLeft size={16} /> Ordens</button>
+      <div className="exp-detail-title">
+        <span>Ordem de expedição</span>
+        <div><h1>{ordem.codigo}</h1><Status value={ordem.status} /></div>
+        <p>{ordem.cliente} · {ordem.destino}</p>
+      </div>
+      <div className="exp-detail-actions">
+        {ordem.status === 'rascunho' ? <button className="exp-button" type="button" onClick={() => setEditor(true)}><ClipboardCheck size={16} /> Editar</button> : null}
+        {ordem.status === 'rascunho' ? <IssueOrderButton onIssue={issue} onComplete={() => void load()} /> : null}
+        {OPEN_ORDER_STATUSES.includes(ordem.status as (typeof OPEN_ORDER_STATUSES)[number]) ? <button className="exp-button danger" type="button" onClick={() => void cancel()}><Ban size={16} /> Cancelar ordem</button> : null}
+      </div>
+    </header>
+
+    {feedback ? <div className="exp-detail-feedback" role="status">{feedback}</div> : null}
+
+    <div className="exp-detail-layout">
+      <main className="exp-detail-main">
+        <section className="exp-panel exp-detail-summary">
+          <PanelHeader title="Resumo da carga" count={statusLabel(ordem.status)} />
+          <div className="exp-detail-kpis">
+            <Kpi label="Paletes" value={integer(ordem.paletes_total)} />
+            <Kpi label="Caixas" value={integer(ordem.caixas_total)} />
+            <Kpi label="Peso total" value={kg(ordem.peso_total)} />
+            <Kpi label="Conferidos" value={`${integer(carregados)}/${integer(ordem.paletes_total)}`} />
+          </div>
+          {ordem.status === 'carregando' || ordem.status === 'concluida' ? <div className="exp-progress-block">
+            <div><span>Progresso do carregamento</span><strong>{progresso}%</strong></div>
+            <div className="exp-progress-track"><span style={{ width: `${progresso}%` }} /></div>
+          </div> : null}
+        </section>
+
+        <section className="exp-panel">
+          <PanelHeader title="Produtos da carga" count={`${ordem.produtos?.length ?? 0} produto(s)`} />
+          <div className="exp-product-list">
+            {ordem.produtos?.map((produto) => <article className="exp-product-row" key={produto.produto}>
+              <div><strong>{productName(produto.produto)}</strong><span>{integer(produto.carregados)} de {integer(produto.paletes)} conferido(s)</span></div>
+              <div><strong>{kg(produto.peso_total)}</strong><span>{integer(produto.paletes)} palete(s)</span></div>
+            </article>)}
+            {!ordem.produtos?.length ? <Empty text="Nenhum produto registrado nesta ordem." /> : null}
+          </div>
+        </section>
+
+        <section className="exp-panel exp-table-panel">
+          <PanelHeader title="Paletes da ordem" count={`${paletes.length} palete(s)`} />
+          <div className="exp-table-wrap">
+            <table className="exp-table exp-pallet-detail-table">
+              <thead><tr><th>Palete</th><th>Produto</th><th>Lote</th><th>Caixas</th><th>Peso</th><th>Conferência</th><th>Operador</th></tr></thead>
+              <tbody>{paletes.map((palete) => <tr key={palete.id}>
+                <td><strong>#{palete.numero || palete.id}</strong></td>
+                <td>{productName(palete.produto)}</td>
+                <td>{palete.lote || '-'}</td>
+                <td>{integer(palete.caixas)}</td>
+                <td>{kg(palete.peso_total)}</td>
+                <td><Status value={palete.status_carregamento} />{palete.escaneado_em ? <small>{dateTime(palete.escaneado_em)}</small> : null}</td>
+                <td>{palete.operador_conferencia || '-'}</td>
+              </tr>)}</tbody>
+            </table>
+            {paletes.length === 0 ? <Empty text={ordem.status === 'cancelada' ? 'Esta ordem foi cancelada antes da preservação detalhada dos paletes.' : 'Nenhum palete registrado nesta ordem.'} /> : null}
+          </div>
+        </section>
+      </main>
+
+      <aside className="exp-detail-aside">
+        <section className="exp-panel exp-info-panel">
+          <PanelHeader title="Dados de entrega" />
+          <InfoLine icon={<UserRound size={17} />} label="Cliente" value={ordem.cliente} />
+          <InfoLine icon={<MapPin size={17} />} label="Destino" value={ordem.destino} />
+          <InfoLine icon={<CalendarDays size={17} />} label="Data prevista" value={date(ordem.data_prevista)} />
+          <InfoLine icon={<Truck size={17} />} label="Motorista" value={ordem.motorista || '-'} />
+          <InfoLine icon={<Truck size={17} />} label="Placa" value={ordem.placa || '-'} />
+          {ordem.observacoes ? <div className="exp-observations"><span>Observações</span><p>{ordem.observacoes}</p></div> : null}
+        </section>
+
+        <section className="exp-panel exp-timeline-panel">
+          <PanelHeader title="Histórico da ordem" />
+          <div className="exp-timeline">
+            {timeline.map((item) => <div className="exp-timeline-item" key={item.label}>
+              <span className="exp-timeline-dot"><Clock3 size={14} /></span>
+              <div><strong>{item.label}</strong><span>{dateTime(item.at)}</span>{item.operator ? <small>{item.operator}</small> : null}</div>
+            </div>)}
+          </div>
+        </section>
+      </aside>
+    </div>
+    {editor ? <OrderEditor id={id} onClose={() => setEditor(false)} onSaved={() => { setEditor(false); void load() }} /> : null}
+  </>
 }
 
 function PalletDetail({ id, onClose }: { id: number; onClose: () => void }) {
@@ -422,7 +633,7 @@ function Relatorios() {
 function PageHeader({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) {
   return <header className="exp-page-head"><div><h1>{title}</h1><p>{subtitle}</p></div>{action}</header>
 }
-function PanelHeader({ title, count }: { title: string; count: string }) { return <header className="exp-panel-head"><h2>{title}</h2><span>{count}</span></header> }
+function PanelHeader({ title, count }: { title: string; count?: string }) { return <header className="exp-panel-head"><h2>{title}</h2>{count ? <span>{count}</span> : null}</header> }
 function Kpi({ label, value }: { label: string; value: string }) { return <article className="exp-kpi"><span>{label}</span><strong>{value}</strong></article> }
 function Empty({ text }: { text: string }) { return <div className="exp-empty"><PackageCheck size={18} /><span>{text}</span></div> }
 function Loading({ text }: { text: string }) { return <div className="exp-loading"><span />{text}</div> }
@@ -460,20 +671,25 @@ function IssueOrderButton({ onIssue, onComplete }: { onIssue: () => Promise<bool
 }
 function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) { return <label className="exp-field"><span>{label}{required ? ' *' : ''}</span>{children}</label> }
 function Review({ label, value }: { label: string; value: string }) { return <div className="exp-review-item"><span>{label}</span><strong>{value}</strong></div> }
+function InfoLine({ icon, label, value }: { icon: ReactNode; label: string; value: string }) { return <div className="exp-info-line"><span className="exp-info-icon">{icon}</span><div><small>{label}</small><strong>{value}</strong></div></div> }
 function OrderRow({ ordem }: { ordem: OrdemExpedicao }) { return <article className="exp-order-row"><div><strong>{ordem.codigo}</strong><span>{ordem.cliente} · {ordem.destino}</span></div><div><Status value={ordem.status} /><strong>{kg(ordem.peso_total)}</strong></div></article> }
 function Modal({ title, onClose, children, wide = false, builder = false }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean; builder?: boolean }) { return <div className="exp-modal-backdrop" role="presentation"><section className={`exp-modal ${wide ? 'wide' : ''} ${builder ? 'is-builder' : ''}`} role="dialog" aria-modal="true" aria-label={title}><header><h2>{title}</h2><IconButton label="Fechar" onClick={onClose}><X size={18} /></IconButton></header><div className="exp-modal-body">{children}</div></section></div> }
 
-function viewFromHash(): View {
+function routeFromHash(): ExpedicaoRoute {
   const path = window.location.hash.replace(/^#\/?/, '').split('?')[0]
-  if (path.includes('/estoque')) return 'estoque'
-  if (path.includes('/ordens')) return 'ordens'
-  if (path.includes('/relatorios')) return 'relatorios'
-  return 'resumo'
+  const orderMatch = path.match(/\/expedicao\/ordens\/(\d+)$/)
+  if (orderMatch) return { view: 'ordens', orderId: Number(orderMatch[1]) }
+  if (path.includes('/estoque')) return { view: 'estoque', orderId: null }
+  if (path.includes('/ordens')) return { view: 'ordens', orderId: null }
+  if (path.includes('/relatorios')) return { view: 'relatorios', orderId: null }
+  return { view: 'resumo', orderId: null }
 }
 function navigate(view: View) { window.location.hash = view === 'resumo' ? '#/expedicao' : `#/expedicao/${view}` }
+function navigateOrder(id: number) { window.location.hash = `#/expedicao/ordens/${id}` }
 function integer(value: number) { return Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }
 function kg(value: number) { return `${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg` }
 function date(value?: string | null) { if (!value) return '-'; const plain = value.slice(0, 10).split('-'); return plain.length === 3 ? `${plain[2]}/${plain[1]}/${plain[0]}` : value }
+function dateTime(value?: string | null) { if (!value) return '-'; const parsed = new Date(value.replace(' ', 'T')); return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) }
 function productName(value: string) { return value ? value.replace(/[-_]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) : '-' }
 function statusLabel(value: string) { return ({ rascunho: 'Rascunho', lancada: 'Lançada', carregando: 'Carregando', concluida: 'Concluída', cancelada: 'Cancelada', reservado: 'Reservado', carregado: 'Carregado', disponível: 'Disponível', pendente: 'Pendente', impressa: 'Impressa', erro: 'Erro' } as Record<string, string>)[value] ?? value }
 function message(error: unknown) { return error instanceof Error ? error.message : 'Não foi possível concluir a operação.' }

@@ -26,10 +26,12 @@ class ExpedicaoOrdem extends Model
         'lancado_por',
         'iniciado_por',
         'concluido_por',
+        'cancelado_por',
         'lancada_at',
         'iniciada_at',
         'concluida_at',
         'cancelada_at',
+        'cancelamento_snapshot',
     ];
 
     protected $casts = [
@@ -41,9 +43,11 @@ class ExpedicaoOrdem extends Model
         'lancado_por' => 'integer',
         'iniciado_por' => 'integer',
         'concluido_por' => 'integer',
+        'cancelado_por' => 'integer',
         'lancada_at' => 'datetime',
         'iniciada_at' => 'datetime',
         'concluida_at' => 'datetime',
         'cancelada_at' => 'datetime',
+        'cancelamento_snapshot' => 'array',
     ];
 }
