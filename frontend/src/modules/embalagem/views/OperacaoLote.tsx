@@ -1,5 +1,6 @@
 import { Check, History, RotateCcw } from 'lucide-react'
 import type { OperacaoEmbalagem } from '../api/embalagemApi'
+import { closeScannerKeyboard, openScannerKeyboard } from '../scannerKeyboard'
 
 export function OperacaoLote({
   operacao,
@@ -80,8 +81,8 @@ export function OperacaoLote({
                 onChange={(event) => onCodigoChange(event.target.value)}
                 placeholder="Escaneie o código"
                 inputMode="none"
-                onPointerDown={(event) => { event.currentTarget.inputMode = 'numeric' }}
-                onBlur={(event) => { event.currentTarget.inputMode = 'none' }}
+                onPointerDown={(event) => openScannerKeyboard(event, 'numeric')}
+                onBlur={closeScannerKeyboard}
                 autoFocus
                 disabled={operacao.lote.status === 'finalizado'}
               />
