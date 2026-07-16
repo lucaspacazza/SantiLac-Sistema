@@ -44,6 +44,8 @@ class ExpedicaoBarcodeTest extends TestCase
             'scanner AIM GS1-128 prefix' => [']C1PAL-42', 42],
             'scanner control characters' => ["\x02PAL-42\x03", 42],
             'legacy numeric pallet id' => ['42', 42],
+            'keyboard layout equals separator' => ['PAL=42', 42],
+            'keyboard layout slash separator' => ['PAL/42', 42],
         ];
     }
 }
