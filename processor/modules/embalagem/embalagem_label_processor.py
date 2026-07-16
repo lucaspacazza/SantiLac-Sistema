@@ -102,6 +102,7 @@ def api_post(config: Config, path: str, data: dict[str, Any]) -> Any:
 
 
 def build_zpl(pallet: dict[str, Any]) -> str:
+    pallet_id = int(pallet["palete_id"])
     numero = zpl_text(f"PALETE {pallet['numero']}")
     queijo = zpl_text(str(pallet.get("queijo", ""))[:32])
     lote = zpl_text(str(pallet.get("lote", "")))
@@ -110,6 +111,7 @@ def build_zpl(pallet: dict[str, Any]) -> str:
     caixas = zpl_text(str(pallet.get("caixas_total", "0")))
     peso = zpl_text(format_weight(float(pallet.get("peso_total", 0))))
     qr_url = str(pallet["qr_url"])
+    barcode_value = f"PAL-{pallet_id}"
 
     return f"""^XA
 ^CI28
@@ -129,8 +131,8 @@ def build_zpl(pallet: dict[str, Any]) -> str:
 ^FO128,224^A0N,25,25^FD{caixas}^FS
 ^FO18,260^A0N,25,25^FDPESO:^FS
 ^FO128,260^A0N,25,25^FD{peso} KG^FS
-^FO18,306^GB350,2,2^FS
-^FO18,326^A0N,23,23^FDESCANEIE O QR^FS
+^FO18,302^GB350,2,2^FS
+^FO18,314^BY2,2,48^BCN,48,Y,N,N^FD{barcode_value}^FS
 ^FO392,30^BQN,2,5^FDLA,{qr_url}^FS
 ^XZ
 """
