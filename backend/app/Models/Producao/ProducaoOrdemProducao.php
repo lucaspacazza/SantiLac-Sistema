@@ -2,10 +2,13 @@
 
 namespace App\Models\Producao;
 
+use App\Models\Concerns\ExcludesCancelledRecords;
 use Illuminate\Database\Eloquent\Model;
 
 class ProducaoOrdemProducao extends Model
 {
+    use ExcludesCancelledRecords;
+
     protected $connection = 'raw';
 
     protected $table = 'ordens_producao';

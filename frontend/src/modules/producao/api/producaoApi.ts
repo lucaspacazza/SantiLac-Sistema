@@ -50,7 +50,7 @@ export type FormulacaoQueijo = {
   hora_corte: string | null
   temperatura_cozimento: number | null
   responsavel_id: number | null
-  status: 'rascunho' | 'finalizada' | 'cancelada'
+  status: 'rascunho' | 'finalizada'
   insumos: FormulacaoInsumo[]
 }
 
@@ -80,7 +80,7 @@ export type FormulacaoQueijoCatalogos = {
   }>
 }
 
-export type StatusFicha = 'rascunho' | 'aguardando_formato' | 'finalizada' | 'cancelada'
+export type StatusFicha = 'rascunho' | 'aguardando_formato' | 'finalizada'
 
 export type SoroRefrigerado = {
   id: number

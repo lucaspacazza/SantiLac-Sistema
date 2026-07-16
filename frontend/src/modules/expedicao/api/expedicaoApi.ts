@@ -40,7 +40,7 @@ export type OrdemExpedicao = {
   placa: string | null
   motorista: string | null
   observacoes: string | null
-  status: 'rascunho' | 'lancada' | 'carregando' | 'concluida' | 'cancelada'
+  status: 'rascunho' | 'lancada' | 'carregando' | 'concluida'
   paletes_total: number
   caixas_total: number
   peso_total: number

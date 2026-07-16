@@ -27,8 +27,6 @@ export function ConsultaOrdemProducao({
     if (ordem.pendencia_formato) return 'Aguardando formato'
     if (ordem.status === 'finalizada') return 'Finalizada'
     if (ordem.status === 'rascunho') return 'Rascunho'
-    if (ordem.status === 'cancelada') return 'Cancelada'
-
     return ordem.status ?? '-'
   }
 

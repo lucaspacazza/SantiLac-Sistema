@@ -149,22 +149,25 @@ class OrdemProducaoService
 
     public function cancelar(int $id): ?array
     {
-        $alteradas = ProducaoOrdemProducao::query()
-            ->where('id', $id)
-            ->whereIn('status', ['rascunho', 'aguardando_formato'])
-            ->update(['status' => 'cancelada']);
+        return DB::connection('raw')->transaction(function () use ($id): ?array {
+            $ordem = ProducaoOrdemProducao::query()->where('id', $id)->lockForUpdate()->first();
 
-        $ordem = ProducaoOrdemProducao::query()->where('id', $id)->first();
+            if ($ordem === null) {
+                return null;
+            }
 
-        if ($ordem === null) {
-            return null;
-        }
+            if (! in_array((string) $ordem->status, ['rascunho', 'aguardando_formato'], true)) {
+                throw new \DomainException('Uma OP finalizada não pode ser excluída.');
+            }
 
-        if ($alteradas === 0 && ($ordem->status ?? '') !== 'cancelada') {
-            throw new \DomainException('Uma OP finalizada não pode ser cancelada.');
-        }
+            $resultado = $this->formatarOrdem($ordem, $this->formulacoesDaOrdem($ordem));
+            ProducaoFormulacaoQueijo::query()
+                ->where('ordem_producao_id', $ordem->id)
+                ->update(['ordem_producao_id' => null]);
+            $ordem->delete();
 
-        return $this->formatarOrdem($ordem, $this->formulacoesDaOrdem($ordem));
+            return $resultado;
+        });
     }
 
     public function gerarDaFormulacao(int $formulacaoId): ?array
@@ -380,11 +383,7 @@ class OrdemProducaoService
                 $ordemPrincipal->formulacao_queijo_id = $ordem->formulacao_queijo_id;
             }
 
-            $ordem->forceFill([
-                'tipo_queijo' => null,
-                'status' => 'cancelada',
-                'observacoes' => 'Consolidada na OP ' . $ordemPrincipal->codigo_ordem . '.',
-            ])->save();
+            $ordem->delete();
             $mescladas++;
         }
 

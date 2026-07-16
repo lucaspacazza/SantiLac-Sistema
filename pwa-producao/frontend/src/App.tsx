@@ -40,6 +40,13 @@ import { PRODUCTION_WORKFLOWS, type View, type WorkflowId } from './workflows'
 
 type AuthState = 'booting' | 'guest' | 'authenticated'
 type LoadState = 'loading' | 'ready' | 'error' | 'saving'
+type ConfirmationRequest = {
+  title: string
+  message: string
+  confirmLabel: string
+  cancelLabel: string
+  destructive?: boolean
+}
 
 const EMPTY_CHEESE_CATALOGS: FormulacaoQueijoCatalogos = { queijos: [], insumos: [] }
 const EMPTY_ORDER_CATALOGS: OrdemProducaoCatalogos = { queijos: [], insumos: [] }
@@ -139,6 +146,24 @@ export function App() {
   const [cheeseEditorOpen, setCheeseEditorOpen] = useState(false)
   const [activeCheeseFormula, setActiveCheeseFormula] = useState<FormulacaoQueijo | null>(null)
   const cheeseSavingRef = useRef(false)
+  const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null)
+  const confirmationResolverRef = useRef<((answer: boolean) => void) | null>(null)
+
+  function askConfirmation(request: ConfirmationRequest): Promise<boolean> {
+    confirmationResolverRef.current?.(false)
+    setConfirmation(request)
+
+    return new Promise((resolve) => {
+      confirmationResolverRef.current = resolve
+    })
+  }
+
+  function answerConfirmation(answer: boolean) {
+    const resolve = confirmationResolverRef.current
+    confirmationResolverRef.current = null
+    setConfirmation(null)
+    resolve?.(answer)
+  }
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
@@ -405,21 +430,28 @@ export function App() {
 
   async function cancelOrder() {
     if (!activeOrder || orderSavingRef.current) return
-    if (!window.confirm(`Cancelar a OP ${activeOrder.codigo_ordem}? Ela sairá das ordens abertas.`)) return
+    const confirmed = await askConfirmation({
+      title: 'Excluir OP?',
+      message: `A OP ${activeOrder.codigo_ordem} será excluída definitivamente. Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Sim',
+      cancelLabel: 'Não',
+      destructive: true,
+    })
+    if (!confirmed) return
 
     orderSavingRef.current = true
     setState('saving')
-    setMessage('Cancelando OP')
+    setMessage('Excluindo OP')
 
     try {
       await producaoApi.cancelarOrdemProducao(activeOrder.id)
       await loadBase(activeOrder.data ?? date)
       setActiveOrder(null)
-      setMessage('OP cancelada')
+      setMessage('OP excluída')
       setState('ready')
     } catch (error) {
       setState('error')
-      setMessage(error instanceof Error ? error.message : 'Não foi possível cancelar a OP.')
+      setMessage(error instanceof Error ? error.message : 'Não foi possível excluir a OP.')
     } finally {
       orderSavingRef.current = false
     }
@@ -471,9 +503,12 @@ export function App() {
     }
 
     const action = submitValue(event, 'acao')
-    const shouldGenerateOrder = action === 'finalizar' && window.confirm(
-      'Gerar OP automaticamente?\n\nOK: finalizar e gerar a OP com os dados atuais.\nCancelar: finalizar sem gerar OP.',
-    )
+    const shouldGenerateOrder = action === 'finalizar' && await askConfirmation({
+      title: 'Gerar OP automaticamente?',
+      message: 'Deseja finalizar a formulação e gerar a OP com os dados atuais?',
+      confirmLabel: 'Sim',
+      cancelLabel: 'Não',
+    })
     let generatedOrderCode: string | null = null
     setState('saving')
     setMessage(action === 'finalizar' ? 'Salvando alterações' : 'Salvando formulação')
@@ -530,11 +565,18 @@ export function App() {
 
   async function cancelCheeseFormula() {
     if (!activeCheeseFormula || cheeseSavingRef.current) return
-    if (!window.confirm(`Cancelar a formulação ${activeCheeseFormula.codigo_formulacao}? Ela sairá das formulações abertas.`)) return
+    const confirmed = await askConfirmation({
+      title: 'Excluir formulação?',
+      message: `A formulação ${activeCheeseFormula.codigo_formulacao} será excluída definitivamente. Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Sim',
+      cancelLabel: 'Não',
+      destructive: true,
+    })
+    if (!confirmed) return
 
     cheeseSavingRef.current = true
     setState('saving')
-    setMessage('Cancelando formulação')
+    setMessage('Excluindo formulação')
 
     try {
       await producaoApi.cancelarFormulacaoQueijo(activeCheeseFormula.id)
@@ -542,11 +584,11 @@ export function App() {
       setActiveCheeseFormula(null)
       setCheeseEditorOpen(false)
       setView('queijo')
-      setMessage('Formulação cancelada')
+      setMessage('Formulação excluída')
       setState('ready')
     } catch (error) {
       setState('error')
-      setMessage(error instanceof Error ? error.message : 'Não foi possível cancelar a formulação.')
+      setMessage(error instanceof Error ? error.message : 'Não foi possível excluir a formulação.')
     } finally {
       cheeseSavingRef.current = false
     }
@@ -748,6 +790,33 @@ export function App() {
         {view === 'formulacao-creme' && <CreamFormulaForm key={`${view}-${date}`} date={date} onBack={() => setView('inicio')} onSubmit={saveFormulacaoCreme} />}
         {view === 'producao-creme' && <CreamProductionForm key={`${view}-${date}`} date={date} onBack={() => setView('inicio')} onSubmit={saveProducaoCreme} />}
       </main>
+      {confirmation && <ConfirmationDialog request={confirmation} onAnswer={answerConfirmation} />}
+    </div>
+  )
+}
+
+function ConfirmationDialog({ request, onAnswer }: {
+  request: ConfirmationRequest
+  onAnswer: (answer: boolean) => void
+}) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onAnswer(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [onAnswer])
+
+  return (
+    <div className="confirmation-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onAnswer(false) }}>
+      <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmation-title" aria-describedby="confirmation-message">
+        <h2 id="confirmation-title">{request.title}</h2>
+        <p id="confirmation-message">{request.message}</p>
+        <div className="confirmation-actions">
+          <button className="secondary-button" type="button" onClick={() => onAnswer(false)} autoFocus>{request.cancelLabel}</button>
+          <button className={request.destructive ? 'danger-button' : 'primary-button'} type="button" onClick={() => onAnswer(true)}>{request.confirmLabel}</button>
+        </div>
+      </section>
     </div>
   )
 }

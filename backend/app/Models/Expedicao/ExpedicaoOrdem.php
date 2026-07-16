@@ -2,10 +2,13 @@
 
 namespace App\Models\Expedicao;
 
+use App\Models\Concerns\ExcludesCancelledRecords;
 use Illuminate\Database\Eloquent\Model;
 
 class ExpedicaoOrdem extends Model
 {
+    use ExcludesCancelledRecords;
+
     protected $connection = 'raw';
 
     protected $table = 'expedicao_ordens';

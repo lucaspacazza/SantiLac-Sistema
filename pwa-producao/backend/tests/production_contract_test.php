@@ -59,6 +59,21 @@ if (! str_contains((string) $ordemServiceSource, 'function cancelar')) {
     throw new RuntimeException('Service não permite cancelar OP.');
 }
 
+$cancelStart = strpos((string) $ordemServiceSource, 'function cancelar');
+$cancelEnd = strpos((string) $ordemServiceSource, 'function gerarDaFormulacao', $cancelStart + 1);
+$cancelSource = substr((string) $ordemServiceSource, $cancelStart, $cancelEnd - $cancelStart);
+if (! str_contains($cancelSource, "'ordem_producao_id' => null") || ! str_contains($cancelSource, '->delete()')) {
+    throw new RuntimeException('Cancelar OP no PWA ainda não exclui definitivamente a ordem.');
+}
+
+$baseFormSource = (string) file_get_contents($root.'/app/Services/Producao/BaseFormularioService.php');
+$formCancelStart = strpos($baseFormSource, 'function cancelarFormulario');
+$formCancelEnd = strpos($baseFormSource, 'function status', $formCancelStart + 1);
+$formCancelSource = substr($baseFormSource, $formCancelStart, $formCancelEnd - $formCancelStart);
+if (! str_contains($formCancelSource, '->delete()') || str_contains($formCancelSource, "status = 'cancelada'")) {
+    throw new RuntimeException('Cancelar ficha no PWA ainda preserva status cancelado.');
+}
+
 if (! str_contains((string) $routes, "Route::patch('/ordens-producao/{id}',")) {
     throw new RuntimeException('Rota de edição da OP ausente.');
 }
@@ -91,11 +106,10 @@ foreach ([
     }
 }
 
-if (! str_contains(
-    (string) $ordemServiceSource,
-    "return ProducaoOrdemProducao::query()\n            ->where('status', '!=', 'cancelada')"
-)) {
-    throw new RuntimeException('Listagens do PWA ainda permitem exibir OP cancelada.');
+foreach (glob($root.'/app/Models/Producao/*.php') as $model) {
+    if (! str_contains((string) file_get_contents($model), 'ExcludesCancelledRecords')) {
+        throw new RuntimeException('Um modelo do PWA ainda pode expor canceladas antigas: '.basename($model));
+    }
 }
 
 echo "production backend contract: ok\n";

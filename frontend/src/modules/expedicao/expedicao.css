@@ -499,7 +499,7 @@
 .exp-status.is-disponível::before, .exp-status.is-concluida::before, .exp-status.is-carregado::before, .exp-status.is-impressa::before { background: var(--success); }
 .exp-status.is-lancada::before, .exp-status.is-carregando::before, .exp-status.is-reservado::before { background: #4f9df8; }
 .exp-status.is-rascunho::before, .exp-status.is-pendente::before { background: var(--warning); }
-.exp-status.is-cancelada::before, .exp-status.is-erro::before { background: var(--danger); }
+.exp-status.is-erro::before { background: var(--danger); }
 
 .exp-empty, .exp-loading {
   min-height: 94px;

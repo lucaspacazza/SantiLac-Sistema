@@ -320,23 +320,13 @@ class ExpedicaoService
 
     public function cancelar(int $id, int $usuarioId): array
     {
-        return DB::connection('raw')->transaction(function () use ($id, $usuarioId): array {
+        return DB::connection('raw')->transaction(function () use ($id): array {
             $ordem = ExpedicaoOrdem::query()->where('id', $id)->lockForUpdate()->first();
             if ($ordem === null || ! $this->ordemPodeSerCancelada((string) $ordem->status)) {
-                throw new DomainException('Esta ordem não pode mais ser cancelada.');
+                throw new DomainException('Esta ordem não pode mais ser excluída.');
             }
 
-            $paletesSnapshot = $this->itensOrdem($id);
-            $produtosSnapshot = collect($paletesSnapshot)
-                ->groupBy('produto')
-                ->map(fn (Collection $itens, string $produto): array => [
-                    'produto' => $produto,
-                    'paletes' => $itens->count(),
-                    'carregados' => $itens->where('status_carregamento', 'carregado')->count(),
-                    'peso_total' => round((float) $itens->sum('peso_total'), 3),
-                ])
-                ->values()
-                ->all();
+            $resultado = $this->ordem($id);
             $paletes = ExpedicaoOrdemPalete::query()
                 ->where('ordem_id', $id)
                 ->pluck('palete_id')
@@ -347,17 +337,9 @@ class ExpedicaoService
                 ->whereIn('id', $paletes)
                 ->where('expedicao_status', 'reservado')
                 ->update(['expedicao_status' => 'estoque']);
-            $ordem->forceFill([
-                'status' => 'cancelada',
-                'cancelado_por' => $usuarioId,
-                'cancelada_at' => now('America/Sao_Paulo'),
-                'cancelamento_snapshot' => [
-                    'paletes' => $paletesSnapshot,
-                    'produtos' => $produtosSnapshot,
-                ],
-            ])->save();
+            $ordem->delete();
 
-            return $this->ordem($id);
+            return $resultado;
         });
     }
 

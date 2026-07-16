@@ -440,10 +440,6 @@ select:focus-visible {
   background: var(--warning);
 }
 
-.order-status.is-cancelada {
-  background: var(--danger);
-}
-
 .order-row div {
   min-width: 0;
   display: grid;
@@ -885,6 +881,53 @@ select:focus-visible {
   background: rgba(20, 27, 29, 0.58);
   padding: 24px;
   backdrop-filter: blur(3px);
+}
+
+.confirmation-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  padding: 20px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .78);
+  backdrop-filter: blur(4px);
+}
+
+.confirmation-dialog {
+  width: min(100%, 400px);
+  padding: 22px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid #252525;
+  border-radius: 14px;
+  background: #050505;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .7);
+}
+
+.confirmation-dialog h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 20px;
+}
+
+.confirmation-dialog p {
+  margin: 0;
+  color: #a8a8a8;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.confirmation-actions {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.confirmation-actions button {
+  min-height: 44px;
+  justify-content: center;
 }
 
 .time-wheel-dialog {

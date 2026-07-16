@@ -2,6 +2,7 @@
 
 namespace App\Services\Dashboard;
 
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -9,9 +10,9 @@ class ProducaoResumoService
 {
     public function home(): array
     {
-        $ultimaData = DB::connection('raw')->table('producao_formulacoes_queijo')->max('data_formulacao');
+        $ultimaData = $this->formulacoesAtivas()->max('data_formulacao');
         $litros = $ultimaData
-            ? DB::connection('raw')->table('producao_formulacoes_queijo')
+            ? $this->formulacoesAtivas()
                 ->whereDate('data_formulacao', (string) $ultimaData)
                 ->sum('quantidade_leite')
             : 0;
@@ -25,7 +26,7 @@ class ProducaoResumoService
 
     public function dia(Carbon $dia): array
     {
-        $lotes = DB::connection('raw')->table('producao_formulacoes_queijo')
+        $lotes = $this->formulacoesAtivas()
             ->select(['id', 'tipo_queijo', 'lote_queijo', 'quantidade_leite', 'status', 'data_formulacao'])
             ->whereDate('data_formulacao', $dia->toDateString())
             ->orderByDesc('id')
@@ -41,7 +42,7 @@ class ProducaoResumoService
 
     private function ultimosLotes(): array
     {
-        return DB::connection('raw')->table('producao_formulacoes_queijo')
+        return $this->formulacoesAtivas()
             ->select(['id', 'tipo_queijo', 'lote_queijo', 'quantidade_leite', 'status', 'data_formulacao'])
             ->orderByDesc('data_formulacao')
             ->orderByDesc('id')
@@ -49,6 +50,13 @@ class ProducaoResumoService
             ->get()
             ->map(fn ($row): array => $this->formatarLote($row))
             ->all();
+    }
+
+    private function formulacoesAtivas(): Builder
+    {
+        return DB::connection('raw')
+            ->table('producao_formulacoes_queijo')
+            ->where('status', '<>', 'cancelada');
     }
 
     private function formatarLote($row): array
