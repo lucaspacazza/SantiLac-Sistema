@@ -163,10 +163,16 @@ export function App() {
     setMensagem('Finalizando OP.')
 
     try {
-      const data = await embalagemApi.finalizar(operacao.lote.id, pecasAvulsas, pesoPecasAvulsas, paleteParcial)
-      setOperacao(data)
+      await embalagemApi.finalizar(operacao.lote.id, pecasAvulsas, pesoPecasAvulsas, paleteParcial)
+      setOperacao(null)
+      operacaoRef.current = null
+      setCodigoOrdem('')
+      setCodigoBarra('')
+      setUltimoCodigo('')
+      setPecasAvulsas(0)
+      navegarOperacao(true)
       setStatus('ok')
-      setMensagem('OP finalizada.')
+      setMensagem('OP finalizada. Digite uma nova OP.')
       window.localStorage.removeItem('embalagem-lote-id')
       fecharModalAvulsas()
     } catch (error) {
@@ -351,6 +357,9 @@ export function App() {
               O palete {operacao.palete_atual.numero} está incompleto. Deseja deixá-lo aberto para receber caixas dos próximos lotes ou finalizá-lo e gerar a etiqueta?
             </p>
             <div className="modal-actions">
+              <button className="btn secondary" type="button" onClick={() => setModalPaleteParcialAberto(false)}>
+                Cancelar
+              </button>
               <button className="btn secondary" type="button" onClick={() => continuarFinalizacao('preencher')}>
                 Continuar preenchendo
               </button>

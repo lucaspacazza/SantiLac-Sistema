@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, PackageCheck, Play, QrCode, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Barcode, Check, PackageCheck, Play, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { carregamentoApi, type Carregamento, type CarregamentoResumo } from '../api/embalagemApi'
 
@@ -124,15 +124,15 @@ export function CarregamentoExpedicao() {
           {ordem.status === 'lancada' ? (
             <section className="panel loading-start">
               <PackageCheck size={34} />
-              <div><h2>Ordem pronta para conferência</h2><p>Inicie o carregamento para liberar a leitura dos QR Codes.</p></div>
+              <div><h2>Ordem pronta para conferência</h2><p>Inicie o carregamento para liberar a leitura dos códigos de barras.</p></div>
               <button className="btn primary" type="button" onClick={() => void iniciar()}><Play size={17} /> Iniciar carregamento</button>
             </section>
           ) : (
             <section className="grid-two loading-grid">
               <div className="panel">
-                <div className="panel-head"><div><span className="section-kicker">Leitor</span><h2>Escanear palete</h2></div><QrCode size={24} /></div>
+                <div className="panel-head"><div><span className="section-kicker">Leitor</span><h2>Escanear palete</h2></div><Barcode size={24} /></div>
                 <form className="scan-form loading-scan" onSubmit={(event) => { event.preventDefault(); void escanear() }}>
-                  <label className="field"><span>Código do palete</span><input ref={scannerRef} autoFocus className="control scan-input" data-scanner-input="true" inputMode="none" value={codigo} onChange={(event) => setCodigo(event.target.value)} placeholder="Escaneie ou digite o código" /></label>
+                  <label className="field"><span>Código de barras do palete</span><input ref={scannerRef} autoFocus className="control scan-input" data-scanner-input="true" inputMode="none" value={codigo} onChange={(event) => setCodigo(event.target.value)} placeholder="Escaneie ou digite o código de barras" /></label>
                   <button className="btn primary" disabled={!codigo.trim() || status === 'loading'} type="submit">Conferir</button>
                 </form>
                 <div className="loading-progress"><span style={{ width: `${ordem.paletes_total ? (carregados / ordem.paletes_total) * 100 : 0}%` }} /></div>

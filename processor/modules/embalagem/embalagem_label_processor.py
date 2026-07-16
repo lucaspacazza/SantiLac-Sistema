@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -111,7 +112,7 @@ def build_zpl(pallet: dict[str, Any]) -> str:
     caixas = zpl_text(str(pallet.get("caixas_total", "0")))
     peso = zpl_text(format_weight(float(pallet.get("peso_total", 0))))
     qr_url = str(pallet["qr_url"])
-    barcode_value = f"PAL-{pallet_id}"
+    barcode_value = pallet_barcode_value(pallet)
 
     return f"""^XA
 ^CI28
@@ -187,6 +188,16 @@ def find_printer(win32print: Any, wanted: str) -> str:
 
 def format_weight(value: float) -> str:
     return f"{value:.3f}".replace(".", ",")
+
+
+def pallet_barcode_value(pallet: dict[str, Any]) -> str:
+    pallet_id = int(pallet["palete_id"])
+    value = zpl_text(str(pallet.get("codigo_barras") or f"PAL-{pallet_id}"))
+    match = re.fullmatch(r"PAL-([0-9]+)", value, flags=re.IGNORECASE)
+    if match is None or int(match.group(1)) != pallet_id:
+        raise ValueError("Codigo de barras do palete invalido.")
+
+    return value.upper()
 
 
 def zpl_text(value: str) -> str:
