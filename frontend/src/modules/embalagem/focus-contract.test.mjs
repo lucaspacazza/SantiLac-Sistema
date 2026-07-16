@@ -29,7 +29,7 @@ test('does not install global focus recovery that can steal input selection', ()
 test('marks only barcode entry fields as scanner targets', () => {
   assert.doesNotMatch(inputAfter(start, 'Código da OP'), /data-scanner-input/)
   assert.match(inputAfter(operation, 'Código da balança'), /data-scanner-input="true"/)
-  assert.match(inputAfter(loading, 'Código do palete'), /data-scanner-input="true"/)
+  assert.match(inputAfter(loading, 'Código de barras do palete'), /data-scanner-input="true"/)
   assert.match(inputAfter(app, 'Código da balança'), /data-scanner-input="true"/)
 })
 
@@ -42,7 +42,7 @@ test('shows the keyboard for OP and manual fields but hides it only on barcode r
   assert.match(inputAfter(start, 'Código da OP'), /inputMode="text"/)
   assert.match(inputAfter(operation, 'Código da balança'), /inputMode="none"/)
   assert.match(inputAfter(app, 'Código da balança'), /inputMode="none"/)
-  assert.match(inputAfter(loading, 'Código do palete'), /inputMode="none"/)
+  assert.match(inputAfter(loading, 'Código de barras do palete'), /inputMode="none"/)
   assert.match(inputAfter(app, 'Peso manual'), /inputMode="decimal"/)
   assert.match(inputAfter(operation, 'Peças avulsas'), /type="number"/)
   assert.match(start, /autoFocus/)

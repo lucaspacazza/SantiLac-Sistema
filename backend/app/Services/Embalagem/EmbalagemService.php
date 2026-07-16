@@ -436,6 +436,7 @@ class EmbalagemService
 
         $dados = [
             'palete_id' => (int) $palete->id,
+            'codigo_barras' => 'PAL-' . (int) $palete->id,
             'token' => $token,
             'qr_url' => rtrim($baseUrl, '/') . '/api/embalagem/paletes/' . $token . '/visualizar',
             'numero' => (int) $palete->numero,
