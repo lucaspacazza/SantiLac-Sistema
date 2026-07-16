@@ -15,15 +15,15 @@
       "message": "Nova versão do Portal do Produtor disponível."
     },
     "kiosk_producao": {
-      "version_code": 3,
-      "version_name": "0.2.1-producao",
+      "version_code": 4,
+      "version_name": "0.2.2-producao",
       "apk_url": "https://sistema.santilac.com.br/downloads/kiosk/kiosk-producao.apk",
       "required": false,
       "message": "Nova versão do kiosk de Produção disponível."
     },
     "kiosk_embalagem": {
-      "version_code": 3,
-      "version_name": "0.2.1-embalagem",
+      "version_code": 4,
+      "version_name": "0.2.2-embalagem",
       "apk_url": "https://sistema.santilac.com.br/downloads/kiosk/kiosk-embalagem.apk",
       "required": true,
       "message": "Nova versão do kiosk de Embalagem disponível."

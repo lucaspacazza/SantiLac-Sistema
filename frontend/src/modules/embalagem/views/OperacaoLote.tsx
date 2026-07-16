@@ -1,5 +1,8 @@
 import { Check, History, RotateCcw } from 'lucide-react'
+import { type PointerEvent, useEffect, useRef } from 'react'
 import type { OperacaoEmbalagem } from '../api/embalagemApi'
+
+const interactiveSelector = 'input, textarea, select, button, a, [contenteditable="true"]'
 
 export function OperacaoLote({
   operacao,
@@ -24,13 +27,45 @@ export function OperacaoLote({
   onAbrirHistorico: () => void
   onNovaOp: () => void
 }) {
+  const scannerRef = useRef<HTMLInputElement>(null)
   const pesoDigitado = parsePeso(codigoBarra, operacao.barcode)
   const pesoUltimo = parsePeso(ultimoCodigo, operacao.barcode)
   const pesoVisivel = pesoDigitado ?? pesoUltimo
   const codigoEtiqueta = codigoBarra.length >= operacao.barcode.length ? codigoBarra : ultimoCodigo
 
+  function focusScanner() {
+    if (operacao.lote.status === 'finalizado') return
+    scannerRef.current?.focus({ preventScroll: true })
+  }
+
+  function focusScannerUnlessEditing() {
+    window.setTimeout(() => {
+      const active = document.activeElement
+      if (active instanceof HTMLElement && active !== scannerRef.current && active.closest(interactiveSelector)) return
+      focusScanner()
+    }, 0)
+  }
+
+  function handleOperationPointerDown(event: PointerEvent<HTMLDivElement>) {
+    const target = event.target
+    if (target instanceof HTMLElement && target.closest(interactiveSelector)) return
+    focusScannerUnlessEditing()
+  }
+
+  useEffect(() => {
+    const initialFocus = window.setTimeout(focusScanner, 50)
+    const confirmFocus = window.setTimeout(focusScanner, 300)
+    window.addEventListener('focus', focusScannerUnlessEditing)
+
+    return () => {
+      window.clearTimeout(initialFocus)
+      window.clearTimeout(confirmFocus)
+      window.removeEventListener('focus', focusScannerUnlessEditing)
+    }
+  }, [operacao.lote.id, operacao.lote.status])
+
   return (
-    <div className="operation">
+    <div className="operation" onPointerDownCapture={handleOperationPointerDown}>
       <section className="summary-line operation-summary">
         <div>
           <span className="section-kicker">Ordem</span>
@@ -74,6 +109,7 @@ export function OperacaoLote({
             <label className="field">
               <span>Código da balança</span>
               <input
+                ref={scannerRef}
                 className="control scan-input"
                 data-scanner-input="true"
                 value={codigoBarra}
@@ -81,6 +117,7 @@ export function OperacaoLote({
                 placeholder="Escaneie o código"
                 inputMode="none"
                 autoFocus
+                onBlur={focusScannerUnlessEditing}
                 disabled={operacao.lote.status === 'finalizado'}
               />
             </label>
@@ -109,7 +146,7 @@ export function OperacaoLote({
           <div className="finish-row">
             <label className="field compact-field">
               <span>Peças avulsas</span>
-              <input className="control" min={0} type="number" value={pecasAvulsas || ''} onChange={(event) => onPecasAvulsasChange(Number(event.target.value || 0))} />
+              <input className="control" min={0} type="number" value={pecasAvulsas || ''} onBlur={focusScannerUnlessEditing} onChange={(event) => onPecasAvulsasChange(Number(event.target.value || 0))} />
             </label>
             <button className="btn secondary" disabled={processando || operacao.lote.status === 'finalizado'} type="button" onClick={onFinalizar}>
               <Check size={17} />
