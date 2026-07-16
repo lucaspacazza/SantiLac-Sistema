@@ -36,3 +36,8 @@ test('loading flow asks for the pallet barcode instead of a QR Code', () => {
   assert.match(carregamento, /leitura dos c[oó]digos de barras/i)
   assert.doesNotMatch(carregamento, /QrCode|QR Codes?/i)
 })
+
+test('loading reads the live scanner field value before sending the pallet barcode', () => {
+  assert.match(carregamento, /scannerRef\.current\?\.value/)
+  assert.match(carregamento, /carregamentoApi\.escanear\(ordem\.id, codigoLido\)/)
+})

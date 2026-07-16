@@ -55,11 +55,12 @@ export function CarregamentoExpedicao() {
   }
 
   async function escanear() {
-    if (!ordem || !codigo.trim()) return
+    const codigoLido = (scannerRef.current?.value ?? codigo).trim()
+    if (!ordem || !codigoLido) return
     setStatus('loading')
     setMensagem('Conferindo palete.')
     try {
-      setOrdem(await carregamentoApi.escanear(ordem.id, codigo))
+      setOrdem(await carregamentoApi.escanear(ordem.id, codigoLido))
       setCodigo('')
       setStatus('ok')
       setMensagem('Palete conferido.')

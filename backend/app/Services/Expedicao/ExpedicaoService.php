@@ -737,7 +737,7 @@ class ExpedicaoService
         $valor = preg_replace('/[\x00-\x1F\x7F]/', '', trim($identificador)) ?? '';
         $valor = preg_replace('/^\]C[0-2]/i', '', $valor) ?? $valor;
 
-        if (preg_match('/^(?:PAL-)?([0-9]+)$/i', $valor, $partes) !== 1) {
+        if (preg_match('/^(?:PAL[^0-9A-Z]*)?([0-9]+)$/i', $valor, $partes) !== 1) {
             return null;
         }
 
