@@ -23,7 +23,6 @@ export const sidebarModules = [
     icon: 'fa-chart-line',
     href: '#/dashboard/visao-geral',
     children: [
-      { title: 'Visão geral', icon: 'fa-home', href: '#/dashboard/visao-geral' },
       { title: 'Operação do dia', icon: 'fa-calendar-day', href: '#/dashboard/operacao' },
       { title: 'Riscos e qualidade', icon: 'fa-chart-line', href: '#/dashboard/riscos' },
     ],
@@ -36,7 +35,6 @@ export const sidebarModules = [
     icon: 'fa-flask',
     href: '#/inicio',
     children: [
-      { title: 'Visão geral', icon: 'fa-home', href: '#/inicio' },
       { title: 'Produtores', icon: 'fa-users', href: '#/produtores' },
       { title: 'Análises', icon: 'fa-flask', href: '#/analises' },
       { title: 'Relatórios', icon: 'fa-chart-pie', href: '#/relatorios' },
@@ -50,7 +48,6 @@ export const sidebarModules = [
     icon: 'fa-cogs',
     href: '#/producao/inicio',
     children: [
-      { title: 'Visão geral', icon: 'fa-home', href: '#/producao/inicio' },
       { title: 'Formulação queijo', icon: 'fa-clipboard-list', href: '#/producao/listagem-formulacoes-queijo' },
       { title: 'Ordem de produção', icon: 'fa-list-check', href: '#/producao/ordem-producao' },
       { title: 'Soro refrigerado', icon: 'fa-droplet', href: '#/producao/listagem-soro-refrigerado' },
@@ -66,7 +63,6 @@ export const sidebarModules = [
     icon: 'fa-warehouse',
     href: '#/estoque/inicio',
     children: [
-      { title: 'Visão geral', icon: 'fa-home', href: '#/estoque/inicio' },
       { title: 'Itens', icon: 'fa-warehouse', href: '#/estoque/itens' },
       { title: 'Movimentações', icon: 'fa-exchange-alt', href: '#/estoque/movimentos' },
     ],
@@ -79,7 +75,6 @@ export const sidebarModules = [
     icon: 'fa-gas-pump',
     href: '#/combustivel/inicio',
     children: [
-      { title: 'Visão geral', icon: 'fa-home', href: '#/combustivel/inicio' },
       { title: 'Entrada', icon: 'fa-arrow-down', href: '#/combustivel/entrada' },
       { title: 'Saída', icon: 'fa-arrow-up', href: '#/combustivel/saida' },
       { title: 'Histórico', icon: 'fa-clipboard-list', href: '#/combustivel/historico' },
@@ -93,7 +88,6 @@ export const sidebarModules = [
     icon: 'fa-thermometer-half',
     href: '#/pasteurizador/inicio',
     children: [
-      { title: 'Visão geral', icon: 'fa-home', href: '#/pasteurizador/inicio' },
       { title: 'Histórico', icon: 'fa-clipboard-list', href: '#/pasteurizador/historico' },
     ],
   },
