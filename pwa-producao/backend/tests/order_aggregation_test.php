@@ -50,4 +50,28 @@ if (($porRotulo->get('PRODUÇÃO DIARIA / DATA')['valor'] ?? null) !== '15/07/20
     throw new RuntimeException('Data da OP diária não foi preservada.');
 }
 
+$coalho = new ProducaoFormulacaoQueijo();
+$coalho->setRawAttributes([
+    'tipo_queijo' => 'Coalho',
+    'data_formulacao' => new DateTimeImmutable('2026-07-14'),
+    'quantidade_leite' => 1950,
+    'insumos_json' => json_encode([[
+        'tipo_insumo' => 'fermento',
+        'nome_insumo' => 'BVADD',
+        'quantidade' => 25,
+        'unidade' => 'g',
+    ]], JSON_THROW_ON_ERROR),
+]);
+
+$camposCoalho = $method->invoke(new OrdemProducaoService(), collect([$coalho]));
+$coalhoPorRotulo = collect($camposCoalho)->keyBy('rotulo');
+
+if (($coalhoPorRotulo->get('BVADD')['valor'] ?? null) !== '25 g') {
+    throw new RuntimeException('Fermento BVADD do Coalho não foi levado para a OP.');
+}
+
+if ($coalhoPorRotulo->has('FERMENTO (MVD)') || $coalhoPorRotulo->has('FERMENTO (FAST)')) {
+    throw new RuntimeException('OP de Coalho não pode receber fermentos MVD ou FAST sem uso na formulação.');
+}
+
 echo "order aggregation: ok\n";
