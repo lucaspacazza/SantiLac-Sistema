@@ -753,6 +753,8 @@ def convert_to_pdf(docx_path, out_dir):
 def ordem_rows(ordem):
     values_by_label = {}
     duplicate_index = {}
+    fixed_labels = {compact_normalize(label) for label in OP_FIELDS}
+    extra_ferments = []
     lote_queijo = lote_queijo_ordem(ordem)
 
     for campo in ordem.get("campos") or []:
@@ -762,6 +764,10 @@ def ordem_rows(ordem):
             continue
 
         normalized = compact_normalize(label)
+        if normalized not in fixed_labels:
+            extra_ferments.append((label, value_text))
+            continue
+
         current_index = duplicate_index.get(normalized, 0)
         duplicate_index[normalized] = current_index + 1
         values_by_label[(normalized, current_index)] = value_text
@@ -775,7 +781,10 @@ def ordem_rows(ordem):
         field_value = values_by_label.get((normalized, current_index), "")
         if normalized == compact_normalize("LOTE DO QUEIJO") and field_value == "":
             field_value = lote_queijo
-        output.append((label, field_value))
+        output_label = label
+        if normalized == compact_normalize("FERMENTO") and field_value == "" and extra_ferments:
+            output_label, field_value = extra_ferments.pop(0)
+        output.append((output_label, field_value))
 
     return output
 
