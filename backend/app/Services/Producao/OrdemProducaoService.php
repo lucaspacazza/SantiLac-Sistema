@@ -708,7 +708,7 @@ class OrdemProducaoService
 
     private function campoInsumo(string $tipo, string $nome): ?string
     {
-        $base = $this->normalizar($nome !== '' ? $nome : $tipo);
+        $base = $this->normalizar(trim($tipo . ' ' . $nome));
 
         return match (true) {
             str_contains($base, 'cloreto') => 'cloreto_calcio',
