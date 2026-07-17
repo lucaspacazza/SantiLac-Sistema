@@ -584,20 +584,56 @@
 .exp-field input { width: 100%; }
 .exp-pallet-selector { max-height: 310px; overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .exp-pallet-option {
-  min-height: 56px;
+  position: relative;
+  min-height: 92px;
   padding: 9px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 9px;
+  gap: 11px;
   cursor: pointer;
 }
 .exp-pallet-option.selected { border-color: #4f9df8; background: rgba(79, 157, 248, .08); }
-.exp-pallet-option span { min-width: 0; display: grid; gap: 4px; }
+.exp-pallet-option > input { position: absolute; opacity: 0; pointer-events: none; }
+.exp-pallet-copy { min-width: 0; display: grid; gap: 4px; }
 .exp-pallet-option small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exp-pallet-option b { font-size: 12px; }
+.exp-pallet-sketch {
+  width: 70px;
+  min-width: 70px;
+  display: grid;
+  align-content: end;
+  gap: 3px;
+  color: var(--body);
+}
+.exp-pallet-option.selected .exp-pallet-sketch { color: #75b6ff; }
+.exp-pallet-stack { display: grid; gap: 2px; }
+.exp-pallet-row { height: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+.exp-pallet-row i {
+  border: 1px dashed currentColor;
+  border-radius: 1px;
+  opacity: .14;
+}
+.exp-pallet-row:nth-child(even) { padding-inline: 5px; }
+.exp-pallet-row.is-filled i {
+  border-style: solid;
+  background: color-mix(in srgb, currentColor 11%, transparent);
+  opacity: .78;
+}
+.exp-pallet-base {
+  height: 9px;
+  border-top: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  display: grid;
+  grid-template-columns: 10px 1fr 10px;
+  justify-content: space-between;
+  gap: 12px;
+  opacity: .72;
+}
+.exp-pallet-base i { border-inline: 2px solid currentColor; }
+.exp-pallet-sketch.is-parcial .exp-pallet-base { opacity: .48; }
 .exp-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .exp-error { margin: 0; color: var(--danger); font-size: 12px; }
 .exp-review-item { min-height: 58px; padding: 11px 12px; display: grid; align-content: center; gap: 6px; border: 1px solid var(--line); border-radius: var(--radius); }

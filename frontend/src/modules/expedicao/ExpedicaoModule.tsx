@@ -33,6 +33,7 @@ type ExpedicaoRoute = { view: View; orderId: number | null }
 type ResumoData = Awaited<ReturnType<typeof expedicaoApi.resumo>>
 
 const OPEN_ORDER_STATUSES = ['rascunho', 'lancada', 'carregando'] as const
+const PALLET_ROW_COUNT = 5
 
 const emptyPayload: OrdemPayload = {
   cliente: '',
@@ -445,7 +446,12 @@ function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () 
               {paletes.map((palete) => (
                 <label className={`exp-pallet-option ${payload.paletes.includes(palete.id) ? 'selected' : ''}`} key={palete.id}>
                   <input type="checkbox" checked={payload.paletes.includes(palete.id)} onChange={() => toggle(palete.id)} />
-                  <span><strong>Palete #{palete.id}</strong><small>{productName(palete.produto)} · lote {palete.lote}</small></span>
+                  <PalletSketch palete={palete} />
+                  <span className="exp-pallet-copy">
+                    <strong>Palete #{palete.numero || palete.id}</strong>
+                    <small>{productName(palete.produto)} · lote {palete.lote}</small>
+                    <small>{integer(palete.caixas)} caixas · {palete.status === 'cheio' ? 'Completo' : 'Parcial'}</small>
+                  </span>
                   <b>{kg(palete.peso_total)}</b>
                 </label>
               ))}
@@ -488,6 +494,33 @@ function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () 
         </div>
       )}
     </Modal>
+  )
+}
+
+function PalletSketch({ palete }: { palete: PaleteEstoque }) {
+  const filledRows = palete.status === 'cheio'
+    ? PALLET_ROW_COUNT
+    : Math.min(PALLET_ROW_COUNT - 1, Math.max(1, Math.ceil(palete.caixas / 9)))
+  const state = filledRows === PALLET_ROW_COUNT ? 'completo' : 'parcial'
+
+  return (
+    <span
+      className={`exp-pallet-sketch is-${state}`}
+      role="img"
+      aria-label={`Palete ${state}, ${filledRows} de ${PALLET_ROW_COUNT} carreiras`}
+    >
+      <span className="exp-pallet-stack" aria-hidden="true">
+        {Array.from({ length: PALLET_ROW_COUNT }, (_, rowIndex) => {
+          const filled = rowIndex >= PALLET_ROW_COUNT - filledRows
+          return (
+            <span className={`exp-pallet-row ${filled ? 'is-filled' : ''}`} key={rowIndex}>
+              {Array.from({ length: 3 }, (_, boxIndex) => <i key={boxIndex} />)}
+            </span>
+          )
+        })}
+      </span>
+      <span className="exp-pallet-base" aria-hidden="true"><i /><i /><i /></span>
+    </span>
   )
 }
 

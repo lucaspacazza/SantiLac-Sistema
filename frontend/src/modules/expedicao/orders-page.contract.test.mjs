@@ -42,3 +42,11 @@ test('pagina de detalhe mostra carga, paletes e historico', () => {
   assert.match(source, /Histórico da ordem/)
   assert.match(source, /Dados de entrega/)
 })
+
+test('montagem da carga desenha o estado do palete sem imagem', () => {
+  assert.match(source, /function PalletSketch/)
+  assert.match(source, /PALLET_ROW_COUNT = 5/)
+  assert.match(source, /palete\.status === 'cheio'/)
+  assert.match(source, /<PalletSketch palete=\{palete\}/)
+  assert.doesNotMatch(source, /<img[^>]+palete/i)
+})
