@@ -74,3 +74,4 @@ frontend/tests/ui-copy-layout.test.mjs
 ESTACAO_IMPRESSAO_ZEBRA/
 admin/.env
 schema_importacao_formulacoes_01_a_14_07_2026.sql
+codigo_barra_teste_caixa_mussarela.svg
