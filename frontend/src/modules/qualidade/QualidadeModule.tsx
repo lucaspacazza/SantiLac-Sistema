@@ -232,7 +232,7 @@ export function QualidadeModule() {
     : route.producerCode
     ? 'Detalhe do produtor'
     : route.view === 'inicio'
-      ? 'Início'
+      ? 'Qualidade'
       : route.view === 'analises'
         ? 'Análises'
         : route.view === 'relatorios'
@@ -244,7 +244,7 @@ export function QualidadeModule() {
     : route.producerCode
     ? 'Produção, qualidade e evolução histórica do produtor.'
     : route.view === 'inicio'
-      ? 'Resumo real do módulo com base nos produtores carregados.'
+      ? 'Visão geral da base de produtores.'
       : route.view === 'analises'
         ? 'Importação de arquivos laboratoriais.'
         : route.view === 'relatorios'
@@ -283,7 +283,7 @@ export function QualidadeModule() {
           </header>
           )}
 
-          {route.view !== 'analises' && route.view !== 'relatorios' && !route.producerCode && (
+          {route.view !== 'analises' && route.view !== 'relatorios' && !route.producerCode && (route.view !== 'inicio' || status !== 'live') && (
             <section className={`status-line is-${status}`}>
               <span className="status-dot" />
               <span>{statusText}</span>
