@@ -7,19 +7,17 @@ export type Overview = {
   periodo_atual: string
   produtores_com_analise: number
   produtores_sem_analise: number
-  total_produtores: number
   novos_no_mes: number
   saidas_ultimos_dois_meses: number
-  ranking: ProducerRankingItem[]
+  evolucao_leite: MilkEvolutionPoint[]
 }
 
-export type ProducerRankingItem = {
-  codigo: string
-  nome: string
+export type MilkEvolutionPoint = {
+  mes: string
   litros: number
-  pontuacao_volume: number
-  pontuacao_qualidade: number
-  pontuacao_geral: number
+  coletas: number
+  dias_coleta: number
+  produtores: number
 }
 
 export type Analise = {

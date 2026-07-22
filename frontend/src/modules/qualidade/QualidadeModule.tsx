@@ -221,7 +221,7 @@ export function QualidadeModule() {
     : route.producerCode
     ? 'Produção, qualidade e evolução histórica do produtor.'
     : route.view === 'inicio'
-      ? 'Visão geral da base de produtores.'
+      ? ''
       : route.view === 'analises'
         ? 'Importação de arquivos laboratoriais.'
         : route.view === 'relatorios'
@@ -235,7 +235,7 @@ export function QualidadeModule() {
           <header className="page-head">
             <div>
               <h1>{pageTitle}</h1>
-              <p>{pageCopy}</p>
+              {pageCopy && <p>{pageCopy}</p>}
             </div>
             <div className="actions">
               <button
@@ -280,7 +280,6 @@ export function QualidadeModule() {
           ) : route.view === 'inicio' ? (
             overview ? <Inicio
               overview={overview}
-              onOpenProdutor={(codigo) => pushRoute({ view: 'produtores', producerCode: codigo, issuesCode: null })}
             /> : null
           ) : route.view === 'analises' ? (
             <Analises reloadKey={analisesReloadKey} />
