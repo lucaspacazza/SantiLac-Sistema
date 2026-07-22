@@ -1,4 +1,4 @@
-import { ArrowRight, CircleUserRound, UserCheck, UserPlus, Users, type LucideIcon } from 'lucide-react'
+import { ArrowRight, ChartNoAxesColumnIncreasing, CircleUserRound, UserPlus, Users, type LucideIcon } from 'lucide-react'
 import { formatNumber } from '../../shared/formatters'
 
 type InicioOverview = {
@@ -17,11 +17,15 @@ type InicioProps = {
 }
 
 export function Inicio({ overview, onOpenProdutores }: InicioProps) {
+  const analysisCoverage = overview.total > 0
+    ? Math.round((overview.comAnalise / overview.total) * 100)
+    : 0
+
   return (
     <div className="home-grid">
       <section className="home-cards">
         <HomeCard icon={Users} label="Total de produtores" value={formatNumber(overview.total)} copy="Base carregada no módulo" featured />
-        <HomeCard icon={UserCheck} label="Produtores ativos" value={formatNumber(overview.ativos)} copy="Aptos para acompanhamento" />
+        <HomeCard icon={ChartNoAxesColumnIncreasing} label="Cobertura de análises" value={`${analysisCoverage}%`} copy="Produtores com análise registrada" />
         <HomeCard icon={UserPlus} label="Novos produtores" value={formatNumber(overview.novos)} copy="Marcados como novo cadastro" />
         <HomeCard icon={CircleUserRound} label="Sem análise" value={formatNumber(overview.semAnalise)} copy="Aguardando fluxo de análises" />
       </section>
