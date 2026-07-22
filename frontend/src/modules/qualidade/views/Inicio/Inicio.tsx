@@ -1,111 +1,210 @@
-import { ArrowRight, ChartNoAxesColumnIncreasing, CircleUserRound, UserPlus, Users, type LucideIcon } from 'lucide-react'
+import {
+  ArrowRight,
+  ChartNoAxesColumnIncreasing,
+  CircleAlert,
+  CircleCheck,
+  ClipboardList,
+  FlaskConical,
+  MapPin,
+  UserMinus,
+  UserPlus,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
 import { formatNumber } from '../../shared/formatters'
+
+export type QualityPriority = {
+  codigo: string
+  nome: string
+  cidade: string
+  issues: string[]
+}
 
 type InicioOverview = {
   total: number
-  ativos: number
   novos: number
   inativos: number
   comAnalise: number
   semAnalise: number
+  emAlerta: number
   cidades: [string, number][]
+  prioridades: QualityPriority[]
 }
 
 type InicioProps = {
   overview: InicioOverview
   onOpenProdutores: () => void
+  onOpenProdutor: (codigo: string) => void
+  onOpenAnalises: () => void
+  onOpenRelatorios: () => void
 }
 
-export function Inicio({ overview, onOpenProdutores }: InicioProps) {
+export function Inicio({
+  overview,
+  onOpenProdutores,
+  onOpenProdutor,
+  onOpenAnalises,
+  onOpenRelatorios,
+}: InicioProps) {
   const analysisCoverage = overview.total > 0
     ? Math.round((overview.comAnalise / overview.total) * 100)
     : 0
+  const largestCityTotal = overview.cidades[0]?.[1] ?? 1
 
   return (
-    <div className="home-grid">
-      <section className="home-cards">
-        <HomeCard icon={Users} label="Total de produtores" value={formatNumber(overview.total)} featured />
-        <HomeCard icon={ChartNoAxesColumnIncreasing} label="Cobertura de análises" value={`${analysisCoverage}%`} />
-        <HomeCard icon={UserPlus} label="Novos produtores" value={formatNumber(overview.novos)} />
-        <HomeCard icon={CircleUserRound} label="Sem análise" value={formatNumber(overview.semAnalise)} />
-      </section>
-
-      <section className="home-columns">
-        <article className="panel-list home-data-panel">
-          <section className="home-data-section">
-            <div className="panel-list-head">
-              <div>
-                <span className="eyebrow">Situação</span>
-                <h2>Produtores</h2>
-              </div>
-            </div>
-            <div className="summary-list">
-              <SummaryRow label="Ativos" value={overview.ativos} />
-              <SummaryRow label="Inativos" value={overview.inativos} />
-              <SummaryRow label="Com análise" value={overview.comAnalise} />
-              <SummaryRow label="Sem análise" value={overview.semAnalise} />
-            </div>
-          </section>
-
-          <section className="home-data-section">
-            <div className="panel-list-head">
-              <div>
-                <span className="eyebrow">Distribuição</span>
-                <h2>Principais cidades</h2>
-              </div>
-            </div>
-            <div className="summary-list">
-              {overview.cidades.length === 0 ? (
-                <p className="empty-copy">Nenhuma cidade encontrada.</p>
-              ) : overview.cidades.map(([cidade, total]) => (
-                <SummaryRow key={cidade} label={cidade} value={total} />
-              ))}
-            </div>
-          </section>
-        </article>
-
-        <article className="panel-list action-panel">
-          <div>
-            <span className="action-panel-icon" aria-hidden="true"><Users size={20} /></span>
-            <span className="eyebrow">Ação rápida</span>
-            <h2>Gestão de produtores</h2>
-            <p>Abra a lista completa para consultar produtores e acompanhar os campos de qualidade.</p>
-          </div>
+    <div className="quality-home">
+      <section className="quality-home-hero">
+        <div className="quality-home-intro">
+          <span className="eyebrow">Painel operacional</span>
+          <h2>O que precisa de atenção hoje</h2>
+          <p>Priorize desvios, acompanhe a cobertura das análises e acesse rapidamente os fluxos de qualidade.</p>
+        </div>
+        <div className="quality-home-hero-actions">
+          <button className="btn secondary" type="button" onClick={onOpenRelatorios}>
+            <ClipboardList size={16} />
+            Ver relatórios
+          </button>
           <button className="btn primary" type="button" onClick={onOpenProdutores}>
             <Users size={16} />
             Abrir produtores
-            <ArrowRight className="action-panel-arrow" size={16} />
           </button>
+        </div>
+      </section>
+
+      <section className="quality-kpi-grid" aria-label="Indicadores operacionais">
+        <MetricCard icon={CircleAlert} label="Produtores em alerta" value={overview.emAlerta} tone="danger" />
+        <MetricCard icon={FlaskConical} label="Sem análise" value={overview.semAnalise} tone="warning" />
+        <MetricCard icon={UserPlus} label="Novos cadastros" value={overview.novos} tone="accent" />
+        <MetricCard icon={UserMinus} label="Inativos" value={overview.inativos} />
+      </section>
+
+      <section className="quality-home-main">
+        <article className="quality-home-panel quality-priority-panel">
+          <PanelHeading
+            icon={CircleAlert}
+            eyebrow="Fila de atenção"
+            title="Produtores com desvios"
+            action={overview.emAlerta > overview.prioridades.length ? `${overview.emAlerta} no total` : undefined}
+          />
+
+          {overview.prioridades.length === 0 ? (
+            <div className="quality-home-empty">
+              <span aria-hidden="true"><CircleCheck size={22} /></span>
+              <strong>Nenhum desvio encontrado</strong>
+              <p>As análises mais recentes não apresentam indicadores críticos.</p>
+            </div>
+          ) : (
+            <div className="quality-priority-list">
+              {overview.prioridades.map((priority) => (
+                <button
+                  className="quality-priority-row"
+                  type="button"
+                  key={priority.codigo}
+                  onClick={() => onOpenProdutor(priority.codigo)}
+                >
+                  <span className="quality-priority-marker" aria-hidden="true" />
+                  <span className="quality-priority-person">
+                    <strong>{priority.nome}</strong>
+                    <small><MapPin size={12} />{priority.cidade || 'Cidade não informada'}</small>
+                  </span>
+                  <span className="quality-priority-issues">
+                    {priority.issues.slice(0, 2).map((issue) => <span key={issue}>{issue}</span>)}
+                    {priority.issues.length > 2 && <small>+{priority.issues.length - 2}</small>}
+                  </span>
+                  <ArrowRight size={16} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          )}
         </article>
+
+        <aside className="quality-home-side">
+          <article className="quality-home-panel quality-coverage-card">
+            <PanelHeading icon={ChartNoAxesColumnIncreasing} eyebrow="Cobertura" title="Análises registradas" />
+            <div className="quality-coverage-value">
+              <strong>{analysisCoverage}%</strong>
+              <span>{formatNumber(overview.comAnalise)} de {formatNumber(overview.total)} produtores</span>
+            </div>
+            <div
+              className="quality-progress"
+              role="progressbar"
+              aria-label="Cobertura de análises"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={analysisCoverage}
+            >
+              <span style={{ width: `${analysisCoverage}%` }} />
+            </div>
+          </article>
+
+          <article className="quality-home-panel quality-cities-card">
+            <PanelHeading icon={MapPin} eyebrow="Origem" title="Produtores por cidade" />
+            <div className="quality-city-list">
+              {overview.cidades.length === 0 ? (
+                <p className="empty-copy">Nenhuma cidade informada.</p>
+              ) : overview.cidades.slice(0, 5).map(([city, total]) => (
+                <div className="quality-city-row" key={city}>
+                  <span><strong>{city}</strong><small>{formatNumber(total)}</small></span>
+                  <i aria-hidden="true"><span style={{ width: `${(total / largestCityTotal) * 100}%` }} /></i>
+                </div>
+              ))}
+            </div>
+          </article>
+        </aside>
+      </section>
+
+      <section className="quality-quick-actions" aria-label="Ações rápidas">
+        <QuickAction icon={FlaskConical} label="Importar análises" onClick={onOpenAnalises} />
+        <QuickAction icon={Users} label="Consultar produtores" onClick={onOpenProdutores} />
+        <QuickAction icon={ClipboardList} label="Investigar indicadores" onClick={onOpenRelatorios} />
       </section>
     </div>
   )
 }
 
-function HomeCard({ icon: Icon, label, value, featured = false }: {
+function MetricCard({ icon: Icon, label, value, tone = 'neutral' }: {
   icon: LucideIcon
   label: string
-  value: string
-  featured?: boolean
+  value: number
+  tone?: 'neutral' | 'danger' | 'warning' | 'accent'
 }) {
   return (
-    <article className={`home-card${featured ? ' is-featured' : ''}`}>
-      <div className="home-card-head">
-        <span>{label}</span>
-        <span className="home-card-icon" aria-hidden="true"><Icon size={17} /></span>
-      </div>
-      <div className="home-card-value">
-        <strong>{value}</strong>
-      </div>
+    <article className={`quality-kpi-card is-${tone}`}>
+      <span className="quality-kpi-icon" aria-hidden="true"><Icon size={18} /></span>
+      <span>{label}</span>
+      <strong>{formatNumber(value)}</strong>
     </article>
   )
 }
 
-function SummaryRow({ label, value }: { label: string; value: number }) {
+function PanelHeading({ icon: Icon, eyebrow, title, action }: {
+  icon: LucideIcon
+  eyebrow: string
+  title: string
+  action?: string
+}) {
   return (
-    <div className="summary-row">
-      <span>{label}</span>
-      <strong>{formatNumber(value)}</strong>
-    </div>
+    <header className="quality-panel-heading">
+      <span className="quality-panel-icon" aria-hidden="true"><Icon size={17} /></span>
+      <div>
+        <span className="eyebrow">{eyebrow}</span>
+        <h3>{title}</h3>
+      </div>
+      {action && <small>{action}</small>}
+    </header>
+  )
+}
+
+function QuickAction({ icon: Icon, label, onClick }: {
+  icon: LucideIcon
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button type="button" onClick={onClick}>
+      <span aria-hidden="true"><Icon size={17} /></span>
+      <strong>{label}</strong>
+      <ArrowRight size={15} aria-hidden="true" />
+    </button>
   )
 }

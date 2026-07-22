@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { qualidadeApi, type Produtor } from './api/qualidadeApi'
 import { relatoriosApi } from './api/relatoriosApi'
 import { ExportFormatMenu, type ExportFormat } from './shared/ExportFormatMenu'
+import { resolveMetricStatus, type AnalysisMetricField } from './shared/analysisMetrics'
 import { Analises } from './views/Analises/Analises'
 import { DetalheProdutor } from './views/DetalheProdutor/DetalheProdutor'
 import { GestaoProdutores } from './views/GestaoProdutores/GestaoProdutores'
@@ -10,6 +11,17 @@ import { Inicio } from './views/Inicio/Inicio'
 import { PendenciasProdutor } from './views/PendenciasProdutor/PendenciasProdutor'
 import { Relatorios } from './views/Relatorios/Relatorios'
 import './qualidade.css'
+
+const priorityMetrics: [AnalysisMetricField, keyof NonNullable<Produtor['ultima_analise']>, string][] = [
+  ['CCS', 'ccs', 'CCS fora do padrão'],
+  ['UFC', 'ufc', 'UFC fora do padrão'],
+  ['GORD', 'gordura', 'Gordura baixa'],
+  ['PROT', 'proteina', 'Proteína baixa'],
+  ['LACT', 'lactose', 'Lactose baixa'],
+  ['SOL', 'solidos_totais', 'Sólidos baixos'],
+  ['UREI', 'ureia', 'Ureia fora do padrão'],
+  ['TEMP', 'temperatura', 'Temperatura fora do padrão'],
+]
 
 type LoadStatus = 'loading' | 'live' | 'error'
 type View = 'inicio' | 'produtores' | 'analises' | 'relatorios'
@@ -203,6 +215,26 @@ export function QualidadeModule() {
     const comAnalise = produtores.filter((produtor) => produtor.ultima_analise).length
     const semAnalise = produtores.length - comAnalise
     const cidades = new Map<string, number>()
+    const prioridades = produtores
+      .filter((produtor) => produtor.ativo && produtor.ultima_analise)
+      .map((produtor) => {
+        const analysis = produtor.ultima_analise!
+        const issues = priorityMetrics
+          .filter(([field, key]) => resolveMetricStatus(field, analysis[key] as number | null) === 'bad')
+          .map(([, , label]) => label)
+
+        if (Number(analysis.antibiotico) === 1) issues.unshift('Antibiótico positivo')
+        if (Number(analysis.bacteria) === 1) issues.unshift('Bactéria detectada')
+
+        return {
+          codigo: produtor.codigo,
+          nome: produtor.nome,
+          cidade: produtor.cidade,
+          issues,
+        }
+      })
+      .filter((produtor) => produtor.issues.length > 0)
+      .sort((left, right) => right.issues.length - left.issues.length)
 
     produtores.forEach((produtor) => {
       const cidade = produtor.cidade || 'Não informada'
@@ -216,6 +248,8 @@ export function QualidadeModule() {
       inativos,
       comAnalise,
       semAnalise,
+      emAlerta: prioridades.length,
+      prioridades: prioridades.slice(0, 5),
       cidades: [...cidades.entries()]
         .sort((left, right) => right[1] - left[1])
         .slice(0, 6),
@@ -301,7 +335,13 @@ export function QualidadeModule() {
           ) : route.issuesCode ? (
             <PendenciasProdutor codigo={route.issuesCode} onBack={() => pushRoute({ view: 'relatorios', producerCode: null, issuesCode: null })} />
           ) : route.view === 'inicio' ? (
-            <Inicio overview={overview} onOpenProdutores={() => pushRoute({ view: 'produtores', producerCode: null, issuesCode: null })} />
+            <Inicio
+              overview={overview}
+              onOpenProdutores={() => pushRoute({ view: 'produtores', producerCode: null, issuesCode: null })}
+              onOpenProdutor={(codigo) => pushRoute({ view: 'produtores', producerCode: codigo, issuesCode: null })}
+              onOpenAnalises={() => pushRoute({ view: 'analises', producerCode: null, issuesCode: null })}
+              onOpenRelatorios={() => pushRoute({ view: 'relatorios', producerCode: null, issuesCode: null })}
+            />
           ) : route.view === 'analises' ? (
             <Analises reloadKey={analisesReloadKey} />
           ) : route.view === 'relatorios' ? (
