@@ -277,6 +277,37 @@
 .quality-quick-actions strong { font-size: 12px; }
 .quality-quick-actions > button > svg { color: var(--muted); }
 
+.quality-summary { display: grid; gap: 12px; }
+.quality-summary-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line-strong); border-radius: 12px; background: var(--panel); overflow: hidden; }
+.quality-summary-strip article { min-height: 102px; display: flex; align-items: center; gap: 13px; padding: 18px 20px; border-right: 1px solid var(--line); }
+.quality-summary-strip article:last-child { border-right: 0; }
+.quality-summary-strip article > span { width: 34px; height: 34px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 9px; background: var(--panel-2); color: var(--body); }
+.quality-summary-strip article > div { display: grid; gap: 6px; }
+.quality-summary-strip small { color: var(--muted); font-size: 12px; }
+.quality-summary-strip strong { font-size: 28px; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+
+.producer-ranking { border: 1px solid var(--line-strong); border-radius: 12px; background: var(--panel); overflow: hidden; }
+.producer-ranking-header { min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 15px 20px; border-bottom: 1px solid var(--line); }
+.producer-ranking-header span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.producer-ranking-header h2 { margin: 4px 0 0; font-size: 18px; }
+.producer-ranking-header > small { color: var(--body); font-size: 11px; }
+.producer-ranking-table { display: grid; }
+.producer-ranking-head,
+.producer-ranking-table > button { display: grid; grid-template-columns: 72px minmax(190px, 1fr) 140px 120px 110px; align-items: center; gap: 12px; padding: 0 18px; }
+.producer-ranking-head { min-height: 36px; color: var(--muted); background: var(--panel-2); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.producer-ranking-table > button { min-height: 61px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); text-align: left; transition: background 160ms ease; }
+.producer-ranking-table > button:last-child { border-bottom: 0; }
+.producer-ranking-table > button:hover { background: var(--hover-soft); }
+.producer-ranking-table > button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.producer-ranking-table > button.is-winner { min-height: 72px; background: color-mix(in srgb, var(--accent) 5%, var(--panel)); }
+.producer-rank-position { color: var(--body); font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.is-winner .producer-rank-position { color: var(--accent); }
+.producer-ranking-table button > strong { display: grid; gap: 4px; overflow: hidden; font-size: 13px; }
+.producer-ranking-table button > strong small { color: var(--muted); font-size: 10px; font-weight: 400; }
+.producer-ranking-table button > span:not(.producer-rank-position) { color: var(--body); font-size: 12px; font-variant-numeric: tabular-nums; }
+.producer-ranking-table button > b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.producer-ranking-empty { min-height: 240px; display: grid; place-items: center; padding: 24px; color: var(--muted); text-align: center; }
+
 .panel-list {
   min-height: 0;
   padding: 20px;
@@ -1684,6 +1715,16 @@
   .quality-priority-row { grid-template-columns: 7px minmax(0, 1fr) auto; padding-inline: 13px; }
   .quality-priority-issues { grid-column: 2 / -1; padding-bottom: 4px; }
   .quality-priority-row > svg { grid-column: 3; grid-row: 1; }
+
+  .quality-summary-strip { grid-template-columns: 1fr; }
+  .quality-summary-strip article { min-height: 82px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .quality-summary-strip article:last-child { border-bottom: 0; }
+  .producer-ranking-header { align-items: flex-start; flex-direction: column; }
+  .producer-ranking-head { display: none; }
+  .producer-ranking-table > button { grid-template-columns: 38px minmax(0, 1fr) auto; gap: 9px; padding: 10px 12px; }
+  .producer-ranking-table button > span:nth-of-type(2) { grid-column: 2; }
+  .producer-ranking-table button > span:nth-of-type(3) { grid-column: 2; color: var(--muted); }
+  .producer-ranking-table button > b { grid-column: 3; grid-row: 1; }
 
   .reports-context { grid-template-columns: 1fr; }
   .reports-context-actions { grid-column: auto; flex-wrap: wrap; }

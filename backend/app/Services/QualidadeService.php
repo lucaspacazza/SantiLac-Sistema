@@ -50,9 +50,17 @@ class QualidadeService
 
     public function overview(): array
     {
-        $produtoresAtivos = ProdutorQualidade::query()
-            ->where('ativo', 1)
+        $agora = CarbonImmutable::now(config('app.timezone'));
+        $produtoresAtivos = ProdutorQualidade::query()->where('ativo', 1)->count();
+        $totalProdutores = ProdutorQualidade::query()->count();
+        $novosNoMes = ProdutorQualidade::query()
+            ->whereBetween('data_cadastro', [$agora->startOfMonth(), $agora->endOfMonth()])
             ->count();
+        $saidasDoisMeses = ProdutorQualidade::query()
+            ->whereNotNull('data_inativacao')
+            ->whereBetween('data_inativacao', [$agora->subMonth()->startOfMonth(), $agora->endOfMonth()])
+            ->count();
+        $ranking = $this->rankingProdutores($agora);
 
         if (! $this->analisesDisponiveis()) {
             return [
@@ -62,6 +70,10 @@ class QualidadeService
                 'periodo_atual' => now()->format('m/Y'),
                 'produtores_com_analise' => 0,
                 'produtores_sem_analise' => $produtoresAtivos,
+                'total_produtores' => $totalProdutores,
+                'novos_no_mes' => $novosNoMes,
+                'saidas_ultimos_dois_meses' => $saidasDoisMeses,
+                'ranking' => $ranking,
             ];
         }
 
@@ -75,7 +87,86 @@ class QualidadeService
             'periodo_atual' => now()->format('m/Y'),
             'produtores_com_analise' => $produtoresComAnalise,
             'produtores_sem_analise' => max($produtoresAtivos - $produtoresComAnalise, 0),
+            'total_produtores' => $totalProdutores,
+            'novos_no_mes' => $novosNoMes,
+            'saidas_ultimos_dois_meses' => $saidasDoisMeses,
+            'ranking' => $ranking,
         ];
+    }
+
+    private function rankingProdutores(CarbonImmutable $reference): array
+    {
+        if (! Schema::connection('raw')->hasTable('coletas')) {
+            return [];
+        }
+
+        $connection = DB::connection('raw');
+        $latestRouteIds = $connection->table('coletas')
+            ->whereNotNull('rota_uuid')
+            ->whereRaw("TRIM(rota_uuid) <> ''")
+            ->selectRaw('MAX(id) AS id')
+            ->groupBy('produtor_codigo', 'rota_uuid');
+        $volumes = $connection->table('coletas')
+            ->whereBetween('datahora', [$reference->startOfMonth(), $reference->endOfMonth()])
+            ->whereNotNull('produtor_codigo')
+            ->where(function ($query) use ($latestRouteIds): void {
+                $query->whereNull('rota_uuid')
+                    ->orWhereRaw("TRIM(rota_uuid) = ''")
+                    ->orWhereIn('id', $latestRouteIds);
+            })
+            ->selectRaw('produtor_codigo, SUM(litros) AS litros')
+            ->groupBy('produtor_codigo')
+            ->get();
+
+        if ($volumes->isEmpty()) {
+            return [];
+        }
+
+        $codes = $volumes->pluck('produtor_codigo')->map(fn ($code): string => (string) $code)->all();
+        $producers = ProdutorQualidade::query()->whereIn('codigo', $codes)->get()->keyBy(fn ($producer): string => (string) $producer->codigo);
+        $analyses = $this->ultimasAnalisesPorProdutor($codes);
+        $maxVolume = max((float) $volumes->max('litros'), 1.0);
+
+        return $volumes->map(function ($volume) use ($producers, $analyses, $maxVolume): ?array {
+            $code = (string) $volume->produtor_codigo;
+            $producer = $producers->get($code);
+            if ($producer === null) {
+                return null;
+            }
+
+            $quality = $this->pontuacaoQualidade($analyses[$code] ?? null);
+            $volumeScore = ((float) $volume->litros / $maxVolume) * 100;
+
+            return [
+                'codigo' => $code,
+                'nome' => (string) $producer->nome,
+                'litros' => round((float) $volume->litros, 1),
+                'pontuacao_volume' => round($volumeScore, 1),
+                'pontuacao_qualidade' => $quality,
+                'pontuacao_geral' => round(($volumeScore + $quality) / 2, 1),
+            ];
+        })->filter()->sortByDesc('pontuacao_geral')->values()->take(10)->all();
+    }
+
+    private function pontuacaoQualidade(?array $analysis): float
+    {
+        if ($analysis === null) {
+            return 0.0;
+        }
+
+        $checks = [
+            isset($analysis['gordura']) ? (float) $analysis['gordura'] >= 3.5 : null,
+            isset($analysis['proteina']) ? (float) $analysis['proteina'] >= 3.2 : null,
+            isset($analysis['lactose']) ? (float) $analysis['lactose'] >= 4.5 : null,
+            isset($analysis['solidos_totais']) ? (float) $analysis['solidos_totais'] >= 12.2 : null,
+            isset($analysis['ccs']) ? ((float) $analysis['ccs'] / 100) <= 500 : null,
+            isset($analysis['ufc']) ? ((float) $analysis['ufc'] / 100) <= 300 : null,
+        ];
+        $evaluated = array_values(array_filter($checks, fn ($value): bool => $value !== null));
+
+        return $evaluated === []
+            ? 0.0
+            : round((count(array_filter($evaluated)) / count($evaluated)) * 100, 1);
     }
 
     public function produtores(Request $request): array
