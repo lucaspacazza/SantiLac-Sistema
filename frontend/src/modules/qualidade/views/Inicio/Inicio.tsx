@@ -24,10 +24,10 @@ export function Inicio({ overview, onOpenProdutores }: InicioProps) {
   return (
     <div className="home-grid">
       <section className="home-cards">
-        <HomeCard icon={Users} label="Total de produtores" value={formatNumber(overview.total)} copy="Base carregada no módulo" featured />
-        <HomeCard icon={ChartNoAxesColumnIncreasing} label="Cobertura de análises" value={`${analysisCoverage}%`} copy="Produtores com análise registrada" />
-        <HomeCard icon={UserPlus} label="Novos produtores" value={formatNumber(overview.novos)} copy="Marcados como novo cadastro" />
-        <HomeCard icon={CircleUserRound} label="Sem análise" value={formatNumber(overview.semAnalise)} copy="Aguardando fluxo de análises" />
+        <HomeCard icon={Users} label="Total de produtores" value={formatNumber(overview.total)} featured />
+        <HomeCard icon={ChartNoAxesColumnIncreasing} label="Cobertura de análises" value={`${analysisCoverage}%`} />
+        <HomeCard icon={UserPlus} label="Novos produtores" value={formatNumber(overview.novos)} />
+        <HomeCard icon={CircleUserRound} label="Sem análise" value={formatNumber(overview.semAnalise)} />
       </section>
 
       <section className="home-columns">
@@ -82,11 +82,10 @@ export function Inicio({ overview, onOpenProdutores }: InicioProps) {
   )
 }
 
-function HomeCard({ icon: Icon, label, value, copy, featured = false }: {
+function HomeCard({ icon: Icon, label, value, featured = false }: {
   icon: LucideIcon
   label: string
   value: string
-  copy: string
   featured?: boolean
 }) {
   return (
@@ -97,7 +96,6 @@ function HomeCard({ icon: Icon, label, value, copy, featured = false }: {
       </div>
       <div className="home-card-value">
         <strong>{value}</strong>
-        <small>{copy}</small>
       </div>
     </article>
   )
