@@ -17,7 +17,7 @@ class EmbalagemService
     private const BARCODE = [
         'length' => 13,
         'product_start' => 2,
-        'product_length' => 5,
+        'product_length' => 4,
         'lot_start' => 5,
         'lot_length' => 3,
         'cheese_code_pos' => 6,
