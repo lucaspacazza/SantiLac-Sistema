@@ -50,9 +50,18 @@ class QualidadeService
 
     public function overview(): array
     {
-        $produtoresAtivos = ProdutorQualidade::query()
-            ->where('ativo', 1)
+        $agora = CarbonImmutable::now(config('app.timezone'));
+        $produtoresAtivos = ProdutorQualidade::query()->where('ativo', 1)->count();
+        $novosNoMes = ProdutorQualidade::query()
+            ->whereBetween('data_cadastro', [$agora->startOfMonth(), $agora->endOfMonth()])
             ->count();
+        $saidasDoisMeses = ProdutorQualidade::query()
+            ->whereNotNull('data_inativacao')
+            ->whereBetween('data_inativacao', [$agora->subMonth()->startOfMonth(), $agora->endOfMonth()])
+            ->count();
+        $evolucaoLeite = Schema::connection('raw')->hasTable('coletas')
+            ? $this->coletas->resumoMensal()['serie']
+            : [];
 
         if (! $this->analisesDisponiveis()) {
             return [
@@ -62,6 +71,9 @@ class QualidadeService
                 'periodo_atual' => now()->format('m/Y'),
                 'produtores_com_analise' => 0,
                 'produtores_sem_analise' => $produtoresAtivos,
+                'novos_no_mes' => $novosNoMes,
+                'saidas_ultimos_dois_meses' => $saidasDoisMeses,
+                'evolucao_leite' => $evolucaoLeite,
             ];
         }
 
@@ -75,6 +87,9 @@ class QualidadeService
             'periodo_atual' => now()->format('m/Y'),
             'produtores_com_analise' => $produtoresComAnalise,
             'produtores_sem_analise' => max($produtoresAtivos - $produtoresComAnalise, 0),
+            'novos_no_mes' => $novosNoMes,
+            'saidas_ultimos_dois_meses' => $saidasDoisMeses,
+            'evolucao_leite' => $evolucaoLeite,
         ];
     }
 

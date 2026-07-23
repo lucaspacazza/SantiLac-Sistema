@@ -1,9 +1,8 @@
 import { RefreshCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { qualidadeApi, type Produtor } from './api/qualidadeApi'
+import { qualidadeApi, type Overview, type Produtor } from './api/qualidadeApi'
 import { relatoriosApi } from './api/relatoriosApi'
 import { ExportFormatMenu, type ExportFormat } from './shared/ExportFormatMenu'
-import { resolveMetricStatus, type AnalysisMetricField } from './shared/analysisMetrics'
 import { Analises } from './views/Analises/Analises'
 import { DetalheProdutor } from './views/DetalheProdutor/DetalheProdutor'
 import { GestaoProdutores } from './views/GestaoProdutores/GestaoProdutores'
@@ -11,17 +10,6 @@ import { Inicio } from './views/Inicio/Inicio'
 import { PendenciasProdutor } from './views/PendenciasProdutor/PendenciasProdutor'
 import { Relatorios } from './views/Relatorios/Relatorios'
 import './qualidade.css'
-
-const priorityMetrics: [AnalysisMetricField, keyof NonNullable<Produtor['ultima_analise']>, string][] = [
-  ['CCS', 'ccs', 'CCS fora do padrão'],
-  ['UFC', 'ufc', 'UFC fora do padrão'],
-  ['GORD', 'gordura', 'Gordura baixa'],
-  ['PROT', 'proteina', 'Proteína baixa'],
-  ['LACT', 'lactose', 'Lactose baixa'],
-  ['SOL', 'solidos_totais', 'Sólidos baixos'],
-  ['UREI', 'ureia', 'Ureia fora do padrão'],
-  ['TEMP', 'temperatura', 'Temperatura fora do padrão'],
-]
 
 type LoadStatus = 'loading' | 'live' | 'error'
 type View = 'inicio' | 'produtores' | 'analises' | 'relatorios'
@@ -118,6 +106,7 @@ function monthYearToApi(value: string): string | null {
 
 export function QualidadeModule() {
   const [produtores, setProdutores] = useState<Produtor[]>([])
+  const [overview, setOverview] = useState<Overview | null>(null)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<LoadStatus>('loading')
   const [statusText, setStatusText] = useState('Carregando produtores...')
@@ -132,12 +121,14 @@ export function QualidadeModule() {
     setStatusText('Carregando produtores...')
 
     try {
-      const response = await qualidadeApi.produtores()
+      const [response, overviewResponse] = await Promise.all([qualidadeApi.produtores(), qualidadeApi.overview()])
       setProdutores(response.items)
+      setOverview(overviewResponse)
       setStatus('live')
       setStatusText(`${response.pagination.total} produtor(es) carregado(s).`)
     } catch {
       setProdutores([])
+      setOverview(null)
       setStatus('error')
       setStatusText('Não foi possível carregar os produtores.')
     }
@@ -208,54 +199,6 @@ export function QualidadeModule() {
     }
   }
 
-  const overview = useMemo(() => {
-    const ativos = produtores.filter((produtor) => produtor.ativo).length
-    const novos = produtores.filter((produtor) => produtor.novo).length
-    const inativos = produtores.filter((produtor) => !produtor.ativo).length
-    const comAnalise = produtores.filter((produtor) => produtor.ultima_analise).length
-    const semAnalise = produtores.length - comAnalise
-    const cidades = new Map<string, number>()
-    const prioridades = produtores
-      .filter((produtor) => produtor.ativo && produtor.ultima_analise)
-      .map((produtor) => {
-        const analysis = produtor.ultima_analise!
-        const issues = priorityMetrics
-          .filter(([field, key]) => resolveMetricStatus(field, analysis[key] as number | null) === 'bad')
-          .map(([, , label]) => label)
-
-        if (Number(analysis.antibiotico) === 1) issues.unshift('Antibiótico positivo')
-        if (Number(analysis.bacteria) === 1) issues.unshift('Bactéria detectada')
-
-        return {
-          codigo: produtor.codigo,
-          nome: produtor.nome,
-          cidade: produtor.cidade,
-          issues,
-        }
-      })
-      .filter((produtor) => produtor.issues.length > 0)
-      .sort((left, right) => right.issues.length - left.issues.length)
-
-    produtores.forEach((produtor) => {
-      const cidade = produtor.cidade || 'Não informada'
-      cidades.set(cidade, (cidades.get(cidade) ?? 0) + 1)
-    })
-
-    return {
-      total: produtores.length,
-      ativos,
-      novos,
-      inativos,
-      comAnalise,
-      semAnalise,
-      emAlerta: prioridades.length,
-      prioridades: prioridades.slice(0, 5),
-      cidades: [...cidades.entries()]
-        .sort((left, right) => right[1] - left[1])
-        .slice(0, 6),
-    }
-  }, [produtores])
-
   const selectedProducer = useMemo(
     () => produtores.find((produtor) => produtor.codigo === route.producerCode) ?? null,
     [produtores, route.producerCode],
@@ -278,7 +221,7 @@ export function QualidadeModule() {
     : route.producerCode
     ? 'Produção, qualidade e evolução histórica do produtor.'
     : route.view === 'inicio'
-      ? 'Visão geral da base de produtores.'
+      ? ''
       : route.view === 'analises'
         ? 'Importação de arquivos laboratoriais.'
         : route.view === 'relatorios'
@@ -292,7 +235,7 @@ export function QualidadeModule() {
           <header className="page-head">
             <div>
               <h1>{pageTitle}</h1>
-              <p>{pageCopy}</p>
+              {pageCopy && <p>{pageCopy}</p>}
             </div>
             <div className="actions">
               <button
@@ -335,13 +278,9 @@ export function QualidadeModule() {
           ) : route.issuesCode ? (
             <PendenciasProdutor codigo={route.issuesCode} onBack={() => pushRoute({ view: 'relatorios', producerCode: null, issuesCode: null })} />
           ) : route.view === 'inicio' ? (
-            <Inicio
+            overview ? <Inicio
               overview={overview}
-              onOpenProdutores={() => pushRoute({ view: 'produtores', producerCode: null, issuesCode: null })}
-              onOpenProdutor={(codigo) => pushRoute({ view: 'produtores', producerCode: codigo, issuesCode: null })}
-              onOpenAnalises={() => pushRoute({ view: 'analises', producerCode: null, issuesCode: null })}
-              onOpenRelatorios={() => pushRoute({ view: 'relatorios', producerCode: null, issuesCode: null })}
-            />
+            /> : null
           ) : route.view === 'analises' ? (
             <Analises reloadKey={analisesReloadKey} />
           ) : route.view === 'relatorios' ? (
