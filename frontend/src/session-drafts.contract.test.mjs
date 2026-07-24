@@ -29,3 +29,10 @@ test('forms are snapshotted without passwords and restored after navigation', ()
   assert.match(drafts, /restore/)
   assert.match(app, /installDurableForms/)
 })
+
+test('a successfully saved form is not recreated as a draft while it unmounts', () => {
+  assert.match(
+    drafts,
+    /boundForms\.set\(form,\s*\(\)\s*=>\s*\{[\s\S]*?if\s*\(committedKeys\.has\(key\)\)[\s\S]*?else\s+saveDraft\(form,\s*key\)/,
+  )
+})
