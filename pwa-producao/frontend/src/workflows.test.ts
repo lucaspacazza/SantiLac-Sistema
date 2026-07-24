@@ -145,9 +145,13 @@ test('forces reauthentication as soon as the server reports an expired session',
   const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
 
   assert.match(api, /AUTH_EXPIRED_EVENT/)
+  assert.match(api, /SESSION_ACTIVITY_EVENT/)
   assert.match(api, /response\.status\s*===\s*401/)
   assert.match(api, /response\.status\s*===\s*419/)
   assert.match(app, /SESSION_CHECK_INTERVAL/)
+  assert.match(app, /lastSessionActivityRef/)
+  assert.match(app, /Date\.now\(\)\s*-\s*lastSessionActivityRef\.current\s*>=\s*sessionTimeoutMs/)
+  assert.doesNotMatch(app, /setInterval\(\(\)\s*=>\s*void checkSession/)
   assert.match(app, /visibilitychange/)
   assert.match(app, /ReauthDialog/)
 })

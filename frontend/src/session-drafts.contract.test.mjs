@@ -8,12 +8,16 @@ const drafts = readFileSync(new URL('./shared/durableForms.ts', import.meta.url)
 
 test('all API calls announce an expired authenticated session', () => {
   assert.match(http, /AUTH_EXPIRED_EVENT/)
+  assert.match(http, /SESSION_ACTIVITY_EVENT/)
   assert.match(http, /response\.status\s*===\s*401/)
   assert.match(http, /response\.status\s*===\s*419/)
 })
 
 test('system and packaging portal check sessions while open and on resume', () => {
   assert.match(app, /SESSION_CHECK_INTERVAL/)
+  assert.match(app, /lastSessionActivityRef/)
+  assert.match(app, /Date\.now\(\)\s*-\s*lastSessionActivityRef\.current\s*>=\s*sessionTimeoutMs/)
+  assert.doesNotMatch(app, /setInterval\(\(\)\s*=>\s*void checkSession/)
   assert.match(app, /visibilitychange/)
   assert.match(app, /ReauthOverlay/)
 })

@@ -5,7 +5,7 @@ import {
   draftFieldValue,
   isDraftFresh,
   type FormDraft,
-} from './drafts'
+} from './drafts.ts'
 
 const draft: FormDraft = {
   version: 1,
