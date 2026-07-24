@@ -17,6 +17,11 @@ export type AuthUser = {
   admin: boolean
 }
 
+export type AuthSession<TUser extends AuthUser | null = AuthUser | null> = {
+  user: TUser
+  session_lifetime_seconds?: number
+}
+
 export type Overview = {
   totais: {
     formulacoes_queijo: number
@@ -170,6 +175,21 @@ export type ProducaoCremePayload = {
 
 let csrfToken: string | null = null
 const API_BASE = '/api/fabrica'
+export const AUTH_EXPIRED_EVENT = 'santilac:auth-expired'
+export const SESSION_ACTIVITY_EVENT = 'santilac:session-activity'
+
+function announceExpiredSession(response: Response): void {
+  if (response.status === 401 || response.status === 419) {
+    csrfToken = null
+    window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT, { detail: { status: response.status } }))
+  }
+}
+
+function announceSessionActivity(response: Response): void {
+  if (response.ok) {
+    window.dispatchEvent(new CustomEvent(SESSION_ACTIVITY_EVENT))
+  }
+}
 
 function errorMessage<T>(payload: ApiResponse<T> | null, fallback: string): string {
   const validation = Object.values(payload?.errors ?? {})[0]?.[0]
@@ -200,11 +220,13 @@ async function csrf(): Promise<string> {
     headers: { Accept: 'application/json' },
   })
   const payload = (await response.json().catch(() => null)) as ApiResponse<{ token: string }> | null
+  announceExpiredSession(response)
 
   if (!response.ok || !payload?.data?.token) {
     throw new Error('Não foi possível iniciar a sessão.')
   }
 
+  announceSessionActivity(response)
   csrfToken = payload.data.token
   return csrfToken
 }
@@ -220,11 +242,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   })
   const payload = (await response.json().catch(() => null)) as ApiResponse<T> | null
+  announceExpiredSession(response)
 
   if (!response.ok || !payload?.success || payload.data === undefined) {
     throw new Error(errorMessage(payload, 'Não foi possível concluir a operação.'))
   }
 
+  announceSessionActivity(response)
   return payload.data
 }
 
@@ -241,11 +265,13 @@ async function postForm<T>(path: string, payload: Record<string, unknown>): Prom
     body: toFormBody(payload),
   })
   const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
+  announceExpiredSession(response)
 
   if (!response.ok || !json?.success || json.data === undefined) {
     throw new Error(errorMessage(json, 'Não foi possível concluir a operação.'))
   }
 
+  announceSessionActivity(response)
   return json.data
 }
 
@@ -261,9 +287,9 @@ async function jsonMutation<T>(path: string, method: 'POST' | 'PATCH', payload?:
 
 export const authApi = {
   csrf,
-  me: () => request<{ user: AuthUser | null }>(`${API_BASE}/auth/me`),
+  me: () => request<AuthSession>(`${API_BASE}/auth/me`),
   login: (login: string, password: string, remember = true) =>
-    postForm<{ user: AuthUser }>(`${API_BASE}/auth/login`, { login, password, remember }),
+    postForm<AuthSession<AuthUser>>(`${API_BASE}/auth/login`, { login, password, remember }),
   logout: async () => {
     const result = await jsonMutation<{ message: string }>(`${API_BASE}/auth/logout`, 'POST')
     csrfToken = null

@@ -885,6 +885,156 @@ select:focus-visible {
   backdrop-filter: blur(3px);
 }
 
+.kiosk-select {
+  position: relative;
+  min-width: 0;
+  display: block;
+}
+
+.field .kiosk-select-native,
+.repeat-row .kiosk-select-native,
+.order-format-control .kiosk-select-native {
+  position: absolute;
+  width: 1px;
+  min-height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.kiosk-select-trigger {
+  width: 100%;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  padding: 0 13px;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.kiosk-select-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kiosk-select-trigger svg {
+  justify-self: end;
+}
+
+.kiosk-select-trigger.has-value {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.kiosk-select-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.76);
+  padding: 24px;
+  backdrop-filter: blur(3px);
+}
+
+.kiosk-select-dialog {
+  width: min(100%, 470px);
+  max-height: min(680px, calc(100dvh - 48px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.68);
+}
+
+.kiosk-select-dialog > header {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 16px 14px 20px;
+}
+
+.kiosk-select-dialog > header span {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.kiosk-select-dialog > header h2 {
+  margin: 3px 0 0;
+  color: var(--ink);
+  font-size: 19px;
+}
+
+.kiosk-select-dialog > header button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.kiosk-select-options {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+}
+
+.kiosk-select-options button {
+  width: 100%;
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  padding: 10px 14px;
+  font-size: 15px;
+  font-weight: 620;
+  text-align: left;
+  white-space: normal;
+}
+
+.kiosk-select-options button:last-child {
+  border-bottom: 0;
+}
+
+.kiosk-select-options button.is-selected,
+.kiosk-select-options button[aria-selected="true"] {
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.kiosk-select-options button svg {
+  justify-self: end;
+}
+
 .confirmation-backdrop {
   position: fixed;
   inset: 0;
@@ -1113,6 +1263,24 @@ select:focus-visible {
   place-items: center;
   background: var(--canvas);
   padding: 28px;
+}
+
+.reauth-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  min-height: 100dvh;
+  background: rgba(0, 0, 0, 0.94);
+  padding: 20px;
+  backdrop-filter: blur(8px);
+}
+
+.reauth-backdrop .auth-panel p {
+  margin: -4px 0 8px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .auth-panel {
@@ -1374,6 +1542,18 @@ select:focus-visible {
 
   .time-wheel-actions {
     padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+
+  .kiosk-select-backdrop {
+    place-items: end stretch;
+    padding: 0;
+  }
+
+  .kiosk-select-dialog {
+    width: 100%;
+    max-height: min(72dvh, 680px);
+    border-radius: 22px 22px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 

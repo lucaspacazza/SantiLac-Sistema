@@ -38,6 +38,11 @@ class ExpedicaoController extends Controller
         return $this->executar(fn (): array => $this->expedicao->palete($id));
     }
 
+    public function conteudoPalete(int $id): JsonResponse
+    {
+        return $this->executar(fn (): array => $this->expedicao->conteudoPalete($id));
+    }
+
     public function ordens(Request $request): JsonResponse
     {
         return $this->executar(fn (): array => $this->expedicao->ordens($request->only(['busca', 'status'])));
