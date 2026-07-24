@@ -4,6 +4,7 @@ import test from 'node:test'
 
 const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
 const carregamento = readFileSync(new URL('./views/CarregamentoExpedicao.tsx', import.meta.url), 'utf8')
+const api = readFileSync(new URL('./api/embalagemApi.ts', import.meta.url), 'utf8')
 
 function sectionBetween(start, end) {
   const startIndex = app.indexOf(start)
@@ -40,4 +41,15 @@ test('loading flow asks for the pallet barcode instead of a QR Code', () => {
 test('loading reads the live scanner field value before sending the pallet barcode', () => {
   assert.match(carregamento, /scannerRef\.current\?\.value/)
   assert.match(carregamento, /carregamentoApi\.escanear\(ordem\.id, codigoLido\)/)
+})
+
+test('loading shows the box count for every pallet', () => {
+  assert.match(carregamento, /item\.caixas/)
+  assert.match(carregamento, /caixas/)
+})
+
+test('loading applies the scanned pallet delta without reloading the whole order', () => {
+  assert.match(carregamento, /scanResult\.palete_id/)
+  assert.match(carregamento, /status_carregamento:\s*scanResult\.status_carregamento/)
+  assert.match(api, /CarregamentoScanResult/)
 })

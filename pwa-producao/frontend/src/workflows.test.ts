@@ -139,3 +139,34 @@ test('lets the operator end the current PWA session', () => {
   assert.match(app, /aria-label="Sair"/)
   assert.match(app, /setAuthState\('guest'\)/)
 })
+
+test('forces reauthentication as soon as the server reports an expired session', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
+
+  assert.match(api, /AUTH_EXPIRED_EVENT/)
+  assert.match(api, /response\.status\s*===\s*401/)
+  assert.match(api, /response\.status\s*===\s*419/)
+  assert.match(app, /SESSION_CHECK_INTERVAL/)
+  assert.match(app, /visibilitychange/)
+  assert.match(app, /ReauthDialog/)
+})
+
+test('uses kiosk-safe custom selection instead of the broken native popup', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const select = readFileSync(new URL('./KioskSelect.tsx', import.meta.url), 'utf8')
+
+  assert.match(select, /createPortal/)
+  assert.match(select, /onPointerDown/)
+  assert.match(select, /dismissSoftKeyboard/)
+  assert.doesNotMatch(app, /<Field label="Fosfatase"><select/)
+  assert.doesNotMatch(app, /<Field label="Peroxidase"><select/)
+})
+
+test('opens the time wheel during pointer down so keyboard dismissal cannot cancel it', () => {
+  const picker = readFileSync(new URL('./TimeWheelPicker.tsx', import.meta.url), 'utf8')
+
+  assert.match(picker, /function handlePointerDown/)
+  assert.match(picker, /event\.preventDefault\(\)/)
+  assert.match(picker, /openPicker\(\)/)
+})
