@@ -35,4 +35,5 @@ test('a successfully saved form is not recreated as a draft while it unmounts', 
     drafts,
     /boundForms\.set\(form,\s*\(\)\s*=>\s*\{[\s\S]*?if\s*\(committedKeys\.has\(key\)\)[\s\S]*?else\s+saveDraft\(form,\s*key\)/,
   )
+  assert.match(drafts, /snapshotAll[\s\S]*?if\s*\(committedKeys\.has\(key\)\)\s*return/)
 })

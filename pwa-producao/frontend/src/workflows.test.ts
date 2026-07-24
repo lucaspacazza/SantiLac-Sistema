@@ -174,3 +174,10 @@ test('opens the time wheel during pointer down so keyboard dismissal cannot canc
   assert.match(picker, /event\.preventDefault\(\)/)
   assert.match(picker, /openPicker\(\)/)
 })
+
+test('does not recreate a completed kiosk draft during pagehide cleanup', () => {
+  const drafts = readFileSync(new URL('./drafts.ts', import.meta.url), 'utf8')
+
+  assert.match(drafts, /const snapshot = \(\) => \{[\s\S]*?if \(committedDrafts\.has\(key\)\) return/)
+  assert.match(drafts, /addEventListener\('pagehide', snapshot\)/)
+})
