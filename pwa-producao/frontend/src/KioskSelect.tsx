@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { Check, ChevronDown, X } from 'lucide-react'
 
 export type KioskSelectOption = {
@@ -28,17 +28,19 @@ export function KioskSelect({
 }) {
   const [internalValue, setInternalValue] = useState(defaultValue)
   const [open, setOpen] = useState(false)
-  const selectRef = useRef<HTMLSelectElement>(null)
+  const [invalid, setInvalid] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
+  const currentValueRef = useRef('')
   const titleId = useId()
   const currentValue = value ?? internalValue
   const selected = options.find((option) => option.value === currentValue)
+  currentValueRef.current = currentValue
 
   useEffect(() => {
     if (!open) return
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    dismissSoftKeyboard()
     const frame = window.requestAnimationFrame(() => dialogRef.current?.focus({ preventScroll: true }))
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false)
@@ -51,15 +53,41 @@ export function KioskSelect({
     }
   }, [open])
 
+  useEffect(() => {
+    const form = inputRef.current?.form
+    if (!required || !form) return
+
+    const validateRequiredChoice = (event: SubmitEvent) => {
+      if (currentValueRef.current !== '') return
+      event.preventDefault()
+      event.stopPropagation()
+      setInvalid(true)
+      showSelect()
+    }
+
+    form.addEventListener('submit', validateRequiredChoice)
+    return () => form.removeEventListener('submit', validateRequiredChoice)
+  }, [required])
+
   function dismissSoftKeyboard() {
     const activeElement = document.activeElement
     if (activeElement instanceof HTMLElement) activeElement.blur()
+    const nativeKeyboard = (window as Window & {
+      SantiLacKeyboard?: { dismiss?: () => void }
+    }).SantiLacKeyboard
+    nativeKeyboard?.dismiss?.()
   }
 
-  function openSelect(event: React.PointerEvent<HTMLButtonElement>) {
-    event.preventDefault()
+  function showSelect() {
+    if (open) return
+    flushSync(() => setOpen(true))
     dismissSoftKeyboard()
-    setOpen(true)
+  }
+
+  function openSelect(event: React.SyntheticEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    showSelect()
   }
 
   function applyValue(nextValue: string) {
@@ -68,36 +96,38 @@ export function KioskSelect({
   }
 
   function choose(nextValue: string) {
-    applyValue(nextValue)
-    setOpen(false)
+    flushSync(() => {
+      applyValue(nextValue)
+      setInvalid(false)
+      setOpen(false)
+    })
     window.requestAnimationFrame(() => {
-      selectRef.current?.dispatchEvent(new Event('input', { bubbles: true }))
-      selectRef.current?.dispatchEvent(new Event('change', { bubbles: true }))
+      inputRef.current?.dispatchEvent(new Event('input', { bubbles: true }))
+      inputRef.current?.dispatchEvent(new Event('change', { bubbles: true }))
     })
   }
 
   return (
     <span className="kiosk-select">
-      <select
-        ref={selectRef}
-        className="kiosk-select-native"
-        tabIndex={-1}
-        aria-hidden="true"
+      <input
+        ref={inputRef}
+        type="hidden"
         name={name}
         value={currentValue}
-        required={required}
-        onChange={(event) => applyValue(event.target.value)}
-      >
-        <option value="">{placeholder}</option>
-        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
+        readOnly
+        onInput={(event) => applyValue(event.currentTarget.value)}
+      />
       <button
-        className={`kiosk-select-trigger ${selected ? 'has-value' : ''}`}
+        className={`kiosk-select-trigger ${selected ? 'has-value' : ''} ${invalid ? 'is-invalid' : ''}`}
         type="button"
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-required={required}
+        aria-invalid={invalid}
+        onTouchStart={openSelect}
         onPointerDown={openSelect}
+        onClick={openSelect}
       >
         <span>{selected?.label ?? placeholder}</span>
         <ChevronDown size={18} aria-hidden="true" />

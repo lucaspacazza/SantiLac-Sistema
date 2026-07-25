@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { Check, ChevronDown, Clock3, X } from 'lucide-react'
 import { formatTimeValue, normalizeTimeValue, parseTimeValue, wheelIndexFromScroll } from './dateTime'
 import { DRAFT_RESTORED_EVENT, draftFieldValue, type FormDraft } from './drafts'
@@ -19,6 +19,7 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
   const [draftMinute, setDraftMinute] = useState(0)
   const dialogRef = useRef<HTMLElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const clickGuardCleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     setValue(normalizeTimeValue(defaultValue))
@@ -37,19 +38,66 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
   function dismissSoftKeyboard() {
     const activeElement = document.activeElement
     if (activeElement instanceof HTMLElement) activeElement.blur()
+    const nativeKeyboard = (window as Window & {
+      SantiLacKeyboard?: { dismiss?: () => void }
+    }).SantiLacKeyboard
+    nativeKeyboard?.dismiss?.()
+  }
+
+  function armRetargetedClickGuard() {
+    clickGuardCleanupRef.current?.()
+    let timeoutId = 0
+
+    const cleanup = () => {
+      document.removeEventListener('click', blockRetargetedClick, true)
+      window.clearTimeout(timeoutId)
+      if (clickGuardCleanupRef.current === cleanup) clickGuardCleanupRef.current = null
+    }
+    const blockRetargetedClick = (event: MouseEvent) => {
+      const target = event.target
+      if (target instanceof Element && target.closest('.time-wheel-dialog')) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      cleanup()
+    }
+
+    document.addEventListener('click', blockRetargetedClick, true)
+    timeoutId = window.setTimeout(cleanup, 650)
+    clickGuardCleanupRef.current = cleanup
   }
 
   function openPicker() {
-    dismissSoftKeyboard()
     const parsed = parseTimeValue(value)
-    setDraftHour(parsed.hour)
-    setDraftMinute(parsed.minute)
-    setOpen(true)
+    flushSync(() => {
+      setDraftHour(parsed.hour)
+      setDraftMinute(parsed.minute)
+      setOpen(true)
+    })
+    dismissSoftKeyboard()
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
     event.preventDefault()
-    openPicker()
+    event.stopPropagation()
+    if (!open) {
+      armRetargetedClickGuard()
+      openPicker()
+    }
+  }
+
+  function handleTouchStart(event: React.TouchEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!open) {
+      armRetargetedClickGuard()
+      openPicker()
+    }
+  }
+
+  function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!open) openPicker()
   }
 
   function commitValue(nextValue: string) {
@@ -74,7 +122,6 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
     if (!open) return
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    dismissSoftKeyboard()
     const focusFrame = window.requestAnimationFrame(() => {
       dialogRef.current?.focus({ preventScroll: true })
     })
@@ -91,10 +138,20 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
     }
   }, [open])
 
+  useEffect(() => () => clickGuardCleanupRef.current?.(), [])
+
   return (
     <>
       <input ref={inputRef} name={name} type="hidden" value={value} readOnly />
-      <button className={`time-wheel-trigger ${value ? 'has-value' : ''}`} type="button" inputMode="none" onPointerDown={handlePointerDown} aria-haspopup="dialog">
+      <button
+        className={`time-wheel-trigger ${value ? 'has-value' : ''}`}
+        type="button"
+        inputMode="none"
+        onTouchStart={handleTouchStart}
+        onPointerDown={handlePointerDown}
+        onClick={handleClick}
+        aria-haspopup="dialog"
+      >
         <Clock3 size={19} aria-hidden="true" />
         <span>{value || 'Selecionar horário'}</span>
         <ChevronDown size={18} aria-hidden="true" />

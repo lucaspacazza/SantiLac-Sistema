@@ -891,16 +891,6 @@ select:focus-visible {
   display: block;
 }
 
-.field .kiosk-select-native,
-.repeat-row .kiosk-select-native,
-.order-format-control .kiosk-select-native {
-  position: absolute;
-  width: 1px;
-  min-height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
 .kiosk-select-trigger {
   width: 100%;
   min-height: 52px;
@@ -911,11 +901,16 @@ select:focus-visible {
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 10px;
-  background: var(--surface);
+  background-color: #050505 !important;
   color: var(--ink-soft);
   padding: 0 13px;
   text-align: left;
   touch-action: manipulation;
+}
+
+.kiosk-select-trigger.is-invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.16);
 }
 
 .kiosk-select-trigger span {
@@ -955,7 +950,11 @@ select:focus-visible {
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 18px;
-  background: var(--surface);
+  background-color: #080a09 !important;
+  color-scheme: dark;
+  isolation: isolate;
+  contain: paint;
+  opacity: 1;
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.68);
 }
 
@@ -999,6 +998,7 @@ select:focus-visible {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  background-color: #080a09 !important;
   padding: 8px;
 }
 
@@ -1011,7 +1011,7 @@ select:focus-visible {
   gap: 12px;
   border: 0;
   border-bottom: 1px solid var(--line);
-  background: transparent;
+  background-color: #080a09 !important;
   color: var(--ink);
   padding: 10px 14px;
   font-size: 15px;
@@ -1027,7 +1027,7 @@ select:focus-visible {
 .kiosk-select-options button.is-selected,
 .kiosk-select-options button[aria-selected="true"] {
   border-radius: 10px;
-  background: var(--accent-soft);
+  background-color: #102419 !important;
   color: var(--accent);
 }
 
