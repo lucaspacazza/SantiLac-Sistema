@@ -6,12 +6,12 @@ import { AUTH_EXPIRED_EVENT, SESSION_ACTIVITY_EVENT } from './api/http'
 import { LoginPage } from './pages/LoginPage'
 import { SystemHome } from './pages/SystemHome'
 import { CoreSidebar, routeForModule } from './shared/CoreSidebar'
-import { installDurableForms } from './shared/durableForms'
+import { installDurableForms, snapshotAllDurableForms } from './shared/durableForms'
 import type { ThemeMode } from './shared/ThemeToggle'
 import { allowedSidebarModules, canAccessModuleSlug, isSystemModule, sidebarModules, type ModuleAccessUser, type SystemModule } from './shared/modules'
+import { rememberSystemWorkspace, restoreSystemScroll, restoreSystemWorkspace } from './shared/workspaceSession'
 
 type AppState = 'booting' | 'guest' | 'authenticated'
-const SESSION_CHECK_INTERVAL = 30_000
 const DEFAULT_SESSION_TIMEOUT_MS = 120 * 60 * 1000
 
 function timeoutFromSession(session: Pick<AuthSession, 'session_lifetime_seconds'>): number {
@@ -62,12 +62,27 @@ function useSessionExpiry(
   useEffect(() => {
     if (state !== 'authenticated') return
     let checking = false
-    const requireLogin = () => setExpired(true)
-    const noteSessionActivity = () => {
-      lastSessionActivityRef.current = Date.now()
+    let expiryTimer: number | undefined
+    const requireLogin = () => {
+      snapshotAllDurableForms()
+      setExpired(true)
     }
     const checkLocalExpiry = () => {
-      if (Date.now() - lastSessionActivityRef.current >= sessionTimeoutMs) requireLogin()
+      if (Date.now() - lastSessionActivityRef.current < sessionTimeoutMs) return false
+      requireLogin()
+      return true
+    }
+    const scheduleLocalExpiry = () => {
+      if (expiryTimer !== undefined) window.clearTimeout(expiryTimer)
+      const elapsed = Date.now() - lastSessionActivityRef.current
+      const remaining = Math.max(0, sessionTimeoutMs - elapsed)
+      expiryTimer = window.setTimeout(() => {
+        if (!checkLocalExpiry()) scheduleLocalExpiry()
+      }, remaining)
+    }
+    const noteSessionActivity = () => {
+      lastSessionActivityRef.current = Date.now()
+      scheduleLocalExpiry()
     }
     const checkSession = async () => {
       if (checking || expired) return
@@ -88,17 +103,17 @@ function useSessionExpiry(
       }
     }
     const checkWhenVisible = () => {
-      if (document.visibilityState === 'visible') void checkSession()
+      if (document.visibilityState !== 'visible') return
+      if (!checkLocalExpiry()) void checkSession()
     }
     noteSessionActivity()
-    const interval = window.setInterval(checkLocalExpiry, SESSION_CHECK_INTERVAL)
 
     window.addEventListener(AUTH_EXPIRED_EVENT, requireLogin)
     window.addEventListener(SESSION_ACTIVITY_EVENT, noteSessionActivity)
     window.addEventListener('focus', checkSession)
     document.addEventListener('visibilitychange', checkWhenVisible)
     return () => {
-      window.clearInterval(interval)
+      if (expiryTimer !== undefined) window.clearTimeout(expiryTimer)
       window.removeEventListener(AUTH_EXPIRED_EVENT, requireLogin)
       window.removeEventListener(SESSION_ACTIVITY_EVENT, noteSessionActivity)
       window.removeEventListener('focus', checkSession)
@@ -140,6 +155,7 @@ function CoreApp() {
       try {
         const session = await authApi.me()
         if (session.user) {
+          window.location.hash = restoreSystemWorkspace(session.user.id)
           setUser(session.user)
           setSessionTimeoutMs(timeoutFromSession(session))
           setActiveModule(moduleFromHash(session.user))
@@ -169,21 +185,60 @@ function CoreApp() {
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [state, user])
 
+  useEffect(() => {
+    if (state !== 'authenticated' || !user) return
+    const hash = window.location.hash
+    const scrollY = restoreSystemScroll(user.id, hash)
+    let pass = 0
+    let frame = 0
+    const restoreScroll = () => {
+      window.scrollTo({ top: scrollY, left: 0, behavior: 'auto' })
+      pass += 1
+      if (pass < 3) frame = window.requestAnimationFrame(restoreScroll)
+      else rememberSystemWorkspace(user.id, hash, scrollY)
+    }
+    frame = window.requestAnimationFrame(restoreScroll)
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeModule, state, user])
+
+  useEffect(() => {
+    if (state !== 'authenticated' || !user) return
+    let frame = 0
+    const rememberScroll = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => rememberSystemWorkspace(user.id))
+    }
+    const rememberNow = () => rememberSystemWorkspace(user.id)
+    window.addEventListener('scroll', rememberScroll, { passive: true })
+    window.addEventListener('pagehide', rememberNow)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', rememberScroll)
+      window.removeEventListener('pagehide', rememberNow)
+    }
+  }, [state, user])
+
   async function handleLogin(email: string, password: string, remember: boolean) {
     setIsLoggingIn(true)
     setLoginError(null)
 
     try {
       const resumingExpiredSession = sessionExpired
+      const previousUserId = user?.id ?? null
       const result = await authApi.login(email, password, remember)
+      const sameUser = previousUserId !== null && String(previousUserId) === String(result.user.id)
+      const resumeHash = restoreSystemWorkspace(
+        result.user.id,
+        window.location.hash,
+        previousUserId !== null && !sameUser,
+      )
+      window.location.hash = resumeHash
       setUser(result.user)
       setSessionTimeoutMs(timeoutFromSession(result))
       setState('authenticated')
       setSessionExpired(false)
-      if (!resumingExpiredSession) {
-        window.location.hash = '#/sistema'
-        setActiveModule(null)
-      }
+      setActiveModule(moduleFromHash(result.user))
+      if (resumingExpiredSession && sameUser) snapshotAllDurableForms()
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : 'Não foi possível entrar no sistema.')
     } finally {
@@ -192,14 +247,17 @@ function CoreApp() {
   }
 
   async function handleLogout() {
+    snapshotAllDurableForms()
+    if (user) rememberSystemWorkspace(user.id)
     await authApi.logout().catch(() => null)
-    setUser(null)
-    setActiveModule(null)
     setState('guest')
     setSessionExpired(false)
   }
 
   function handleOpenModule(module: SystemModule) {
+    if (activeModule === module) return
+    snapshotAllDurableForms()
+    if (user) rememberSystemWorkspace(user.id)
     if (!canAccessModuleSlug(user, module)) {
       window.location.hash = '#/sistema'
       setActiveModule(null)
@@ -217,6 +275,8 @@ function CoreApp() {
   }
 
   function handleBackToSystem() {
+    snapshotAllDurableForms()
+    if (user) rememberSystemWorkspace(user.id)
     window.location.hash = '#/sistema'
     setActiveModule(null)
   }
@@ -234,12 +294,12 @@ function CoreApp() {
     )
   }
 
-  if (state === 'guest' || !user) {
+  if (!user) {
     return <LoginPage loading={isLoggingIn} error={loginError} onLogin={handleLogin} />
   }
 
   return (<>
-    <div className="app-shell" data-draft-owner={user.id}>
+    <div className="app-shell" data-draft-owner={user.id} key={user.id} aria-hidden={sessionExpired || state === 'guest' || undefined}>
       <CoreSidebar
         userName={user.nome}
         theme={theme}
@@ -278,7 +338,7 @@ function CoreApp() {
         </Suspense>
       </main>
     </div>
-    {sessionExpired && <ReauthOverlay loading={isLoggingIn} error={loginError} onLogin={handleLogin} />}
+    {(sessionExpired || state === 'guest') && <ReauthOverlay expired={sessionExpired} loading={isLoggingIn} error={loginError} onLogin={handleLogin} />}
   </>)
 }
 
@@ -324,11 +384,14 @@ function EmbalagemPortal() {
     setIsLoggingIn(true)
     setLoginError(null)
     try {
+      const previousUserId = user?.id ?? null
       const result = await authApi.login(loginValue, password, remember)
+      const sameUser = previousUserId !== null && String(previousUserId) === String(result.user.id)
       setUser(result.user)
       setSessionTimeoutMs(timeoutFromSession(result))
       setState('authenticated')
       setSessionExpired(false)
+      if (sameUser) snapshotAllDurableForms()
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : 'Não foi possível entrar no sistema.')
     } finally {
@@ -337,13 +400,15 @@ function EmbalagemPortal() {
   }
 
   async function logout() {
+    snapshotAllDurableForms()
     await authApi.logout().catch(() => null)
-    setUser(null)
     setState('guest')
     setSessionExpired(false)
   }
 
   function selectArea(value: 'embalagem' | 'carregamento') {
+    if (area === value) return
+    snapshotAllDurableForms()
     setArea(value)
     window.localStorage.setItem('embalagem-area', value)
   }
@@ -351,12 +416,12 @@ function EmbalagemPortal() {
   if (state === 'booting') {
     return <main className="core-loading"><img src="/assets/img/logo.png" alt="Santi'Lac" /><span>Carregando operação...</span></main>
   }
-  if (state === 'guest' || !user) {
+  if (!user) {
     return <LoginPage loading={isLoggingIn} error={loginError} onLogin={login} variant="factory" />
   }
 
   return (<>
-    <div className="packaging-workspace" data-draft-owner={user.id}>
+    <div className="packaging-workspace" data-draft-owner={user.id} key={user.id} aria-hidden={sessionExpired || state === 'guest' || undefined}>
       <header className="packaging-topbar">
         <img src="/assets/img/logo.png" alt="Santi'Lac" />
         <nav className="packaging-tabs" aria-label="Áreas da operação">
@@ -372,11 +437,12 @@ function EmbalagemPortal() {
         {area === 'embalagem' ? <EmbalagemApp /> : <CarregamentoExpedicao />}
       </Suspense>
     </div>
-    {sessionExpired && <ReauthOverlay loading={isLoggingIn} error={loginError} onLogin={login} />}
+    {(sessionExpired || state === 'guest') && <ReauthOverlay expired={sessionExpired} loading={isLoggingIn} error={loginError} onLogin={login} />}
   </>)
 }
 
-function ReauthOverlay({ loading, error, onLogin }: {
+function ReauthOverlay({ expired, loading, error, onLogin }: {
+  expired: boolean
   loading: boolean
   error: string | null
   onLogin: (login: string, password: string, remember: boolean) => Promise<void>
@@ -391,8 +457,8 @@ function ReauthOverlay({ loading, error, onLogin }: {
         void onLogin(login, password, true)
       }}>
         <img className="auth-logo" src="/assets/img/logo.png" alt="Santi'Lac" />
-        <h1 id="session-reauth-title">Sessão expirada</h1>
-        <p>Seu preenchimento foi preservado. Entre novamente para continuar.</p>
+        <h1 id="session-reauth-title">{expired ? 'Sessão expirada' : 'Sessão encerrada'}</h1>
+        <p>Seu preenchimento foi preservado. Entre novamente para continuar exatamente de onde parou.</p>
         <label>Usuário<input autoComplete="username" value={login} onChange={(event) => setLogin(event.target.value)} required autoFocus /></label>
         <label>Senha<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
         {error ? <span className="form-error">{error}</span> : null}

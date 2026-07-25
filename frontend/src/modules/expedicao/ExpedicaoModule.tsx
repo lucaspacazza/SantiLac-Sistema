@@ -406,13 +406,6 @@ function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () 
   const selected = useMemo(() => paletes.filter((item) => payload.paletes.includes(item.id)), [paletes, payload.paletes])
   const total = selected.reduce((sum, item) => sum + item.peso_total, 0)
 
-  function toggle(id: number) {
-    setPayload((current) => ({
-      ...current,
-      paletes: current.paletes.includes(id) ? current.paletes.filter((item) => item !== id) : [...current.paletes, id],
-    }))
-  }
-
   function review() {
     if (!payload.cliente.trim() || !payload.destino.trim()) return setError('Informe o cliente e o destino.')
     if (payload.paletes.length === 0) return setError('Selecione ao menos um palete.')
@@ -435,7 +428,22 @@ function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () 
 
   return (
     <Modal title={step === 'review' ? 'Revisar carga' : id ? 'Editar carga' : 'Montar carga'} onClose={onClose} wide builder={step === 'form'}>
-      {loading ? <Loading text="Carregando dados..." /> : step === 'form' ? (
+      {loading ? <Loading text="Carregando dados..." /> : (
+        <form
+          data-draft-key={`expedicao:ordem:${id ?? 'nova'}`}
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (step === 'review') void save()
+          }}
+        >
+        <input
+          name="__draft_step"
+          type="hidden"
+          value={step}
+          readOnly
+          onInput={(event) => setStep(event.currentTarget.value === 'review' ? 'review' : 'form')}
+        />
+      <div hidden={step !== 'form'} aria-hidden={step !== 'form'}>
         <div className="exp-load-builder">
           <section className="exp-builder-products">
             <header className="exp-builder-head">
@@ -445,7 +453,18 @@ function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () 
             <div className="exp-pallet-selector">
               {paletes.map((palete) => (
                 <label className={`exp-pallet-option ${payload.paletes.includes(palete.id) ? 'selected' : ''}`} key={palete.id}>
-                  <input type="checkbox" checked={payload.paletes.includes(palete.id)} onChange={() => toggle(palete.id)} />
+                  <input
+                    name="palete_id"
+                    type="checkbox"
+                    value={palete.id}
+                    checked={payload.paletes.includes(palete.id)}
+                    onChange={(event) => setPayload((current) => ({
+                      ...current,
+                      paletes: event.target.checked
+                        ? Array.from(new Set([...current.paletes, palete.id]))
+                        : current.paletes.filter((item) => item !== palete.id),
+                    }))}
+                  />
                   <PalletSketch palete={palete} />
                   <span className="exp-pallet-copy">
                     <strong>Palete #{palete.numero || palete.id}</strong>
@@ -464,12 +483,12 @@ function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () 
               <div><span>Detalhes</span><strong>Informações da carga</strong></div>
             </header>
             <div className="exp-form-grid">
-              <Field label="Cliente" required><input value={payload.cliente} onChange={(e) => setPayload({ ...payload, cliente: e.target.value })} /></Field>
-              <Field label="Destino" required><input value={payload.destino} onChange={(e) => setPayload({ ...payload, destino: e.target.value })} /></Field>
-              <Field label="Data prevista"><input type="date" value={payload.data_prevista} onChange={(e) => setPayload({ ...payload, data_prevista: e.target.value })} /></Field>
-              <Field label="Placa"><input value={payload.placa} onChange={(e) => setPayload({ ...payload, placa: e.target.value.toUpperCase() })} /></Field>
-              <Field label="Motorista"><input value={payload.motorista} onChange={(e) => setPayload({ ...payload, motorista: e.target.value })} /></Field>
-              <Field label="Observações"><input value={payload.observacoes} onChange={(e) => setPayload({ ...payload, observacoes: e.target.value })} /></Field>
+              <Field label="Cliente" required><input name="cliente" value={payload.cliente} onChange={(e) => setPayload({ ...payload, cliente: e.target.value })} /></Field>
+              <Field label="Destino" required><input name="destino" value={payload.destino} onChange={(e) => setPayload({ ...payload, destino: e.target.value })} /></Field>
+              <Field label="Data prevista"><input name="data_prevista" type="date" value={payload.data_prevista} onChange={(e) => setPayload({ ...payload, data_prevista: e.target.value })} /></Field>
+              <Field label="Placa"><input name="placa" value={payload.placa} onChange={(e) => setPayload({ ...payload, placa: e.target.value.toUpperCase() })} /></Field>
+              <Field label="Motorista"><input name="motorista" value={payload.motorista} onChange={(e) => setPayload({ ...payload, motorista: e.target.value })} /></Field>
+              <Field label="Observações"><input name="observacoes" value={payload.observacoes} onChange={(e) => setPayload({ ...payload, observacoes: e.target.value })} /></Field>
             </div>
             <div className="exp-builder-totals" aria-live="polite">
               <Review label="Paletes selecionados" value={integer(selected.length)} />
@@ -482,7 +501,8 @@ function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () 
             </div>
           </aside>
         </div>
-      ) : (
+      </div>
+      {step === 'review' ? (
         <div className="exp-review">
           <div className="exp-review-grid">
             <Review label="Cliente" value={payload.cliente} /><Review label="Destino" value={payload.destino} />
@@ -490,8 +510,10 @@ function OrderEditor({ id, onClose, onSaved }: { id: number | null; onClose: () 
             <Review label="Placa" value={payload.placa || '-'} /><Review label="Peso total" value={kg(total)} />
           </div>
           <div className="exp-review-list">{selected.map((item) => <div key={item.id}><span>Palete #{item.id} · {productName(item.produto)}</span><strong>{kg(item.peso_total)}</strong></div>)}</div>
-          <div className="exp-modal-actions"><button className="exp-button" onClick={() => setStep('form')}><ArrowLeft size={16} /> Voltar</button><button className="exp-button primary" onClick={() => void save()}><Check size={16} /> Salvar rascunho</button></div>
+          <div className="exp-modal-actions"><button className="exp-button" type="button" onClick={() => setStep('form')}><ArrowLeft size={16} /> Voltar</button><button className="exp-button primary" type="submit"><Check size={16} /> Salvar rascunho</button></div>
         </div>
+      ) : null}
+        </form>
       )}
     </Modal>
   )

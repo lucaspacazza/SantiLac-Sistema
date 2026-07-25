@@ -30,9 +30,7 @@ test('restores named values used by custom time and select controls', () => {
   assert.equal(draftFieldValue(draft, 'missing'), undefined)
 })
 
-test('expires abandoned drafts but keeps an overnight kiosk draft', () => {
-  const day = 24 * 60 * 60 * 1_000
-
-  assert.equal(isDraftFresh(draft, 1_000 + day, 7 * day), true)
-  assert.equal(isDraftFresh(draft, 1_000 + 8 * day, 7 * day), false)
+test('keeps an unfinished kiosk draft until it is successfully saved', () => {
+  assert.equal(isDraftFresh(draft), true)
+  assert.equal(isDraftFresh({ ...draft, updatedAt: Number.NaN }), false)
 })
