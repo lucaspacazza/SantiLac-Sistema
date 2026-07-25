@@ -15,11 +15,11 @@
       "message": "Nova versão do Portal do Produtor disponível."
     },
     "kiosk_producao": {
-      "version_code": 7,
-      "version_name": "0.2.5-producao",
+      "version_code": 8,
+      "version_name": "0.2.6-producao",
       "apk_url": "https://sistema.santilac.com.br/downloads/kiosk/kiosk-producao.apk",
-      "required": false,
-      "message": "Nova versão do kiosk de Produção disponível."
+      "required": true,
+      "message": "Atualização obrigatória do kiosk de Produção: corrige o teclado virtual nos seletores de horário."
     },
     "kiosk_embalagem": {
       "version_code": 6,

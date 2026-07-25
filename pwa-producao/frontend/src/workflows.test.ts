@@ -36,7 +36,7 @@ test('centers the selected time band on the active wheel row', () => {
 test('renders the time dialog outside the form label so action buttons remain clickable', () => {
   const component = readFileSync(new URL('./TimeWheelPicker.tsx', import.meta.url), 'utf8')
 
-  assert.match(component, /import\s*\{\s*createPortal\s*\}\s*from\s*['"]react-dom['"]/)
+  assert.match(component, /import\s*\{[^}]*createPortal[^}]*\}\s*from\s*['"]react-dom['"]/)
   assert.match(component, /createPortal\([\s\S]+document\.body/)
 })
 
@@ -163,6 +163,8 @@ test('uses kiosk-safe custom selection instead of the broken native popup', () =
   assert.match(select, /createPortal/)
   assert.match(select, /onPointerDown/)
   assert.match(select, /dismissSoftKeyboard/)
+  assert.match(select, /SantiLacKeyboard/)
+  assert.match(select, /\.dismiss\?\.\(\)/)
   assert.doesNotMatch(app, /<Field label="Fosfatase"><select/)
   assert.doesNotMatch(app, /<Field label="Peroxidase"><select/)
 })
@@ -170,9 +172,20 @@ test('uses kiosk-safe custom selection instead of the broken native popup', () =
 test('opens the time wheel during pointer down so keyboard dismissal cannot cancel it', () => {
   const picker = readFileSync(new URL('./TimeWheelPicker.tsx', import.meta.url), 'utf8')
 
+  assert.match(picker, /import\s*\{[^}]*flushSync[^}]*\}\s*from\s*['"]react-dom['"]/)
+  assert.match(picker, /SantiLacKeyboard/)
+  assert.match(picker, /\.dismiss\?\.\(\)/)
   assert.match(picker, /function handlePointerDown/)
   assert.match(picker, /event\.preventDefault\(\)/)
   assert.match(picker, /openPicker\(\)/)
+  assert.match(picker, /onTouchStart=\{handleTouchStart\}/)
+  assert.match(picker, /onClick=\{handleClick\}/)
+  assert.match(picker, /function armRetargetedClickGuard/)
+  assert.match(picker, /document\.addEventListener\('click', blockRetargetedClick, true\)/)
+  assert.match(picker, /event\.stopImmediatePropagation\(\)/)
+
+  const openPicker = picker.match(/function openPicker\(\) \{[\s\S]*?\n  \}/)?.[0] ?? ''
+  assert.match(openPicker, /flushSync\([\s\S]*setOpen\(true\)[\s\S]*\)[\s\S]*dismissSoftKeyboard\(\)/)
 })
 
 test('does not recreate a completed kiosk draft during pagehide cleanup', () => {
@@ -180,4 +193,20 @@ test('does not recreate a completed kiosk draft during pagehide cleanup', () => 
 
   assert.match(drafts, /const snapshot = \(\) => \{[\s\S]*?if \(committedDrafts\.has\(key\)\) return/)
   assert.match(drafts, /addEventListener\('pagehide', snapshot\)/)
+})
+
+test('all kiosk choices use the opaque custom list and can never open a native select popup', () => {
+  const select = readFileSync(new URL('./KioskSelect.tsx', import.meta.url), 'utf8')
+  const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8')
+  const dialogRule = styles.match(/\.kiosk-select-dialog\s*\{[^}]+\}/s)?.[0] ?? ''
+  const optionsRule = styles.match(/\.kiosk-select-options\s*\{[^}]+\}/s)?.[0] ?? ''
+  const optionButtonRule = styles.match(/\.kiosk-select-options button\s*\{[^}]+\}/s)?.[0] ?? ''
+
+  assert.doesNotMatch(select, /<select\b/)
+  assert.match(select, /type="hidden"/)
+  assert.match(dialogRule, /background-color:\s*#[0-9a-f]{6}/i)
+  assert.match(dialogRule, /isolation:\s*isolate/)
+  assert.match(optionsRule, /background-color:\s*#[0-9a-f]{6}/i)
+  assert.match(optionButtonRule, /background-color:\s*#[0-9a-f]{6}/i)
+  assert.doesNotMatch(optionButtonRule, /background(?:-color)?:\s*transparent/)
 })
