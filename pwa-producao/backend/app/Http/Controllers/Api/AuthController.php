@@ -56,6 +56,7 @@ class AuthController extends Controller
             'success' => true,
             'data' => [
                 'user' => $this->formatUser($user),
+                'session_lifetime_seconds' => $this->sessionLifetimeSeconds(),
             ],
         ]);
     }
@@ -66,6 +67,7 @@ class AuthController extends Controller
             'success' => true,
             'data' => [
                 'user' => $this->formatUser($request->user()),
+                'session_lifetime_seconds' => $this->sessionLifetimeSeconds(),
             ],
         ]);
     }
@@ -99,6 +101,11 @@ class AuthController extends Controller
             'niveis' => $user->niveis ?? [],
             'admin' => (bool) $user->admin,
         ];
+    }
+
+    private function sessionLifetimeSeconds(): int
+    {
+        return max(60, (int) config('session.lifetime', 120) * 60);
     }
 
     private function senhaConfere(string $plain, string $stored): bool

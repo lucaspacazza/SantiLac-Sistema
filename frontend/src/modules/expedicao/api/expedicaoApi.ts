@@ -18,6 +18,26 @@ export type PaleteEstoque = {
   ordem_status: string | null
 }
 
+export type PaleteConteudo = {
+  lotes: Array<{ lote: string; codigo_ordem: string; data_fabricacao: string; data_validade: string; caixas: number; peso_total: number }>
+  caixas: Array<{ id: number; sequencia: number; codigo_barra: string; peso: number; lote: string; codigo_ordem: string; registrada_em: string }>
+}
+
+const palletContentCache = new Map<number, Promise<PaleteConteudo>>()
+
+function cachedPalletContent(id: number): Promise<PaleteConteudo> {
+  const cached = palletContentCache.get(id)
+  if (cached) return cached
+
+  const request = apiGet<PaleteConteudo>(`/api/expedicao/estoque/paletes/${id}/conteudo`)
+    .catch((error) => {
+      palletContentCache.delete(id)
+      throw error
+    })
+  palletContentCache.set(id, request)
+  return request
+}
+
 export type OrdemPalete = {
   id: number
   numero: number
@@ -90,6 +110,7 @@ export const expedicaoApi = {
     lotes: Array<{ lote: string; codigo_ordem: string; data_fabricacao: string; data_validade: string; caixas: number; peso_total: number }>
     caixas: Array<{ id: number; sequencia: number; codigo_barra: string; peso: number; lote: string; codigo_ordem: string; registrada_em: string }>
   }>(`/api/expedicao/estoque/paletes/${id}`),
+  paleteConteudo: (id: number) => cachedPalletContent(id),
   ordens: (params: { busca?: string; status?: string } = {}) =>
     apiGet<{ itens: OrdemExpedicao[] }>(`/api/expedicao/ordens${queryString(params)}`),
   ordem: (id: number) => apiGet<OrdemExpedicao>(`/api/expedicao/ordens/${id}`),

@@ -1,13 +1,23 @@
 ﻿import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { LogOut } from 'lucide-react'
-import { authApi, type AuthUser } from './api/authApi'
+import { useRef } from 'react'
+import { authApi, type AuthSession, type AuthUser } from './api/authApi'
+import { AUTH_EXPIRED_EVENT, SESSION_ACTIVITY_EVENT } from './api/http'
 import { LoginPage } from './pages/LoginPage'
 import { SystemHome } from './pages/SystemHome'
 import { CoreSidebar, routeForModule } from './shared/CoreSidebar'
+import { installDurableForms } from './shared/durableForms'
 import type { ThemeMode } from './shared/ThemeToggle'
 import { allowedSidebarModules, canAccessModuleSlug, isSystemModule, sidebarModules, type ModuleAccessUser, type SystemModule } from './shared/modules'
 
 type AppState = 'booting' | 'guest' | 'authenticated'
+const SESSION_CHECK_INTERVAL = 30_000
+const DEFAULT_SESSION_TIMEOUT_MS = 120 * 60 * 1000
+
+function timeoutFromSession(session: Pick<AuthSession, 'session_lifetime_seconds'>): number {
+  const seconds = Number(session.session_lifetime_seconds)
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_SESSION_TIMEOUT_MS
+}
 
 const CadastrosModule = lazy(() => import('./modules/cadastros/CadastrosModule').then((module) => ({ default: module.CadastrosModule })))
 const ColetasModule = lazy(() => import('./modules/coletas/ColetasModule').then((module) => ({ default: module.ColetasModule })))
@@ -36,7 +46,67 @@ function moduleFromHash(user: ModuleAccessUser | null): SystemModule | null {
 }
 
 export function App() {
+  useEffect(() => installDurableForms(), [])
   return isEmbalagemHost ? <EmbalagemPortal /> : <CoreApp />
+}
+
+function useSessionExpiry(
+  state: AppState,
+  setUser: (user: AuthUser | null) => void,
+  sessionTimeoutMs: number,
+  setSessionTimeoutMs: (timeout: number) => void,
+) {
+  const [expired, setExpired] = useState(false)
+  const lastSessionActivityRef = useRef(Date.now())
+
+  useEffect(() => {
+    if (state !== 'authenticated') return
+    let checking = false
+    const requireLogin = () => setExpired(true)
+    const noteSessionActivity = () => {
+      lastSessionActivityRef.current = Date.now()
+    }
+    const checkLocalExpiry = () => {
+      if (Date.now() - lastSessionActivityRef.current >= sessionTimeoutMs) requireLogin()
+    }
+    const checkSession = async () => {
+      if (checking || expired) return
+      checking = true
+      try {
+        const session = await authApi.me()
+        if (!session.user) requireLogin()
+        else {
+          setUser(session.user)
+          setSessionTimeoutMs(timeoutFromSession(session))
+          noteSessionActivity()
+        }
+      } catch {
+        // API 401/419 emits AUTH_EXPIRED_EVENT. Do not confuse a temporary
+        // connection failure with an expired authenticated session.
+      } finally {
+        checking = false
+      }
+    }
+    const checkWhenVisible = () => {
+      if (document.visibilityState === 'visible') void checkSession()
+    }
+    noteSessionActivity()
+    const interval = window.setInterval(checkLocalExpiry, SESSION_CHECK_INTERVAL)
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, requireLogin)
+    window.addEventListener(SESSION_ACTIVITY_EVENT, noteSessionActivity)
+    window.addEventListener('focus', checkSession)
+    document.addEventListener('visibilitychange', checkWhenVisible)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener(AUTH_EXPIRED_EVENT, requireLogin)
+      window.removeEventListener(SESSION_ACTIVITY_EVENT, noteSessionActivity)
+      window.removeEventListener('focus', checkSession)
+      document.removeEventListener('visibilitychange', checkWhenVisible)
+    }
+  }, [expired, sessionTimeoutMs, setSessionTimeoutMs, setUser, state])
+
+  return [expired, setExpired] as const
 }
 
 function CoreApp() {
@@ -45,6 +115,8 @@ function CoreApp() {
   const [activeModule, setActiveModule] = useState<SystemModule | null>(null)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [sessionTimeoutMs, setSessionTimeoutMs] = useState(DEFAULT_SESSION_TIMEOUT_MS)
+  const [sessionExpired, setSessionExpired] = useSessionExpiry(state, setUser, sessionTimeoutMs, setSessionTimeoutMs)
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const savedTheme = window.localStorage.getItem('santilac-theme')
     return savedTheme === 'light' ? 'light' : 'dark'
@@ -69,6 +141,7 @@ function CoreApp() {
         const session = await authApi.me()
         if (session.user) {
           setUser(session.user)
+          setSessionTimeoutMs(timeoutFromSession(session))
           setActiveModule(moduleFromHash(session.user))
           setState('authenticated')
           return
@@ -101,11 +174,16 @@ function CoreApp() {
     setLoginError(null)
 
     try {
+      const resumingExpiredSession = sessionExpired
       const result = await authApi.login(email, password, remember)
       setUser(result.user)
-      window.location.hash = '#/sistema'
-      setActiveModule(null)
+      setSessionTimeoutMs(timeoutFromSession(result))
       setState('authenticated')
+      setSessionExpired(false)
+      if (!resumingExpiredSession) {
+        window.location.hash = '#/sistema'
+        setActiveModule(null)
+      }
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : 'Não foi possível entrar no sistema.')
     } finally {
@@ -118,6 +196,7 @@ function CoreApp() {
     setUser(null)
     setActiveModule(null)
     setState('guest')
+    setSessionExpired(false)
   }
 
   function handleOpenModule(module: SystemModule) {
@@ -159,8 +238,8 @@ function CoreApp() {
     return <LoginPage loading={isLoggingIn} error={loginError} onLogin={handleLogin} />
   }
 
-  return (
-    <div className="app-shell">
+  return (<>
+    <div className="app-shell" data-draft-owner={user.id}>
       <CoreSidebar
         userName={user.nome}
         theme={theme}
@@ -199,7 +278,8 @@ function CoreApp() {
         </Suspense>
       </main>
     </div>
-  )
+    {sessionExpired && <ReauthOverlay loading={isLoggingIn} error={loginError} onLogin={handleLogin} />}
+  </>)
 }
 
 function EmbalagemPortal() {
@@ -207,6 +287,8 @@ function EmbalagemPortal() {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [sessionTimeoutMs, setSessionTimeoutMs] = useState(DEFAULT_SESSION_TIMEOUT_MS)
+  const [sessionExpired, setSessionExpired] = useSessionExpiry(state, setUser, sessionTimeoutMs, setSessionTimeoutMs)
   const [area, setArea] = useState<'embalagem' | 'carregamento'>(() =>
     window.localStorage.getItem('embalagem-area') === 'carregamento' ? 'carregamento' : 'embalagem')
 
@@ -219,6 +301,7 @@ function EmbalagemPortal() {
         const session = await authApi.me()
         if (session.user) {
           setUser(session.user)
+          setSessionTimeoutMs(timeoutFromSession(session))
           setState('authenticated')
           return
         }
@@ -243,7 +326,9 @@ function EmbalagemPortal() {
     try {
       const result = await authApi.login(loginValue, password, remember)
       setUser(result.user)
+      setSessionTimeoutMs(timeoutFromSession(result))
       setState('authenticated')
+      setSessionExpired(false)
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : 'Não foi possível entrar no sistema.')
     } finally {
@@ -255,6 +340,7 @@ function EmbalagemPortal() {
     await authApi.logout().catch(() => null)
     setUser(null)
     setState('guest')
+    setSessionExpired(false)
   }
 
   function selectArea(value: 'embalagem' | 'carregamento') {
@@ -269,8 +355,8 @@ function EmbalagemPortal() {
     return <LoginPage loading={isLoggingIn} error={loginError} onLogin={login} variant="factory" />
   }
 
-  return (
-    <div className="packaging-workspace">
+  return (<>
+    <div className="packaging-workspace" data-draft-owner={user.id}>
       <header className="packaging-topbar">
         <img src="/assets/img/logo.png" alt="Santi'Lac" />
         <nav className="packaging-tabs" aria-label="Áreas da operação">
@@ -286,6 +372,33 @@ function EmbalagemPortal() {
         {area === 'embalagem' ? <EmbalagemApp /> : <CarregamentoExpedicao />}
       </Suspense>
     </div>
+    {sessionExpired && <ReauthOverlay loading={isLoggingIn} error={loginError} onLogin={login} />}
+  </>)
+}
+
+function ReauthOverlay({ loading, error, onLogin }: {
+  loading: boolean
+  error: string | null
+  onLogin: (login: string, password: string, remember: boolean) => Promise<void>
+}) {
+  const [login, setLogin] = useState('')
+  const [password, setPassword] = useState('')
+
+  return (
+    <main className="session-reauth-backdrop" role="dialog" aria-modal="true" aria-labelledby="session-reauth-title">
+      <form className="auth-panel session-reauth-panel" onSubmit={(event) => {
+        event.preventDefault()
+        void onLogin(login, password, true)
+      }}>
+        <img className="auth-logo" src="/assets/img/logo.png" alt="Santi'Lac" />
+        <h1 id="session-reauth-title">Sessão expirada</h1>
+        <p>Seu preenchimento foi preservado. Entre novamente para continuar.</p>
+        <label>Usuário<input autoComplete="username" value={login} onChange={(event) => setLogin(event.target.value)} required autoFocus /></label>
+        <label>Senha<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+        {error ? <span className="form-error">{error}</span> : null}
+        <button className="primary-button" type="submit" disabled={loading}>{loading ? 'Entrando…' : 'Continuar'}</button>
+      </form>
+    </main>
   )
 }
 

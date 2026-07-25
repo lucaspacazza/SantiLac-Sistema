@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import {
   ArrowLeft,
@@ -19,8 +19,11 @@ import {
   UserRound,
 } from 'lucide-react'
 import {
+  AUTH_EXPIRED_EVENT,
+  SESSION_ACTIVITY_EVENT,
   authApi,
   producaoApi,
+  type AuthSession,
   type AuthUser,
   type FormulacaoCremePayload,
   type FormulacaoQueijo,
@@ -35,6 +38,14 @@ import {
   type SoroRefrigeradoPayload,
 } from './api'
 import { localDateValue } from './dateTime'
+import {
+  bindFormDraft,
+  clearFormDraft,
+  draftFieldCount,
+  draftFieldValue,
+  readFormDraft,
+} from './drafts'
+import { KioskSelect, type KioskSelectOption } from './KioskSelect'
 import { TimeWheelInput } from './TimeWheelPicker'
 import { PRODUCTION_WORKFLOWS, type View, type WorkflowId } from './workflows'
 
@@ -50,6 +61,28 @@ type ConfirmationRequest = {
 
 const EMPTY_CHEESE_CATALOGS: FormulacaoQueijoCatalogos = { queijos: [], insumos: [] }
 const EMPTY_ORDER_CATALOGS: OrdemProducaoCatalogos = { queijos: [], insumos: [] }
+const formatOptions: KioskSelectOption[] = [
+  { value: 'f1', label: 'F1' },
+  { value: 'f4', label: 'F4' },
+  { value: 'f6', label: 'F6' },
+]
+const analysisOptions: KioskSelectOption[] = [
+  { value: 'negativo', label: 'Negativo' },
+  { value: 'positivo', label: 'Positivo' },
+  { value: 'nao_aplicavel', label: 'Não aplicável' },
+]
+const SESSION_CHECK_INTERVAL = 30_000
+const DEFAULT_SESSION_TIMEOUT_MS = 120 * 60 * 1000
+const DraftOwnerContext = createContext('anonymous')
+
+function timeoutFromSession(session: Pick<AuthSession, 'session_lifetime_seconds'>): number {
+  const seconds = Number(session.session_lifetime_seconds)
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_SESSION_TIMEOUT_MS
+}
+
+function useDraftKey(formName: string): string {
+  return `${useContext(DraftOwnerContext)}:${formName}`
+}
 
 function today(): string {
   return localDateValue()
@@ -130,6 +163,9 @@ export function App() {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [sessionExpired, setSessionExpired] = useState(false)
+  const [sessionTimeoutMs, setSessionTimeoutMs] = useState(DEFAULT_SESSION_TIMEOUT_MS)
+  const lastSessionActivityRef = useRef(Date.now())
   const [view, setView] = useState<View>('inicio')
   const [state, setState] = useState<LoadState>('loading')
   const [message, setMessage] = useState('')
@@ -211,6 +247,7 @@ export function App() {
 
         if (session.user) {
           setUser(session.user)
+          setSessionTimeoutMs(timeoutFromSession(session))
           setAuthState('authenticated')
           await loadBase()
           return
@@ -226,6 +263,58 @@ export function App() {
     void boot()
   }, [])
 
+  useEffect(() => {
+    if (authState !== 'authenticated') return
+    let checking = false
+
+    const requireLogin = () => {
+      setSessionExpired(true)
+      setState('ready')
+      setMessage('Sessão expirada. Entre novamente para continuar de onde parou.')
+    }
+    const noteSessionActivity = () => {
+      lastSessionActivityRef.current = Date.now()
+    }
+    const checkLocalExpiry = () => {
+      if (Date.now() - lastSessionActivityRef.current >= sessionTimeoutMs) requireLogin()
+    }
+    const checkSession = async () => {
+      if (checking || sessionExpired) return
+      checking = true
+      try {
+        const session = await authApi.me()
+        if (!session.user) requireLogin()
+        else {
+          setUser(session.user)
+          setSessionTimeoutMs(timeoutFromSession(session))
+          noteSessionActivity()
+        }
+      } catch {
+        // HTTP 401/419 emits AUTH_EXPIRED_EVENT. A connection failure alone
+        // must not discard or unmount the operator's current form.
+      } finally {
+        checking = false
+      }
+    }
+    const checkWhenVisible = () => {
+      if (document.visibilityState === 'visible') void checkSession()
+    }
+    noteSessionActivity()
+    const interval = window.setInterval(checkLocalExpiry, SESSION_CHECK_INTERVAL)
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, requireLogin)
+    window.addEventListener(SESSION_ACTIVITY_EVENT, noteSessionActivity)
+    window.addEventListener('focus', checkSession)
+    document.addEventListener('visibilitychange', checkWhenVisible)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener(AUTH_EXPIRED_EVENT, requireLogin)
+      window.removeEventListener(SESSION_ACTIVITY_EVENT, noteSessionActivity)
+      window.removeEventListener('focus', checkSession)
+      document.removeEventListener('visibilitychange', checkWhenVisible)
+    }
+  }, [authState, sessionExpired, sessionTimeoutMs])
+
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
@@ -233,10 +322,18 @@ export function App() {
     setLoginError(null)
 
     try {
+      const resumingExpiredSession = sessionExpired
       const result = await authApi.login(field(form, 'login'), field(form, 'password'), true)
       setUser(result.user)
+      setSessionTimeoutMs(timeoutFromSession(result))
       setAuthState('authenticated')
-      await loadBase()
+      setSessionExpired(false)
+      if (resumingExpiredSession) {
+        setState('ready')
+        setMessage('Sessão renovada. Seu preenchimento foi mantido.')
+      } else {
+        await loadBase()
+      }
     } catch {
       setLoginError('Usuário ou senha incorretos.')
     } finally {
@@ -252,6 +349,7 @@ export function App() {
       await authApi.logout()
       setUser(null)
       setAuthState('guest')
+      setSessionExpired(false)
       setView('inicio')
       setMessage('')
       setLoginError(null)
@@ -286,6 +384,7 @@ export function App() {
     try {
       const created = await action()
       if (shouldFinalize && finalize) await finalize(created.id)
+      clearFormDraft(formElement.dataset.draftKey)
       formElement.reset()
       setDate(dateValue)
       await loadBase(dateValue)
@@ -336,6 +435,7 @@ export function App() {
     setMessage('Salvando OP')
     try {
       await producaoApi.salvarOrdemProducao(payload)
+      clearFormDraft(formElement.dataset.draftKey)
       formElement.reset()
       setDate(data)
       await loadBase(data)
@@ -462,7 +562,8 @@ export function App() {
     if (cheeseSavingRef.current) return
 
     cheeseSavingRef.current = true
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     const insumoTypes = form.getAll('insumo_tipo')
     const insumoNames = form.getAll('insumo_nome')
     const insumoQuantities = form.getAll('insumo_quantidade')
@@ -517,6 +618,7 @@ export function App() {
       const saved = activeCheeseFormula
         ? await producaoApi.atualizarFormulacaoQueijo(activeCheeseFormula.id, payload)
         : await producaoApi.criarFormulacaoQueijo(payload)
+      clearFormDraft(formElement.dataset.draftKey)
 
       if (action === 'finalizar') {
         await producaoApi.finalizarFormulacaoQueijo(saved.id)
@@ -662,7 +764,8 @@ export function App() {
   }
 
   return (
-    <div className="factory-shell">
+    <DraftOwnerContext.Provider value={String(user?.id ?? 'anonymous')}>
+    <div className="factory-shell" aria-hidden={sessionExpired || undefined}>
       <aside className="process-rail" aria-label="Processos da produção">
         <button className={`rail-home ${view === 'inicio' ? 'is-active' : ''}`} type="button" onClick={() => setView('inicio')} aria-label="Início">
           <Home size={23} />
@@ -792,6 +895,28 @@ export function App() {
       </main>
       {confirmation && <ConfirmationDialog request={confirmation} onAnswer={answerConfirmation} />}
     </div>
+    {sessionExpired && <ReauthDialog loading={isLoggingIn} error={loginError} onSubmit={login} />}
+    </DraftOwnerContext.Provider>
+  )
+}
+
+function ReauthDialog({ loading, error, onSubmit }: {
+  loading: boolean
+  error: string | null
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+}) {
+  return (
+    <main className="factory-auth reauth-backdrop" role="dialog" aria-modal="true" aria-labelledby="reauth-title">
+      <form className="auth-panel" onSubmit={onSubmit}>
+        <img className="auth-logo" src="https://sistema.santilac.com.br/assets/img/logo.png" alt="Santi'Lac" />
+        <h1 id="reauth-title">Sessão expirada</h1>
+        <p>Seu preenchimento está salvo. Entre novamente para continuar.</p>
+        <label>Usuário<input name="login" autoComplete="username" required autoFocus /></label>
+        <label>Senha<input name="password" type="password" autoComplete="current-password" required /></label>
+        {error && <span className="form-error">{error}</span>}
+        <button className="primary-button" type="submit" disabled={loading}>{loading ? 'Entrando…' : 'Continuar'}</button>
+      </form>
+    </main>
   )
 }
 
@@ -821,9 +946,10 @@ function ConfirmationDialog({ request, onAnswer }: {
   )
 }
 
-function FactoryForm({ title, code, children, onBack, onSubmit, singleAction = false, hideActions = false, busy = false }: {
+function FactoryForm({ title, code, draftKey, children, onBack, onSubmit, singleAction = false, hideActions = false, busy = false }: {
   title: string
   code: string
+  draftKey: string
   children: ReactNode
   onBack: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
@@ -831,8 +957,16 @@ function FactoryForm({ title, code, children, onBack, onSubmit, singleAction = f
   hideActions?: boolean
   busy?: boolean
 }) {
+  const formRef = useRef<HTMLFormElement>(null)
+
+  useEffect(() => {
+    const form = formRef.current
+    if (!form) return
+    return bindFormDraft(form, draftKey)
+  }, [draftKey])
+
   return (
-    <form className="factory-form" onSubmit={onSubmit}>
+    <form ref={formRef} className="factory-form" data-draft-key={draftKey} onSubmit={onSubmit}>
       <div className="form-heading">
         <button className="back-button" type="button" onClick={onBack}><ArrowLeft size={20} />Voltar</button>
         <div><span className="section-kicker">{code}</span><h1>{title}</h1></div>
@@ -951,11 +1085,12 @@ function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onDefineForm
         <div className="order-format-control">
           <label>
             <span>Formato da mussarela</span>
-            <select value={mozzarellaFormat} onChange={(event) => setMozzarellaFormat(event.target.value as 'f1' | 'f4' | 'f6')}>
-              <option value="f1">F1</option>
-              <option value="f4">F4</option>
-              <option value="f6">F6</option>
-            </select>
+            <KioskSelect
+              ariaLabel="Formato da mussarela"
+              value={mozzarellaFormat}
+              options={formatOptions}
+              onChange={(value) => setMozzarellaFormat(value as 'f1' | 'f4' | 'f6')}
+            />
           </label>
           <p>Escolha o formato somente quando a OP diária estiver completa.</p>
         </div>
@@ -1004,10 +1139,15 @@ function OrderForm({ date, catalogs, busy, onBack, onSubmit }: {
   onBack: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
-  const [cheeseId, setCheeseId] = useState(String(catalogs.queijos[0]?.id ?? ''))
-  const [format, setFormat] = useState('f4')
-  const [rows, setRows] = useState([1])
-  const [selectedInputs, setSelectedInputs] = useState<Record<number, string>>({})
+  const draftKey = useDraftKey(`ordem-producao:nova:${date}`)
+  const draft = readFormDraft(draftKey)
+  const rowCount = Math.max(1, draftFieldCount(draft, 'insumo_quantidade'))
+  const [cheeseId, setCheeseId] = useState(draftFieldValue(draft, 'produto_catalogo_id') ?? String(catalogs.queijos[0]?.id ?? ''))
+  const [format, setFormat] = useState(draftFieldValue(draft, 'produto_formato') ?? 'f4')
+  const [rows, setRows] = useState(Array.from({ length: rowCount }, (_, index) => index + 1))
+  const [selectedInputs, setSelectedInputs] = useState<Record<number, string>>(() => Object.fromEntries(
+    Array.from({ length: rowCount }, (_, index) => [index + 1, draftFieldValue(draft, 'insumo_catalogo_id', index) ?? '']),
+  ))
   const cheese = catalogs.queijos.find((item) => String(item.id) === cheeseId) ?? null
   const productLabel = cheese?.precisa_formato ? `PEÇAS ${format.toUpperCase()}` : cheese?.op_rotulo ?? ''
 
@@ -1016,12 +1156,12 @@ function OrderForm({ date, catalogs, busy, onBack, onSubmit }: {
   }, [catalogs.queijos, cheeseId])
 
   return (
-    <FactoryForm title="Ordem de produção" code="OP" onBack={onBack} onSubmit={onSubmit} singleAction busy={busy}>
+    <FactoryForm title="Ordem de produção" code="OP" draftKey={draftKey} onBack={onBack} onSubmit={onSubmit} singleAction busy={busy}>
       <FormSection title="Identificação">
         <Field label="Data"><DateInput name="data" defaultValue={date} required /></Field>
-        <Field label="Produto"><select value={cheeseId} onChange={(event) => setCheeseId(event.target.value)} required><option value="">Selecionar</option>{catalogs.queijos.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select></Field>
+        <Field label="Produto"><KioskSelect name="produto_catalogo_id" ariaLabel="Produto" value={cheeseId} onChange={setCheeseId} required options={catalogs.queijos.map((item) => ({ value: String(item.id), label: item.nome }))} /></Field>
         <Field label="Lote"><input name="lote_codigo" required /></Field>
-        {cheese?.precisa_formato && <Field label="Formato"><select value={format} onChange={(event) => setFormat(event.target.value)}><option value="f1">F1</option><option value="f4">F4</option><option value="f6">F6</option></select></Field>}
+        {cheese?.precisa_formato && <Field label="Formato"><KioskSelect name="produto_formato" ariaLabel="Formato" value={format} onChange={setFormat} options={formatOptions} /></Field>}
         <Field label="Litros"><input name="lts_total" inputMode="decimal" /></Field>
         <input name="produto_codigo" type="hidden" value={cheese?.codigo_balanca || cheese?.id || ''} />
         <input name="produto_op_rotulo" type="hidden" value={productLabel} />
@@ -1033,7 +1173,7 @@ function OrderForm({ date, catalogs, busy, onBack, onSubmit }: {
             return (
               <div className="repeat-row" key={rowId}>
                 <span>{index + 1}</span>
-                <select aria-label={`Insumo ${index + 1}`} value={selectedInputs[rowId] ?? ''} onChange={(event) => setSelectedInputs((current) => ({ ...current, [rowId]: event.target.value }))}><option value="">Selecionar insumo</option>{catalogs.insumos.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select>
+                <KioskSelect name="insumo_catalogo_id" ariaLabel={`Insumo ${index + 1}`} placeholder="Selecionar insumo" value={selectedInputs[rowId] ?? ''} onChange={(value) => setSelectedInputs((current) => ({ ...current, [rowId]: value }))} options={catalogs.insumos.map((item) => ({ value: String(item.id), label: item.nome }))} />
                 <input name="insumo_quantidade" inputMode="decimal" placeholder="Quantidade" />
                 <strong>{selected?.unidade ?? '—'}</strong>
                 <input name="insumo_op_rotulo" type="hidden" value={selected?.op_rotulo ?? ''} />
@@ -1087,19 +1227,31 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
   onCancel: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
-  const [rows, setRows] = useState(initial?.insumos.length ? initial.insumos.map((_, index) => index + 1) : [1])
+  const draftKey = useDraftKey(`formulacao-queijo:${initial?.id ?? `nova:${date}`}`)
+  const draft = readFormDraft(draftKey)
+  const rowCount = Math.max(
+    1,
+    initial?.insumos.length ?? 0,
+    draftFieldCount(draft, 'insumo_quantidade'),
+    draftFieldCount(draft, 'insumo_catalogo_id'),
+  )
+  const [rows, setRows] = useState(Array.from({ length: rowCount }, (_, index) => index + 1))
   const [selectedInputs, setSelectedInputs] = useState<Record<number, string>>(() => Object.fromEntries(
-    initial?.insumos.map((insumo, index) => {
+    rows.map((rowId, index) => {
+      const restored = draftFieldValue(draft, 'insumo_catalogo_id', index)
+      if (restored !== undefined) return [rowId, restored]
+      const insumo = initial?.insumos[index]
+      if (!insumo) return [rowId, '']
       const match = catalogs.insumos.find((item) => item.nome === insumo.nome_insumo || item.tipo_insumo === insumo.tipo_insumo)
-      return [index + 1, match ? String(match.id) : '']
-    }) ?? [],
+      return [rowId, match ? String(match.id) : '']
+    }),
   ))
 
   return (
-    <FactoryForm title="Formulação de queijo" code="PLAN 6.3" onBack={onBack} onSubmit={onSubmit} hideActions>
+    <FactoryForm title="Formulação de queijo" code="PLAN 6.3" draftKey={draftKey} onBack={onBack} onSubmit={onSubmit} hideActions>
       <FormSection title="Lote">
         <Field label="Data"><DateInput name="data_formulacao" defaultValue={initial?.data_formulacao ?? date} required /></Field>
-        <Field label="Tipo de queijo"><select name="tipo_queijo" defaultValue={initial?.tipo_queijo ?? ''} required><option value="">Selecionar</option>{catalogs.queijos.map((item) => <option key={item.id} value={item.nome}>{item.nome}</option>)}</select></Field>
+        <Field label="Tipo de queijo"><KioskSelect name="tipo_queijo" ariaLabel="Tipo de queijo" defaultValue={initial?.tipo_queijo ?? ''} required options={catalogs.queijos.map((item) => ({ value: item.nome, label: item.nome }))} /></Field>
         <Field label="Lote do queijo"><input name="lote_queijo" defaultValue={initial?.lote_queijo ?? ''} required /></Field>
         <Field label="Lote do leite"><input name="lote_leite" defaultValue={initial?.lote_leite ?? ''} /></Field>
         <Field label="Silo"><input name="silo" defaultValue={initial?.silo ?? ''} /></Field>
@@ -1109,8 +1261,8 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
         <Field label="Início do enchimento"><TimeWheelInput name="inicio_enchimento" label="Início do enchimento" defaultValue={initial?.inicio_enchimento ?? ''} /></Field>
         <Field label="Leite (L)"><input name="quantidade_leite" inputMode="decimal" defaultValue={initial?.quantidade_leite ?? ''} /></Field>
         <Field label="Pasteurização (°C)"><input name="temperatura_pasteurizacao" inputMode="decimal" defaultValue={initial?.temperatura_pasteurizacao ?? ''} /></Field>
-        <Field label="Fosfatase"><select name="fosfatase" defaultValue={initial?.fosfatase ?? ''}><option value="">Selecionar</option><option value="negativo">Negativo</option><option value="positivo">Positivo</option><option value="nao_aplicavel">Não aplicável</option></select></Field>
-        <Field label="Peroxidase"><select name="peroxidase" defaultValue={initial?.peroxidase ?? ''}><option value="">Selecionar</option><option value="negativo">Negativo</option><option value="positivo">Positivo</option><option value="nao_aplicavel">Não aplicável</option></select></Field>
+        <Field label="Fosfatase"><KioskSelect name="fosfatase" ariaLabel="Fosfatase" defaultValue={initial?.fosfatase ?? ''} options={analysisOptions} /></Field>
+        <Field label="Peroxidase"><KioskSelect name="peroxidase" ariaLabel="Peroxidase" defaultValue={initial?.peroxidase ?? ''} options={analysisOptions} /></Field>
         <Field label="Gordura inicial"><input name="gordura_inicial" inputMode="decimal" defaultValue={initial?.gordura_inicial ?? ''} /></Field>
         <Field label="Gordura final"><input name="gordura_final" inputMode="decimal" defaultValue={initial?.gordura_final ?? ''} /></Field>
         <Field label="Acidez"><input name="acidez" inputMode="decimal" defaultValue={initial?.acidez ?? ''} /></Field>
@@ -1126,7 +1278,7 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
             return (
               <div className="repeat-row repeat-row-cheese" key={rowId}>
                 <span>{index + 1}</span>
-                <select aria-label={`Insumo ${index + 1}`} value={selectedInputs[rowId] ?? ''} onChange={(event) => setSelectedInputs((current) => ({ ...current, [rowId]: event.target.value }))}><option value="">Selecionar insumo</option>{catalogs.insumos.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select>
+                <KioskSelect name="insumo_catalogo_id" ariaLabel={`Insumo ${index + 1}`} placeholder="Selecionar insumo" value={selectedInputs[rowId] ?? ''} onChange={(value) => setSelectedInputs((current) => ({ ...current, [rowId]: value }))} options={catalogs.insumos.map((item) => ({ value: String(item.id), label: item.nome }))} />
                 <input name="insumo_quantidade" inputMode="decimal" placeholder="Quantidade" defaultValue={initial?.insumos[index]?.quantidade ?? ''} />
                 <input name="insumo_lote" placeholder="Lote" defaultValue={initial?.insumos[index]?.lote_insumo ?? ''} />
                 <strong>{selected?.unidade ?? '—'}</strong>
@@ -1150,8 +1302,9 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
 }
 
 function SoroForm({ date, onBack, onSubmit }: { date: string; onBack: () => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
+  const draftKey = useDraftKey(`soro-refrigerado:nova:${date}`)
   return (
-    <FactoryForm title="Soro refrigerado" code="PLAN 6.7" onBack={onBack} onSubmit={onSubmit}>
+    <FactoryForm title="Soro refrigerado" code="PLAN 6.7" draftKey={draftKey} onBack={onBack} onSubmit={onSubmit}>
       <FormSection title="Movimentação">
         <Field label="Data"><DateInput name="data_registro" defaultValue={date} required /></Field>
         <Field label="Entrada (L)"><input name="entrada_diaria_estoque" inputMode="decimal" /></Field>
@@ -1164,14 +1317,16 @@ function SoroForm({ date, onBack, onSubmit }: { date: string; onBack: () => void
 }
 
 const creamTypes = ['Creme de Leite de Uso Industrial', 'Creme de Soro de Uso Industrial']
+const creamTypeOptions = creamTypes.map((type) => ({ value: type, label: type }))
 
 function CreamFormulaForm({ date, onBack, onSubmit }: { date: string; onBack: () => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
+  const draftKey = useDraftKey(`formulacao-creme:nova:${date}`)
   return (
-    <FactoryForm title="Formulação de creme" code="PLAN 6.9" onBack={onBack} onSubmit={onSubmit}>
+    <FactoryForm title="Formulação de creme" code="PLAN 6.9" draftKey={draftKey} onBack={onBack} onSubmit={onSubmit}>
       <FormSection title="Lote">
         <Field label="Data"><DateInput name="data_fabricacao" defaultValue={date} required /></Field>
         <Field label="Lote do creme"><input name="lote_creme_produzido" required /></Field>
-        <Field label="Tipo de creme"><select name="tipo_creme" required><option value="">Selecionar</option>{creamTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
+        <Field label="Tipo de creme"><KioskSelect name="tipo_creme" ariaLabel="Tipo de creme" required options={creamTypeOptions} /></Field>
         <Field label="Mês"><input name="mes" type="number" min="1" max="12" defaultValue={new Date(`${date}T12:00:00`).getMonth() + 1} /></Field>
         <Field label="Ano"><input name="ano" type="number" min="2020" max="2100" defaultValue={date.slice(0, 4)} /></Field>
       </FormSection>
@@ -1187,12 +1342,13 @@ function CreamFormulaForm({ date, onBack, onSubmit }: { date: string; onBack: ()
 }
 
 function CreamProductionForm({ date, onBack, onSubmit }: { date: string; onBack: () => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
+  const draftKey = useDraftKey(`producao-creme:nova:${date}`)
   return (
-    <FactoryForm title="Produção de creme" code="PLAN 6.10" onBack={onBack} onSubmit={onSubmit}>
+    <FactoryForm title="Produção de creme" code="PLAN 6.10" draftKey={draftKey} onBack={onBack} onSubmit={onSubmit}>
       <FormSection title="Produção">
         <Field label="Data"><DateInput name="data_fabricacao" defaultValue={date} required /></Field>
         <Field label="Lote do creme"><input name="lote_creme_produzido" required /></Field>
-        <Field label="Tipo de creme"><select name="tipo_creme" required><option value="">Selecionar</option>{creamTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
+        <Field label="Tipo de creme"><KioskSelect name="tipo_creme" ariaLabel="Tipo de creme" required options={creamTypeOptions} /></Field>
         <Field label="Quantidade (kg)"><input name="quantidade_produzida_kg" inputMode="decimal" /></Field>
         <Field label="Mês"><input name="mes" type="number" min="1" max="12" defaultValue={new Date(`${date}T12:00:00`).getMonth() + 1} /></Field>
         <Field label="Ano"><input name="ano" type="number" min="2020" max="2100" defaultValue={date.slice(0, 4)} /></Field>

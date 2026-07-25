@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Clock3, X } from 'lucide-react'
 import { formatTimeValue, normalizeTimeValue, parseTimeValue, wheelIndexFromScroll } from './dateTime'
+import { DRAFT_RESTORED_EVENT, draftFieldValue, type FormDraft } from './drafts'
 
 const ITEM_HEIGHT = 52
 const hours = Array.from({ length: 24 }, (_, index) => index)
@@ -17,10 +18,21 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
   const [draftHour, setDraftHour] = useState(0)
   const [draftMinute, setDraftMinute] = useState(0)
   const dialogRef = useRef<HTMLElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setValue(normalizeTimeValue(defaultValue))
   }, [defaultValue])
+
+  useEffect(() => {
+    const restore = (event: Event) => {
+      const draft = (event as CustomEvent<{ draft: FormDraft }>).detail?.draft
+      const restoredValue = draftFieldValue(draft, name)
+      if (restoredValue !== undefined) setValue(normalizeTimeValue(restoredValue))
+    }
+    window.addEventListener(DRAFT_RESTORED_EVENT, restore)
+    return () => window.removeEventListener(DRAFT_RESTORED_EVENT, restore)
+  }, [name])
 
   function dismissSoftKeyboard() {
     const activeElement = document.activeElement
@@ -35,13 +47,26 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
     setOpen(true)
   }
 
+  function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    openPicker()
+  }
+
+  function commitValue(nextValue: string) {
+    setValue(nextValue)
+    window.requestAnimationFrame(() => {
+      inputRef.current?.dispatchEvent(new Event('input', { bubbles: true }))
+      inputRef.current?.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+  }
+
   function confirm() {
-    setValue(formatTimeValue(draftHour, draftMinute))
+    commitValue(formatTimeValue(draftHour, draftMinute))
     setOpen(false)
   }
 
   function clear() {
-    setValue('')
+    commitValue('')
     setOpen(false)
   }
 
@@ -68,8 +93,8 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
 
   return (
     <>
-      <input name={name} type="hidden" value={value} readOnly />
-      <button className={`time-wheel-trigger ${value ? 'has-value' : ''}`} type="button" inputMode="none" onPointerDown={dismissSoftKeyboard} onClick={openPicker} aria-haspopup="dialog">
+      <input ref={inputRef} name={name} type="hidden" value={value} readOnly />
+      <button className={`time-wheel-trigger ${value ? 'has-value' : ''}`} type="button" inputMode="none" onPointerDown={handlePointerDown} aria-haspopup="dialog">
         <Clock3 size={19} aria-hidden="true" />
         <span>{value || 'Selecionar horário'}</span>
         <ChevronDown size={18} aria-hidden="true" />

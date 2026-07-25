@@ -110,6 +110,7 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
         Route::get('/resumo', [ExpedicaoController::class, 'resumo']);
         Route::get('/estoque', [ExpedicaoController::class, 'estoque']);
         Route::get('/estoque/paletes/{id}', [ExpedicaoController::class, 'palete'])->whereNumber('id');
+        Route::get('/estoque/paletes/{id}/conteudo', [ExpedicaoController::class, 'conteudoPalete'])->whereNumber('id');
         Route::get('/ordens', [ExpedicaoController::class, 'ordens']);
         Route::post('/ordens', [ExpedicaoController::class, 'criar']);
         Route::get('/ordens/{id}', [ExpedicaoController::class, 'ordem'])->whereNumber('id');

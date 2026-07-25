@@ -1,4 +1,24 @@
 let csrfToken: string | null = null
+export const AUTH_EXPIRED_EVENT = 'santilac:auth-expired'
+export const SESSION_ACTIVITY_EVENT = 'santilac:session-activity'
+export const MUTATION_SUCCEEDED_EVENT = 'santilac:mutation-succeeded'
+
+function announceExpiredSession(response: Response): void {
+  if (response.status === 401 || response.status === 419) {
+    csrfToken = null
+    window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT, { detail: { status: response.status } }))
+  }
+}
+
+function announceSuccessfulMutation(path: string): void {
+  window.dispatchEvent(new CustomEvent(MUTATION_SUCCEEDED_EVENT, { detail: { path } }))
+}
+
+function announceSessionActivity(response: Response): void {
+  if (response.ok) {
+    window.dispatchEvent(new CustomEvent(SESSION_ACTIVITY_EVENT))
+  }
+}
 
 type ApiResponse<T> = {
   success: boolean
@@ -21,6 +41,7 @@ export async function ensureCsrfToken(): Promise<string> {
       Accept: 'application/json',
     },
   })
+  announceExpiredSession(response)
 
   if (!response.ok) {
     throw new Error('Não foi possível iniciar a sessão.')
@@ -31,6 +52,7 @@ export async function ensureCsrfToken(): Promise<string> {
     throw new Error('Não foi possível iniciar a sessão.')
   }
 
+  announceSessionActivity(response)
   csrfToken = json.data.token
   return csrfToken
 }
@@ -45,10 +67,12 @@ export async function apiGet<T>(path: string): Promise<T> {
   })
 
   const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
+  announceExpiredSession(response)
   if (!response.ok || !json?.success || json.data === undefined) {
     throw new Error(apiErrorMessage(json, `HTTP ${response.status}`))
   }
 
+  announceSessionActivity(response)
   return json.data
 }
 
@@ -56,10 +80,13 @@ export async function apiPost<T>(path: string, payload: Record<string, unknown>)
   const response = await fetchWithCsrf(path, 'POST', payload)
 
   const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
+  announceExpiredSession(response)
   if (!response.ok || !json?.success || json.data === undefined) {
     throw new Error(apiErrorMessage(json, 'Falha ao processar solicitação.'))
   }
 
+  announceSessionActivity(response)
+  announceSuccessfulMutation(path)
   return json.data
 }
 
@@ -67,10 +94,13 @@ export async function apiPatch<T>(path: string, payload: Record<string, unknown>
   const response = await fetchWithCsrf(path, 'PATCH', payload)
 
   const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
+  announceExpiredSession(response)
   if (!response.ok || !json?.success || json.data === undefined) {
     throw new Error(apiErrorMessage(json, 'Falha ao processar solicitação.'))
   }
 
+  announceSessionActivity(response)
+  announceSuccessfulMutation(path)
   return json.data
 }
 
@@ -111,10 +141,13 @@ export async function apiPostFile<T>(path: string, field: string, file: File): P
   })
 
   const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
+  announceExpiredSession(response)
   if (!response.ok || !json?.success || json.data === undefined) {
     throw new Error(apiErrorMessage(json, 'Falha ao enviar arquivo.'))
   }
 
+  announceSessionActivity(response)
+  announceSuccessfulMutation(path)
   return json.data
 }
 
@@ -136,6 +169,7 @@ export async function apiDownload(
   })
 
   if (!response.ok) {
+    announceExpiredSession(response)
     const json = (await response.json().catch(() => null)) as ApiResponse<unknown> | null
     throw new Error(apiErrorMessage(json, options.errorMessage))
   }
@@ -151,6 +185,8 @@ export async function apiDownload(
   link.remove()
   window.setTimeout(() => window.URL.revokeObjectURL(url), 1000)
 
+  announceSessionActivity(response)
+  announceSuccessfulMutation(path)
   return { arquivo }
 }
 

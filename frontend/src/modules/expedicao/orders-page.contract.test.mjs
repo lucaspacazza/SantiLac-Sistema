@@ -43,6 +43,25 @@ test('pagina de detalhe mostra carga, paletes e historico', () => {
   assert.match(source, /Dados de entrega/)
 })
 
+test('detalhe do palete abre imediatamente com a quantidade de caixas do estoque', () => {
+  assert.match(source, /setSelected\(item\)/)
+  assert.match(source, /function PalletDetail\(\{ palete/)
+  assert.match(source, /label="Caixas"\s+value=\{integer\(palete\.caixas\)\}/)
+})
+
+test('conteudo pesado do palete usa endpoint e cache separados', () => {
+  const api = readFileSync(new URL('./api/expedicaoApi.ts', import.meta.url), 'utf8')
+
+  assert.match(api, /paleteConteudo/)
+  assert.match(api, /palletContentCache/)
+  assert.match(api, /\/conteudo/)
+})
+
+test('formatadores numericos nunca exibem NaN', () => {
+  assert.match(source, /Number\.isFinite/)
+  assert.doesNotMatch(source, /function integer\(value: number\) \{ return Number\(value \|\| 0\)/)
+})
+
 test('montagem da carga desenha o estado do palete sem imagem', () => {
   assert.match(source, /function PalletSketch/)
   assert.match(source, /PALLET_ROW_COUNT = 5/)

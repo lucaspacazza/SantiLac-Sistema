@@ -128,7 +128,7 @@ function Estoque() {
   const [busca, setBusca] = useState('')
   const [produto, setProduto] = useState('')
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<number | null>(null)
+  const [selected, setSelected] = useState<PaleteEstoque | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -168,7 +168,7 @@ function Estoque() {
                     <td>{integer(item.caixas)}</td>
                     <td>{kg(item.peso_total)}</td>
                     <td><Status value={item.ordem_expedicao ? 'reservado' : 'disponível'} /></td>
-                    <td><IconButton label="Consultar palete" onClick={() => setSelected(item.id)}><Eye size={16} /></IconButton></td>
+                    <td><IconButton label="Consultar palete" onClick={() => setSelected(item)}><Eye size={16} /></IconButton></td>
                   </tr>
                 ))}
               </tbody>
@@ -177,7 +177,7 @@ function Estoque() {
           </div>
         )}
       </section>
-      {selected ? <PalletDetail id={selected} onClose={() => setSelected(null)} /> : null}
+      {selected ? <PalletDetail palete={selected} onClose={() => setSelected(null)} /> : null}
     </>
   )
 }
@@ -673,12 +673,20 @@ function OrderDetailPage({ id }: { id: number }) {
   </>
 }
 
-function PalletDetail({ id, onClose }: { id: number; onClose: () => void }) {
-  const [data, setData] = useState<Awaited<ReturnType<typeof expedicaoApi.palete>> | null>(null)
-  useEffect(() => { expedicaoApi.palete(id).then(setData) }, [id])
-  return <Modal title={`Palete #${id}`} onClose={onClose} wide>
-    {!data ? <Loading text="Carregando palete..." /> : <>
-      <div className="exp-review-grid"><Review label="Produto" value={productName(data.produto)} /><Review label="Peso total" value={kg(data.peso_total)} /><Review label="Caixas" value={integer(data.caixas)} /><Review label="Etiqueta" value={statusLabel(data.etiqueta_status)} /></div>
+function PalletDetail({ palete, onClose }: { palete: PaleteEstoque; onClose: () => void }) {
+  const [data, setData] = useState<Awaited<ReturnType<typeof expedicaoApi.paleteConteudo>> | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let active = true
+    expedicaoApi.paleteConteudo(palete.id)
+      .then((content) => { if (active) setData(content) })
+      .catch((reason) => { if (active) setError(message(reason)) })
+    return () => { active = false }
+  }, [palete.id])
+
+  return <Modal title={`Palete #${palete.id}`} onClose={onClose} wide>
+    <div className="exp-review-grid"><Review label="Produto" value={productName(palete.produto)} /><Review label="Peso total" value={kg(palete.peso_total)} /><Review label="Caixas" value={integer(palete.caixas)} /><Review label="Etiqueta" value={statusLabel(palete.etiqueta_status)} /></div>
+    {!data ? <Loading text={error || 'Carregando lotes e caixas...'} /> : <>
       <h3 className="exp-subtitle">Lotes no palete</h3>
       <div className="exp-review-list">{data.lotes.map((item) => <div key={`${item.codigo_ordem}-${item.lote}`}><span>{item.lote} · OP {item.codigo_ordem} · {integer(item.caixas)} caixas</span><strong>{kg(item.peso_total)}</strong></div>)}</div>
       <h3 className="exp-subtitle">Caixas</h3>
@@ -766,8 +774,8 @@ function routeFromHash(): ExpedicaoRoute {
 }
 function navigate(view: View) { window.location.hash = view === 'resumo' ? '#/expedicao' : `#/expedicao/${view}` }
 function navigateOrder(id: number) { window.location.hash = `#/expedicao/ordens/${id}` }
-function integer(value: number) { return Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }
-function kg(value: number) { return `${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg` }
+function integer(value: unknown) { const parsed = Number(value); return (Number.isFinite(parsed) ? parsed : 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }
+function kg(value: unknown) { const parsed = Number(value); return `${(Number.isFinite(parsed) ? parsed : 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg` }
 function date(value?: string | null) { if (!value) return '-'; const plain = value.slice(0, 10).split('-'); return plain.length === 3 ? `${plain[2]}/${plain[1]}/${plain[0]}` : value }
 function dateTime(value?: string | null) { if (!value) return '-'; const parsed = new Date(value.replace(' ', 'T')); return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) }
 function productName(value: string) { return value ? value.replace(/[-_]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) : '-' }

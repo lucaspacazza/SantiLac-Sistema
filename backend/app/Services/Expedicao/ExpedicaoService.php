@@ -139,6 +139,60 @@ class ExpedicaoService
         return $dados;
     }
 
+    public function conteudoPalete(int $id): array
+    {
+        $caixas = DB::connection('raw')->table('embalagem_caixas as c')
+            ->join('embalagem_lotes as l', 'l.id', '=', 'c.lote_id')
+            ->where('c.palete_id', $id)
+            ->orderBy('c.id')
+            ->get([
+                'c.id',
+                'c.sequencia',
+                'c.codigo_barra',
+                'c.peso',
+                'c.created_at',
+                'l.id as lote_id',
+                'l.lote',
+                'l.codigo_ordem',
+                'l.data_fabricacao',
+                'l.data_validade',
+            ]);
+
+        if ($caixas->isEmpty()) {
+            throw new DomainException('Palete não encontrado ou sem caixas.');
+        }
+
+        $lotes = $caixas
+            ->groupBy('lote_id')
+            ->map(function (Collection $itens): array {
+                $primeira = $itens->first();
+
+                return [
+                    'lote' => (string) $primeira->lote,
+                    'codigo_ordem' => (string) $primeira->codigo_ordem,
+                    'data_fabricacao' => (string) ($primeira->data_fabricacao ?? ''),
+                    'data_validade' => (string) ($primeira->data_validade ?? ''),
+                    'caixas' => $itens->count(),
+                    'peso_total' => round((float) $itens->sum('peso'), 3),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'lotes' => $lotes,
+            'caixas' => $caixas->map(fn (object $caixa): array => [
+                'id' => (int) $caixa->id,
+                'sequencia' => (int) $caixa->sequencia,
+                'codigo_barra' => (string) $caixa->codigo_barra,
+                'peso' => (float) $caixa->peso,
+                'lote' => (string) $caixa->lote,
+                'codigo_ordem' => (string) $caixa->codigo_ordem,
+                'registrada_em' => (string) $caixa->created_at,
+            ])->all(),
+        ];
+    }
+
     public function ordens(array $filtros = []): array
     {
         $query = ExpedicaoOrdem::query()->orderByDesc('id');
