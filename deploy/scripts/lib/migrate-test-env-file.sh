@@ -120,13 +120,6 @@ classify_key() {
 state="ready"
 case "$ENV_PROFILE" in
   backend)
-    db_state="$(
-      classify_key \
-        "DB_HOST" \
-        "192.168.0.204" \
-        "192.168.5.204" \
-        "1"
-    )"
     processor_state="$(
       classify_key \
         "PASTEURIZADOR_PROCESSOR_URL" \
@@ -134,7 +127,7 @@ case "$ENV_PROFILE" in
         "http://192.168.5.203:8095" \
         "1"
     )"
-    if [ "$db_state" = "legacy" ] || [ "$processor_state" = "legacy" ]; then
+    if [ "$processor_state" = "legacy" ]; then
       state="legacy"
     fi
     ;;
@@ -216,10 +209,6 @@ render_migrated_env() {
       value = substr(value, 2, length(value) - 2)
     }
 
-    if (profile == "backend" && key == "DB_HOST" && value == "192.168.0.204") {
-      print "DB_HOST=192.168.5.204"
-      next
-    }
     if (profile == "backend" && key == "PASTEURIZADOR_PROCESSOR_URL" && value == "http://192.168.0.203:8095") {
       print "PASTEURIZADOR_PROCESSOR_URL=http://192.168.5.203:8095"
       next

@@ -14,9 +14,9 @@ a rede de producao.
 
 O gateway final dos tres CTs e `192.168.5.1`.
 
-Os IPs `192.168.5.202`, `192.168.5.203` e `192.168.5.204` citados abaixo
-sao endpoints consumidos pelo ambiente de testes. Eles nao sao os enderecos
-`net0` dos CTs `120`, `121` e `122`.
+Os IPs `192.168.5.202` e `192.168.5.203` citados abaixo sao endpoints
+consumidos pelo ambiente de testes. Eles nao sao os enderecos `net0` dos CTs
+`120`, `121` e `122`.
 
 O FieldLogger do pasteurizador tambem foi movido para a nova bridge e passa de
 `192.168.0.101:502` para **`192.168.5.101:502`**.
@@ -113,15 +113,15 @@ O deploy preserva os arquivos `.env`; por isso o migrador atualiza de forma
 explicita apenas estes valores conhecidos:
 
 - CT `121`, backend principal e PWA quando o arquivo existir:
-  - `DB_HOST`: `192.168.0.204` para `192.168.5.204`;
   - `PASTEURIZADOR_PROCESSOR_URL`: `.0.203` para `.5.203`;
 - CT `122`, runtime do pasteurizador e `.env` do processor quando existir:
   - `SANTILAC_API_URL`: backend `.0.202` para `.5.202`;
   - `SANTILAC_SYNC_STATE_URL`: backend `.0.202` para `.5.202`;
   - `FIELDLOGGER_HOST`: `192.168.0.101` para `192.168.5.101`.
 
-`192.168.5.204` e o banco de **producao** usado pelo pasteurizador a partir do
-ambiente de testes; nao e chamado de banco de testes neste procedimento.
+`DB_HOST` nao faz parte da migracao de bridge. O destino de banco configurado
+no ambiente de testes e preservado sem validacao ou reescrita, e o preflight
+nao abre conexao fixa com o banco de producao.
 
 `FIELDLOGGER_HOST`, quando presente, só pode estar no valor legado
 `192.168.0.101` ou no valor final `192.168.5.101`. Qualquer outro endereço

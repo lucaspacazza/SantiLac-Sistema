@@ -113,9 +113,9 @@ assert_legacy_state() {
       fail "CT ${ct} nao voltou ao IP legado"
   done
 
-  grep -Fq 'DB_HOST=192.168.0.204' \
+  grep -Fq 'DB_HOST=127.0.0.1' \
     "$state_dir/root-121/var/www/santilac-backend/.env" ||
-    fail "env principal do backend nao voltou ao DB_HOST legado"
+    fail "rollback alterou o DB_HOST independente da bridge"
   grep -Fq 'PASTEURIZADOR_PROCESSOR_URL=http://192.168.0.203:8095' \
     "$state_dir/root-121/var/www/santilac-pwa-producao-backend/.env" ||
     fail "env do PWA nao voltou a URL legada"
@@ -157,7 +157,7 @@ write_envs() {
 
   cat >"$backend_root/var/www/santilac-backend/.env" <<EOF
 APP_KEY=super-secret-backend
-DB_HOST=192.168.${network}.204
+DB_HOST=127.0.0.1
 DB_PASSWORD=another-secret
 PASTEURIZADOR_PROCESSOR_URL=${backend_url}
 EOF
@@ -218,20 +218,17 @@ fi
 assert_contains "$output" "estado recusado"
 assert_log_lines "0"
 
-printf 'Contrato: valor de host desconhecido em env bloqueia toda a migracao...\n'
+printf 'Contrato: DB_HOST independente da bridge e preservado...\n'
 write_legacy_state
 sed -i \
-  's/DB_HOST=192\.168\.0\.204/DB_HOST=192.168.9.204/' \
+  's/DB_HOST=127\.0\.0\.1/DB_HOST=mysql-test.internal/' \
   "$state_dir/root-121/var/www/santilac-backend/.env"
 : >"$log_file"
-if output="$(run_migrator --apply --backup-dir "$backup_dir" 2>&1)"; then
-  fail "--apply deveria recusar DB_HOST desconhecido"
-fi
-assert_contains "$output" "falha ao validar hosts conhecidos"
-if [[ "$output" == *"super-secret"* ]]; then
-  fail "erro de env revelou um segredo"
-fi
-assert_log_lines "0"
+output="$(run_migrator --apply --backup-dir "$backup_dir")"
+grep -Fq 'DB_HOST=mysql-test.internal' \
+  "$state_dir/root-121/var/www/santilac-backend/.env" ||
+  fail "migracao alterou o DB_HOST independente da bridge"
+assert_log_lines "3"
 
 printf 'Contrato: FIELDLOGGER_HOST fora dos pares legado/final e recusado...\n'
 write_legacy_state
@@ -292,9 +289,9 @@ grep -Fq \
 grep -Fq $'120\tname=eth0,bridge=vmbr-test,firewall=1,gw=192.168.0.1' \
   "$(find "$backup_dir" -type f -name '*.tsv' | sort | tail -n 1)" ||
   fail "backup nao contem net0 original"
-grep -Fq 'DB_HOST=192.168.5.204' \
+grep -Fq 'DB_HOST=127.0.0.1' \
   "$state_dir/root-121/var/www/santilac-backend/.env" ||
-  fail "DB_HOST vivo nao foi migrado"
+  fail "DB_HOST vivo foi alterado"
 grep -Fq 'PASTEURIZADOR_PROCESSOR_URL=http://192.168.5.203:8095' \
   "$state_dir/root-121/var/www/santilac-pwa-producao-backend/.env" ||
   fail "URL do processor no env do PWA nao foi migrada"
@@ -333,6 +330,13 @@ if output="$(run_migrator --check --connectivity 2>&1)"; then
 fi
 unset FAKE_CONNECTIVITY_FAIL
 assert_contains "$output" "nao alcanca o FieldLogger em"
+
+printf 'Contrato: preflight nao acessa banco de producao fixo...\n'
+write_target_state
+export FAKE_CONNECTIVITY_FAIL="192.168.5.204"
+output="$(run_migrator --check --connectivity)"
+unset FAKE_CONNECTIVITY_FAIL
+assert_contains "$output" "Preflight da infraestrutura de testes: OK"
 
 printf 'Contrato: apply e idempotente no estado final...\n'
 : >"$log_file"

@@ -353,12 +353,6 @@ connectivity_check() {
 
   pct exec 121 -- php -r \
     '$s=@fsockopen($argv[1],(int)$argv[2],$e,$m,5);if($s===false){exit(1);}fclose($s);' \
-    "192.168.5.204" "3306" >/dev/null ||
-    die "CT 121 nao alcanca o banco 192.168.5.204:3306"
-  printf '[ok] CT 121 -> banco 192.168.5.204:3306\n'
-
-  pct exec 121 -- php -r \
-    '$s=@fsockopen($argv[1],(int)$argv[2],$e,$m,5);if($s===false){exit(1);}fclose($s);' \
     "192.168.5.203" "8095" >/dev/null ||
     die "CT 121 nao alcanca o processor 192.168.5.203:8095"
   printf '[ok] CT 121 -> processor 192.168.5.203:8095\n'
