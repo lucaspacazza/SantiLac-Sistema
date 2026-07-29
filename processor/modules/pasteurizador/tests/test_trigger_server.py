@@ -16,11 +16,11 @@ class CollectionTimeoutTests(unittest.TestCase):
             patch.object(
                 trigger_server,
                 "load_env",
-                return_value={"PASTEURIZADOR_COLLECTION_TIMEOUT_SECONDS": "3600"},
+                return_value={"PASTEURIZADOR_COLLECTION_TIMEOUT_SECONDS": "7200"},
             ),
             patch.dict(trigger_server.os.environ, {}, clear=True),
         ):
-            self.assertEqual(3600, trigger_server.collection_timeout_seconds())
+            self.assertEqual(7200, trigger_server.collection_timeout_seconds())
 
 
 if __name__ == "__main__":
