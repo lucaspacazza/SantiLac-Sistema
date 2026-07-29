@@ -14,8 +14,17 @@ REMOTE_HISTORY_FILE = f"{REMOTE_HISTORY_DIR}/MemFlash.fl"
 DOWNLOAD_CHUNK_SIZE = 1232
 DOWNLOAD_PAUSE_EVERY_CHUNKS = 50
 DOWNLOAD_PAUSE_SECONDS = 0.35
+DEFAULT_MAX_BYTES = 64 * 1024 * 1024
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 30
+DEFAULT_READ_RETRY_ATTEMPTS = 10
+DEFAULT_READ_RETRY_DELAY_SECONDS = 1.0
 RECORD_START = 420
 RECORD_STRIDE = 36
+RECORD_MARKER = b"\x80\xff\x00\x00"
+
+
+class IncompleteHistoryDownload(RuntimeError):
+    pass
 
 
 @dataclass
@@ -75,7 +84,7 @@ class FieldLoggerModbus:
                     sock.sendall(packet)
                     header = self._recv_exact(sock, 7)
                     if len(header) != 7:
-                        raise RuntimeError(f"Cabecalho Modbus incompleto: {header.hex(' ')}")
+                        raise RuntimeError(f"Cabeçalho Modbus incompleto: {header.hex(' ')}")
                     _, _, length, unit = struct.unpack(">HHHB", header)
                     body = self._recv_exact(sock, length - 1)
                 else:
@@ -87,23 +96,37 @@ class FieldLoggerModbus:
                             raise RuntimeError(f"Cabecalho Modbus incompleto: {header.hex(' ')}")
                         _, _, length, unit = struct.unpack(">HHHB", header)
                         body = self._recv_exact(sock, length - 1)
-                break
-            except (OSError, TimeoutError) as exc:
+                if len(body) != length - 1:
+                    raise RuntimeError(
+                        "Corpo Modbus incompleto: "
+                        f"recebidos {len(body)} de {length - 1} bytes"
+                    )
+                if unit != self.unit_id:
+                    raise RuntimeError(f"Unit id inesperado: {unit}")
+                if not body:
+                    raise RuntimeError("Resposta Modbus vazia")
+                if body[0] & 0x80:
+                    if len(body) < 2:
+                        raise RuntimeError(
+                            f"Exceção Modbus 0x{function:02X} incompleta"
+                        )
+                    raise RuntimeError(
+                        f"Função 0x{function:02X} retornou exceção 0x{body[1]:02X}"
+                    )
+                return body
+            except (OSError, TimeoutError, RuntimeError) as exc:
                 last_error = exc
                 if self.sock is not None:
                     self.close()
-                    self.connect()
-                time.sleep(0.25 * (attempt + 1))
-        else:
-            raise last_error
+                    if attempt < 2:
+                        try:
+                            self.connect()
+                        except (OSError, TimeoutError) as reconnect_error:
+                            last_error = reconnect_error
+                if attempt < 2:
+                    time.sleep(0.25 * (attempt + 1))
 
-        if unit != self.unit_id:
-            raise RuntimeError(f"Unit id inesperado: {unit}")
-        if not body:
-            raise RuntimeError("Resposta Modbus vazia")
-        if body[0] & 0x80:
-            raise RuntimeError(f"Funcao 0x{function:02X} retornou excecao 0x{body[1]:02X}")
-        return body
+        raise last_error
 
     def read_words(self, address, count):
         body = self.request(0x03, struct.pack(">HH", address, count))
@@ -135,11 +158,26 @@ class FieldLoggerModbus:
         raise TimeoutError(f"Comando {value} nao finalizou")
 
     def read_file(self, offset, count):
-        body = self.request(0x50, struct.pack(">IH", offset, count), timeout=10)
+        body = self.request(
+            0x50,
+            struct.pack(">IH", offset, count),
+            timeout=self.timeout,
+        )
         if len(body) < 3:
             return b""
         byte_count = int.from_bytes(body[1:3], "big")
-        return body[3 : 3 + byte_count]
+        payload = body[3:]
+        if byte_count > count:
+            raise RuntimeError(
+                "Tamanho Modbus inesperado: "
+                f"declarados {byte_count} bytes para leitura de {count}"
+            )
+        if len(payload) != byte_count:
+            raise RuntimeError(
+                "Corpo Modbus incompleto: "
+                f"declarados {byte_count}, recebidos {len(payload)} bytes"
+            )
+        return payload
 
 
 def _words_to_little_bytes(words):
@@ -212,8 +250,63 @@ def list_history_file(link, remote_dir=REMOTE_HISTORY_DIR):
     return name, size_hint
 
 
-def download_history_file(host=DEFAULT_HOST, port=DEFAULT_PORT, unit_id=DEFAULT_UNIT_ID, max_bytes=2_000_000):
-    link = FieldLoggerModbus(host, port, unit_id)
+def _reposition_history_file(link):
+    try:
+        link.write_single(0x035C, 3)
+        link.write_path(REMOTE_HISTORY_FILE)
+    except (OSError, TimeoutError, RuntimeError):
+        link.close()
+        link.connect()
+        link.write_single(0x035C, 3)
+        link.write_path(REMOTE_HISTORY_FILE)
+
+
+def _read_history_chunk(
+    link,
+    offset,
+    count,
+    target_size,
+    retry_attempts,
+    retry_delay_seconds,
+):
+    last_error = None
+    attempts = max(int(retry_attempts), 1)
+    for attempt in range(attempts):
+        try:
+            chunk = link.read_file(offset, count)
+            if chunk:
+                return chunk[:count]
+            last_error = RuntimeError("bloco vazio retornado pelo FieldLogger")
+        except (OSError, TimeoutError, RuntimeError) as exc:
+            last_error = exc
+
+        if attempt >= attempts - 1:
+            break
+
+        _reposition_history_file(link)
+        if retry_delay_seconds > 0:
+            time.sleep(float(retry_delay_seconds) * (attempt + 1))
+
+    raise IncompleteHistoryDownload(
+        "Download incompleto do histórico do FieldLogger: "
+        f"recebidos {offset} de {target_size} bytes; "
+        f"falha no offset {offset}: {last_error}"
+    )
+
+
+def download_history_file(
+    host=DEFAULT_HOST,
+    port=DEFAULT_PORT,
+    unit_id=DEFAULT_UNIT_ID,
+    max_bytes=DEFAULT_MAX_BYTES,
+    request_timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
+    read_retry_attempts=DEFAULT_READ_RETRY_ATTEMPTS,
+    read_retry_delay_seconds=DEFAULT_READ_RETRY_DELAY_SECONDS,
+):
+    if int(max_bytes) <= 0:
+        raise ValueError("max_bytes deve ser maior que zero")
+
+    link = FieldLoggerModbus(host, port, unit_id, timeout=float(request_timeout))
     try:
         link.connect()
         link.write_single(0x035C, 3)
@@ -226,13 +319,23 @@ def download_history_file(host=DEFAULT_HOST, port=DEFAULT_PORT, unit_id=DEFAULT_
         chunk_index = 0
         while len(data) < target_size:
             requested = min(DOWNLOAD_CHUNK_SIZE, target_size - len(data))
-            chunk = link.read_file(len(data), requested)
-            if not chunk:
-                break
+            chunk = _read_history_chunk(
+                link,
+                len(data),
+                requested,
+                target_size,
+                read_retry_attempts,
+                read_retry_delay_seconds,
+            )
             data.extend(chunk)
             chunk_index += 1
             if DOWNLOAD_PAUSE_EVERY_CHUNKS > 0 and chunk_index % DOWNLOAD_PAUSE_EVERY_CHUNKS == 0:
                 time.sleep(DOWNLOAD_PAUSE_SECONDS)
+        if len(data) != target_size:
+            raise IncompleteHistoryDownload(
+                "Download incompleto do historico do FieldLogger: "
+                f"recebidos {len(data)} de {target_size} bytes."
+            )
         return {
             "remote_file": REMOTE_HISTORY_FILE,
             "directory_size_hint": size_hint,
@@ -257,13 +360,94 @@ def extract_channels(data):
     return channels
 
 
+def _record_run_score(run):
+    longest_monotonic_run = 1
+    current_monotonic_run = 1
+    monotonic_transitions = 0
+
+    for previous, current in zip(run, run[1:]):
+        if current[1] >= previous[1]:
+            monotonic_transitions += 1
+            current_monotonic_run += 1
+            longest_monotonic_run = max(
+                longest_monotonic_run,
+                current_monotonic_run,
+            )
+        else:
+            current_monotonic_run = 1
+
+    return (
+        longest_monotonic_run,
+        monotonic_transitions,
+        len(run),
+    )
+
+
+def _best_record_run(candidates):
+    runs = []
+    current_run = []
+
+    for candidate in candidates:
+        if (
+            current_run
+            and candidate[0] != current_run[-1][0] + RECORD_STRIDE
+        ):
+            runs.append(current_run)
+            current_run = []
+        current_run.append(candidate)
+
+    if current_run:
+        runs.append(current_run)
+
+    return max(runs, key=_record_run_score)
+
+
+def locate_record_start(data):
+    candidates_by_residue = {}
+    marker_offset = data.find(RECORD_MARKER, RECORD_START + 4)
+    while marker_offset >= 0:
+        record_start = marker_offset - 4
+        record_end = record_start + RECORD_STRIDE
+        if record_start >= RECORD_START and record_end <= len(data):
+            record = data[record_start:record_end]
+            if not (int.from_bytes(record[8:10], "little") & 0x0001):
+                try:
+                    timestamp = _decode_record_timestamp(record)
+                    residue = record_start % RECORD_STRIDE
+                    candidates_by_residue.setdefault(residue, []).append(
+                        (record_start, timestamp)
+                    )
+                except ValueError:
+                    pass
+        marker_offset = data.find(RECORD_MARKER, marker_offset + 1)
+
+    if not candidates_by_residue:
+        return RECORD_START
+
+    legacy_residue = RECORD_START % RECORD_STRIDE
+    scored_runs = [
+        (
+            _record_run_score(_best_record_run(candidates)),
+            residue == legacy_residue,
+            candidates[0][0],
+        )
+        for residue, candidates in candidates_by_residue.items()
+    ]
+    _score, _legacy, first_start = max(
+        scored_runs,
+        key=lambda item: (item[0], item[1]),
+    )
+    return first_start
+
+
 def extract_history_samples(data):
     channels = extract_channels(data)
     value_offsets = range(12, 36, 4)
     samples = []
-    for offset in range(RECORD_START, len(data) - RECORD_STRIDE + 1, RECORD_STRIDE):
+    record_start = locate_record_start(data)
+    for offset in range(record_start, len(data) - RECORD_STRIDE + 1, RECORD_STRIDE):
         record = data[offset : offset + RECORD_STRIDE]
-        if record[4:8] != b"\x80\xff\x00\x00":
+        if record[4:8] != RECORD_MARKER:
             continue
         if int.from_bytes(record[8:10], "little") & 0x0001:
             continue
