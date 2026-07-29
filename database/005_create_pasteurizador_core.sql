@@ -7,11 +7,15 @@ USE santilac_raw;
 
 CREATE TABLE IF NOT EXISTS pasteurizador_coletas (
   id bigint unsigned NOT NULL AUTO_INCREMENT,
+  ingestion_key char(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   equipamento varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pasteurizador',
   origem varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'fieldlogger_modbus',
   arquivo_remoto varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '2:/24085425/MemFlash.fl',
   arquivo_bruto_path varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   coletado_em datetime NOT NULL,
+  period_start datetime DEFAULT NULL,
+  period_end datetime DEFAULT NULL,
+  raw_sha256 char(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   bytes_baixados int unsigned NOT NULL DEFAULT 0,
   total_amostras int unsigned NOT NULL DEFAULT 0,
   status enum('rascunho','processada','erro') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'processada',
@@ -19,6 +23,7 @@ CREATE TABLE IF NOT EXISTS pasteurizador_coletas (
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_pasteurizador_coletas_ingestion_key (ingestion_key),
   KEY idx_pasteurizador_coletas_coletado_em (coletado_em),
   KEY idx_pasteurizador_coletas_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -39,6 +44,8 @@ CREATE TABLE IF NOT EXISTS pasteurizador_amostras (
   UNIQUE KEY uq_pasteurizador_amostra_canal (coleta_id, canal, sample_index),
   KEY idx_pasteurizador_amostras_canal (canal),
   KEY idx_pasteurizador_amostras_timestamp (timestamp_registro),
+  KEY idx_pasteurizador_amostras_timestamp_canal_id (timestamp_registro, canal, id),
+  KEY idx_pasteurizador_amostras_canal_timestamp_id (canal, timestamp_registro, id),
   CONSTRAINT fk_pasteurizador_amostras_coleta
     FOREIGN KEY (coleta_id) REFERENCES pasteurizador_coletas (id)
     ON DELETE CASCADE

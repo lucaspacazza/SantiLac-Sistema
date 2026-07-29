@@ -6,14 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Services\Pasteurizador\PasteurizadorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PasteurizadorController extends Controller
 {
     public function __construct(
         private readonly PasteurizadorService $pasteurizador
-    ) {
-    }
+    ) {}
 
     public function overview(): JsonResponse
     {
@@ -34,21 +35,71 @@ class PasteurizadorController extends Controller
     public function criarColeta(Request $request): JsonResponse
     {
         set_time_limit(max(
-            (int) config('services.pasteurizador.timeout_seconds', 7200),
+            (int) config('services.pasteurizador.timeout_seconds', 10800),
             1
         ));
 
-        $payload = $request->validate([
+        $validator = Validator::make($request->all(), [
+            'ingestion_key' => ['required', 'string', 'size:64', 'regex:/^[a-f0-9]{64}$/i'],
             'source' => ['nullable', 'string', 'max:80'],
             'equipment' => ['nullable', 'string', 'max:80'],
             'remote_file' => ['nullable', 'string', 'max:80'],
             'raw_file_path' => ['nullable', 'string', 'max:255'],
             'downloaded_at' => ['required', 'date'],
             'bytes_downloaded' => ['required', 'integer', 'min:0'],
-            'status' => ['nullable', 'string', 'max:40'],
+            'period_start' => ['required', 'date'],
+            'period_end' => ['required', 'date', 'after_or_equal:period_start'],
+            'raw_sha256' => ['required', 'string', 'size:64', 'regex:/^[a-f0-9]{64}$/i'],
+            'status' => ['nullable', 'string', 'in:rascunho,processada,erro'],
             'mensagem_erro' => ['nullable', 'string'],
             'samples' => ['present', 'array'],
+            'samples.*' => ['array'],
+            'samples.*.channel' => ['required', 'string', 'max:80'],
+            'samples.*.unit' => ['nullable', 'string', 'max:20'],
+            'samples.*.sample_index' => ['required', 'integer', 'min:0'],
+            'samples.*.raw_offset' => ['nullable', 'integer', 'min:0'],
+            'samples.*.timestamp_record' => ['required', 'date'],
+            'samples.*.value' => ['required', 'numeric'],
+            'samples.*.quality' => ['nullable', 'numeric'],
         ]);
+        $validator->after(function ($validator) use ($request): void {
+            if (
+                ! $request->filled('period_end')
+                || $validator->errors()->has('period_end')
+            ) {
+                return;
+            }
+
+            $timezone = 'America/Sao_Paulo';
+            $periodEnd = Carbon::parse(
+                (string) $request->input('period_end'),
+                $timezone
+            )->setTimezone($timezone);
+
+            if ($periodEnd->gte(Carbon::now($timezone)->startOfDay())) {
+                $validator->errors()->add(
+                    'period_end',
+                    'O período precisa terminar antes do dia corrente no fuso do equipamento.'
+                );
+            }
+
+            if (
+                $request->filled('downloaded_at')
+                && ! $validator->errors()->has('downloaded_at')
+            ) {
+                $downloadedAt = Carbon::parse(
+                    (string) $request->input('downloaded_at'),
+                    $timezone
+                )->setTimezone($timezone);
+                if ($downloadedAt->lte($periodEnd)) {
+                    $validator->errors()->add(
+                        'downloaded_at',
+                        'O download precisa ocorrer depois do fim do período.'
+                    );
+                }
+            }
+        });
+        $payload = $validator->validate();
 
         return response()->json([
             'success' => true,
@@ -58,7 +109,7 @@ class PasteurizadorController extends Controller
 
     public function coletarAgora(Request $request): JsonResponse
     {
-        if (!$request->filled('inicio') || !$request->filled('fim')) {
+        if (! $request->filled('inicio') || ! $request->filled('fim')) {
             return response()->json([
                 'success' => false,
                 'error' => [
@@ -101,11 +152,16 @@ class PasteurizadorController extends Controller
         ]);
     }
 
-    public function syncState(): JsonResponse
+    public function syncState(Request $request): JsonResponse
     {
+        $request->validate([
+            'inicio' => ['nullable', 'date_format:Y-m-d'],
+            'fim' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:inicio'],
+        ]);
+
         return response()->json([
             'success' => true,
-            'data' => $this->pasteurizador->syncState(),
+            'data' => $this->pasteurizador->syncState($request),
         ]);
     }
 

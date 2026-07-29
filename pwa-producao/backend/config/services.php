@@ -42,7 +42,7 @@ return [
 
     'pasteurizador' => [
         'processor_url' => env('PASTEURIZADOR_PROCESSOR_URL', 'http://192.168.5.203:8095'),
-        'timeout_seconds' => (int) env('PASTEURIZADOR_PROCESSOR_TIMEOUT_SECONDS', 7200),
+        'timeout_seconds' => (int) env('PASTEURIZADOR_PROCESSOR_TIMEOUT_SECONDS', 10800),
     ],
 
     'santilac' => [

@@ -57,23 +57,129 @@ export async function ensureCsrfToken(): Promise<string> {
   return csrfToken
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(path, {
-    credentials: 'same-origin',
-    signal: AbortSignal.timeout(15000),
-    headers: {
-      Accept: 'application/json',
-    },
-  })
+export type ApiGetOptions = {
+  signal?: AbortSignal
+  timeoutMs?: number
+  retries?: number
+  retryDelayMs?: number
+}
 
-  const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
-  announceExpiredSession(response)
-  if (!response.ok || !json?.success || json.data === undefined) {
-    throw new Error(apiErrorMessage(json, `HTTP ${response.status}`))
+export async function apiGet<T>(path: string, options: ApiGetOptions = {}): Promise<T> {
+  const retries = Math.max(0, options.retries ?? 1)
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const response = await fetchGet(path, options)
+      const json = (await response.json().catch(() => null)) as unknown
+      announceExpiredSession(response)
+
+      const validEnvelope = isApiResponse<T>(json)
+      const malformedSuccessfulResponse = response.ok && (
+        !validEnvelope
+        || (json.success && json.data === undefined)
+      )
+      if (malformedSuccessfulResponse) {
+        if (attempt < retries) {
+          await waitForRetry(options.retryDelayMs ?? 500, attempt, options.signal)
+          continue
+        }
+
+        throw new Error('O servidor retornou uma resposta incompleta. Tente novamente.')
+      }
+
+      if (!response.ok || !validEnvelope || !json.success || json.data === undefined) {
+        if (attempt < retries && isRetryableStatus(response.status)) {
+          await waitForRetry(options.retryDelayMs ?? 500, attempt, options.signal)
+          continue
+        }
+
+        throw new Error(apiErrorMessage(validEnvelope ? json : null, `HTTP ${response.status}`))
+      }
+
+      announceSessionActivity(response)
+      return json.data
+    } catch (error) {
+      if (options.signal?.aborted) {
+        throw error
+      }
+
+      if (attempt >= retries || !isRetryableError(error)) {
+        throw error
+      }
+
+      await waitForRetry(options.retryDelayMs ?? 500, attempt, options.signal)
+    }
   }
 
-  announceSessionActivity(response)
-  return json.data
+  throw new Error('Não foi possível concluir a solicitação.')
+}
+
+async function fetchGet(path: string, options: ApiGetOptions): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutMs = Math.max(1000, options.timeoutMs ?? 30000)
+  const abortFromCaller = () => controller.abort(options.signal?.reason)
+  const timeout = window.setTimeout(
+    () => controller.abort(new DOMException('Tempo limite excedido.', 'TimeoutError')),
+    timeoutMs,
+  )
+
+  if (options.signal?.aborted) {
+    abortFromCaller()
+  } else {
+    options.signal?.addEventListener('abort', abortFromCaller, { once: true })
+  }
+
+  try {
+    return await fetch(path, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Cache-Control': 'no-cache',
+      },
+    })
+  } finally {
+    window.clearTimeout(timeout)
+    options.signal?.removeEventListener('abort', abortFromCaller)
+  }
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500
+}
+
+function isApiResponse<T>(value: unknown): value is ApiResponse<T> {
+  return typeof value === 'object'
+    && value !== null
+    && typeof (value as { success?: unknown }).success === 'boolean'
+}
+
+function isRetryableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return true
+  return error.name === 'AbortError' || error.name === 'TimeoutError' || error instanceof TypeError
+}
+
+function waitForRetry(baseDelayMs: number, attempt: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new DOMException('Solicitação cancelada.', 'AbortError'))
+      return
+    }
+
+    const finish = () => {
+      signal?.removeEventListener('abort', abort)
+      resolve()
+    }
+    const timeout = window.setTimeout(finish, Math.max(0, baseDelayMs) * (attempt + 1))
+    const abort = () => {
+      window.clearTimeout(timeout)
+      signal?.removeEventListener('abort', abort)
+      reject(signal?.reason ?? new DOMException('Solicitação cancelada.', 'AbortError'))
+    }
+
+    signal?.addEventListener('abort', abort, { once: true })
+  })
 }
 
 export async function apiPost<T>(path: string, payload: Record<string, unknown>): Promise<T> {

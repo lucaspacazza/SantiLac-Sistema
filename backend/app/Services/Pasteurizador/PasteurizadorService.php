@@ -4,14 +4,26 @@ namespace App\Services\Pasteurizador;
 
 use App\Models\Pasteurizador\PasteurizadorAmostra;
 use App\Models\Pasteurizador\PasteurizadorColeta;
+use Generator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Symfony\Component\Process\Process;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\Process\Process;
 
 class PasteurizadorService
 {
+    private const GRAPH_DEFAULT_MAX_POINTS = 12000;
+
+    private const GRAPH_MAX_POINTS = 50000;
+
+    private const PDF_MAX_POINTS = 1200;
+
+    private const QUERY_CHUNK_SIZE = 2000;
+
     public function overview(): array
     {
         $ultima = PasteurizadorColeta::query()->orderByDesc('coletado_em')->first();
@@ -43,13 +55,19 @@ class PasteurizadorService
         $query = PasteurizadorColeta::query()->orderByDesc('coletado_em')->orderByDesc('id');
 
         if ($request->filled('inicio')) {
-            $horaInicio = $this->normalizarHora((string) $request->query('hora_inicio', '00:00'));
-            $query->where('coletado_em', '>=', (string) $request->query('inicio') . ' ' . $horaInicio . ':00');
+            $horaInicio = $this->normalizarHora(
+                (string) $request->query('hora_inicio', '00:00:00'),
+                '00:00:00'
+            );
+            $query->where('coletado_em', '>=', (string) $request->query('inicio').' '.$horaInicio);
         }
 
         if ($request->filled('fim')) {
-            $horaFim = $this->normalizarHora((string) $request->query('hora_fim', '23:59'));
-            $query->where('coletado_em', '<=', (string) $request->query('fim') . ' ' . $horaFim . ':59');
+            $horaFim = $this->normalizarHora(
+                (string) $request->query('hora_fim', '23:59:59'),
+                '23:59:59'
+            );
+            $query->where('coletado_em', '<=', (string) $request->query('fim').' '.$horaFim);
         }
 
         $page = $query->paginate($perPage);
@@ -74,8 +92,12 @@ class PasteurizadorService
         return $coleta ? $this->formatarColeta($coleta) : null;
     }
 
-    public function syncState(): array
+    public function syncState(?Request $request = null): array
     {
+        $primeiraAmostra = PasteurizadorAmostra::query()
+            ->whereNotNull('timestamp_registro')
+            ->orderBy('timestamp_registro')
+            ->first();
         $ultimaAmostra = PasteurizadorAmostra::query()
             ->whereNotNull('timestamp_registro')
             ->orderByDesc('timestamp_registro')
@@ -87,11 +109,151 @@ class PasteurizadorService
             ->orderByDesc('id')
             ->first();
 
+        $ultimoPeriodoProcessado = PasteurizadorColeta::query()
+            ->where('status', 'processada')
+            ->whereNotNull('period_start')
+            ->whereNotNull('period_end')
+            ->whereColumn('period_start', '<=', 'period_end')
+            ->orderByDesc('period_end')
+            ->value('period_end');
+        $ultimaDataConhecida = collect([
+            optional($ultimaAmostra?->timestamp_registro)->format('Y-m-d'),
+            $ultimoPeriodoProcessado !== null
+                ? Carbon::parse((string) $ultimoPeriodoProcessado)->format('Y-m-d')
+                : null,
+        ])->filter()->max();
+        $coverageStart = $request?->filled('inicio')
+            ? (string) $request->query('inicio')
+            : ($ultimaDataConhecida !== null
+                ? Carbon::parse($ultimaDataConhecida)->subDays(119)->format('Y-m-d')
+                : null);
+        $coverageEnd = $request?->filled('fim')
+            ? (string) $request->query('fim')
+            : null;
+
+        $coverageQuery = PasteurizadorAmostra::query()
+            ->whereNotNull('timestamp_registro');
+
+        if ($coverageStart !== null) {
+            $coverageQuery->where(
+                'timestamp_registro',
+                '>=',
+                $coverageStart.' 00:00:00'
+            );
+        }
+
+        if ($coverageEnd !== null) {
+            $coverageQuery->where(
+                'timestamp_registro',
+                '<=',
+                $coverageEnd.' 23:59:59'
+            );
+        }
+
+        $observedBounds = (clone $coverageQuery)
+            ->selectRaw(
+                'MIN(timestamp_registro) as first_timestamp, '
+                .'MAX(timestamp_registro) as last_timestamp'
+            )
+            ->first();
+
+        // A timestamp only proves that a sample was observed on that date. It
+        // does not prove that the complete day was downloaded and processed.
+        // Keep this legacy evidence visible, but never promote it to coverage.
+        $observedDates = $coverageQuery
+            ->selectRaw('DATE(timestamp_registro) as data')
+            ->distinct()
+            ->orderBy('data')
+            ->pluck('data')
+            ->map(fn (mixed $data): string => (string) $data)
+            ->values();
+        $coveredDates = collect();
+
+        $coveredPeriods = PasteurizadorColeta::query()
+            ->where('status', 'processada')
+            ->whereNotNull('period_start')
+            ->whereNotNull('period_end')
+            ->whereColumn('period_start', '<=', 'period_end')
+            ->where(
+                'period_end',
+                '<',
+                Carbon::now('America/Sao_Paulo')->startOfDay()->toDateTimeString()
+            );
+
+        if ($coverageStart !== null) {
+            $coveredPeriods->where('period_end', '>=', $coverageStart.' 00:00:00');
+        }
+        if ($coverageEnd !== null) {
+            $coveredPeriods->where('period_start', '<=', $coverageEnd.' 23:59:59');
+        }
+
+        foreach ($coveredPeriods->get(['period_start', 'period_end']) as $coveredPeriod) {
+            $periodStart = $coveredPeriod->period_start;
+            $periodEnd = $coveredPeriod->period_end;
+            if ($periodStart === null || $periodEnd === null) {
+                continue;
+            }
+
+            $cursor = $periodStart->copy()->startOfDay();
+            $lastDay = $periodEnd->copy()->startOfDay();
+            if ($coverageStart !== null && $cursor->lt(Carbon::parse($coverageStart))) {
+                $cursor = Carbon::parse($coverageStart)->startOfDay();
+            }
+            if ($coverageEnd !== null && $lastDay->gt(Carbon::parse($coverageEnd))) {
+                $lastDay = Carbon::parse($coverageEnd)->startOfDay();
+            }
+
+            while ($cursor->lte($lastDay)) {
+                $day = $cursor->format('Y-m-d');
+                $dayStart = $cursor->copy()->startOfDay();
+                $dayEnd = $cursor->copy()->setTime(23, 59, 59);
+                $insideRequestedRange = ($coverageStart === null || $day >= $coverageStart)
+                    && ($coverageEnd === null || $day <= $coverageEnd);
+                $coversWholeDay = $periodStart->lte($dayStart)
+                    && $periodEnd->gte($dayEnd);
+
+                if ($insideRequestedRange && $coversWholeDay) {
+                    $coveredDates->put($day, $day);
+                }
+                $cursor->addDay();
+            }
+        }
+
+        $coveredDates = $coveredDates
+            ->keys()
+            ->sort()
+            ->values()
+            ->all();
+        $observedDates = $observedDates->all();
+        $uncertifiedObservedDates = array_values(array_diff(
+            $observedDates,
+            $coveredDates
+        ));
+
         return [
+            'coverage_contract_version' => 2,
+            'coverage_basis' => 'processed_period_full_day',
+            // Anchor for legacy installations. Consumers may use it to avoid
+            // inventing gaps before the logger existed, but not as proof that
+            // any individual date is complete.
+            'series_start_date' => optional($primeiraAmostra?->timestamp_registro)->format('Y-m-d'),
             'last_sample_timestamp' => optional($ultimaAmostra?->timestamp_registro)->toDateTimeString(),
             'last_sample_date' => optional($ultimaAmostra?->timestamp_registro)->format('Y-m-d'),
             'last_collection_with_samples_at' => optional($ultimaColetaComAmostras?->coletado_em)->toDateTimeString(),
             'last_collection_with_samples_id' => $ultimaColetaComAmostras?->id !== null ? (int) $ultimaColetaComAmostras->id : null,
+            'covered_dates' => $coveredDates,
+            'coverage_start' => $coveredDates[0] ?? null,
+            'coverage_end' => $coveredDates !== [] ? $coveredDates[array_key_last($coveredDates)] : null,
+            'observed_dates' => $observedDates,
+            'observed_start' => $observedDates[0] ?? null,
+            'observed_end' => $observedDates !== [] ? $observedDates[array_key_last($observedDates)] : null,
+            'observed_first_timestamp' => $observedBounds?->first_timestamp !== null
+                ? Carbon::parse((string) $observedBounds->first_timestamp)->toDateTimeString()
+                : null,
+            'observed_last_timestamp' => $observedBounds?->last_timestamp !== null
+                ? Carbon::parse((string) $observedBounds->last_timestamp)->toDateTimeString()
+                : null,
+            'uncertified_observed_dates' => $uncertifiedObservedDates,
         ];
     }
 
@@ -99,7 +261,7 @@ class PasteurizadorService
     {
         $id = DB::connection('raw')->transaction(function () use ($payload): int {
             $samples = $payload['samples'] ?? [];
-            $coleta = PasteurizadorColeta::query()->create([
+            $attributes = [
                 'equipamento' => $payload['equipment'] ?? 'pasteurizador',
                 'origem' => $payload['source'] ?? 'fieldlogger_modbus',
                 'arquivo_remoto' => $payload['remote_file'] ?? '2:/24085425/MemFlash.fl',
@@ -109,7 +271,42 @@ class PasteurizadorService
                 'total_amostras' => count($samples),
                 'status' => $payload['status'] ?? 'processada',
                 'mensagem_erro' => $payload['mensagem_erro'] ?? null,
-            ]);
+                'period_start' => $payload['period_start'] ?? null,
+                'period_end' => $payload['period_end'] ?? null,
+                'raw_sha256' => $payload['raw_sha256'] ?? null,
+            ];
+
+            $ingestionKey = trim((string) ($payload['ingestion_key'] ?? ''));
+            $replaceExistingSamples = false;
+            if ($ingestionKey !== '') {
+                $coleta = PasteurizadorColeta::query()->firstOrCreate(
+                    ['ingestion_key' => $ingestionKey],
+                    $attributes
+                );
+                $wasCreated = $coleta->wasRecentlyCreated;
+                $coleta = PasteurizadorColeta::query()
+                    ->whereKey($coleta->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (! $wasCreated) {
+                    if (count($samples) <= (int) $coleta->total_amostras) {
+                        return (int) $coleta->id;
+                    }
+
+                    $coleta->fill($attributes);
+                    $coleta->save();
+                    $replaceExistingSamples = true;
+                }
+            } else {
+                $coleta = PasteurizadorColeta::query()->create($attributes);
+            }
+
+            if ($replaceExistingSamples) {
+                PasteurizadorAmostra::query()
+                    ->where('coleta_id', $coleta->id)
+                    ->delete();
+            }
 
             $rows = [];
             foreach ($samples as $sample) {
@@ -139,7 +336,7 @@ class PasteurizadorService
 
     public function coletarAgora(?Request $request = null): array
     {
-        $url = rtrim((string) config('services.pasteurizador.processor_url', 'http://192.168.5.203:8095'), '/') . '/collect';
+        $url = rtrim((string) config('services.pasteurizador.processor_url', 'http://192.168.5.203:8095'), '/').'/collect';
         $payload = [
             'timezone' => 'America/Sao_Paulo',
         ];
@@ -153,12 +350,12 @@ class PasteurizadorService
         }
 
         $timeout = max(
-            (int) config('services.pasteurizador.timeout_seconds', 7200),
+            (int) config('services.pasteurizador.timeout_seconds', 10800),
             1
         );
         $response = Http::timeout($timeout)->acceptJson()->post($url, $payload);
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             return [
                 'ok' => false,
                 'processor_url' => $url,
@@ -199,21 +396,18 @@ class PasteurizadorService
 
     public function amostrasPeriodo(Request $request): array
     {
-        $limit = min(max((int) $request->query('limit', 20000), 1), 50000);
+        $maxPoints = min(
+            max((int) $request->query('limit', self::GRAPH_DEFAULT_MAX_POINTS), 1),
+            self::GRAPH_MAX_POINTS
+        );
+        $series = $this->serieAmostrasPeriodo($request, $maxPoints);
 
-        return $this->deduplicarAmostrasPeriodo(
-            $this->queryAmostrasPeriodo($request)
-            ->limit($limit)
-            ->get()
-        )
-            ->map(fn (PasteurizadorAmostra $amostra): array => $this->formatarAmostra($amostra))
-            ->values()
-            ->all();
+        return $request->boolean('with_meta') ? $series : $series['items'];
     }
 
     public function exportarCsv(int $coletaId, string $canal = 'Temp.Pasteuriza'): StreamedResponse
     {
-        $fileName = 'pasteurizador_coleta_' . $coletaId . '.csv';
+        $fileName = 'pasteurizador_coleta_'.$coletaId.'.csv';
         $coleta = PasteurizadorColeta::query()->where('id', $coletaId)->first();
         $coletadoEm = $coleta ? optional($coleta->coletado_em)->toDateTimeString() : null;
 
@@ -255,23 +449,22 @@ class PasteurizadorService
     public function exportarCsvPeriodo(Request $request): StreamedResponse
     {
         $canal = (string) $request->query('canal', 'Todos');
-        $fileName = 'pasteurizador_grafico_' . now('America/Sao_Paulo')->format('Ymd_His') . '.csv';
+        $fileName = 'pasteurizador_grafico_'.now('America/Sao_Paulo')->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($request): void {
             $handle = fopen('php://output', 'w');
             fputcsv($handle, ['coleta_id', 'timestamp_registro', 'canal', 'valor', 'unidade', 'qualidade']);
 
-            $this->deduplicarAmostrasPeriodo($this->queryAmostrasPeriodo($request)->limit(50000)->get())
-                ->each(function (PasteurizadorAmostra $amostra) use ($handle): void {
-                    fputcsv($handle, [
-                        $amostra->coleta_id,
-                        optional($amostra->timestamp_registro)->toDateTimeString(),
-                        $amostra->canal,
-                        $amostra->valor,
-                        $amostra->unidade,
-                        $amostra->qualidade,
-                    ]);
-                });
+            foreach ($this->iterarAmostrasPeriodo($this->queryAmostrasPeriodo($request)) as $amostra) {
+                fputcsv($handle, [
+                    $amostra->coleta_id,
+                    optional($amostra->timestamp_registro)->toDateTimeString(),
+                    $amostra->canal,
+                    $amostra->valor,
+                    $amostra->unidade,
+                    $amostra->qualidade,
+                ]);
+            }
 
             fclose($handle);
         }, $fileName, [
@@ -282,7 +475,7 @@ class PasteurizadorService
 
     public function exportarPdfPeriodo(Request $request): array
     {
-        $fileName = 'pasteurizador_grafico_' . now('America/Sao_Paulo')->format('Ymd_His') . '.pdf';
+        $fileName = 'pasteurizador_grafico_'.now('America/Sao_Paulo')->format('Ymd_His').'.pdf';
         $outputPath = $this->temporaryOutputPath($fileName, 'pdf');
         $payload = $this->payloadGraficoPeriodo($request);
 
@@ -295,42 +488,372 @@ class PasteurizadorService
         ];
     }
 
-    private function queryAmostrasPeriodo(Request $request)
+    private function queryAmostrasPeriodo(Request $request): Builder
     {
-        $query = PasteurizadorAmostra::query()
-            ->select(['id', 'coleta_id', 'sample_index', 'raw_offset', 'timestamp_registro', 'canal', 'valor', 'unidade', 'qualidade'])
-            ->whereNotNull('timestamp_registro')
-            ->orderBy('timestamp_registro')
-            ->orderBy('canal')
-            ->orderByDesc('id');
-
-        $canal = (string) $request->query('canal', 'Todos');
-        if ($canal !== '' && $canal !== 'Todos') {
-            $query->where('canal', $canal);
-        }
-
-        if (!$request->filled('inicio') && !$request->filled('fim')) {
+        $ultimaColetaId = null;
+        if (! $request->filled('inicio') && ! $request->filled('fim')) {
             $ultimaColetaId = PasteurizadorColeta::query()
+                ->where('total_amostras', '>', 0)
                 ->orderByDesc('coletado_em')
                 ->orderByDesc('id')
                 ->value('id');
+        }
 
-            if ($ultimaColetaId !== null) {
-                $query->where('coleta_id', $ultimaColetaId);
-            }
+        $deduplicadas = DB::connection('raw')
+            ->table('pasteurizador_amostras as source')
+            ->selectRaw('MAX(source.id) as id')
+            ->whereNotNull('source.timestamp_registro');
+
+        $this->aplicarFiltrosAmostrasPeriodo($deduplicadas, $request, 'source', $ultimaColetaId);
+
+        $deduplicadas
+            ->groupBy('source.canal')
+            ->groupBy('source.timestamp_registro');
+
+        return PasteurizadorAmostra::query()
+            ->from('pasteurizador_amostras as pa')
+            ->joinSub($deduplicadas, 'deduplicadas', function ($join): void {
+                $join->on('deduplicadas.id', '=', 'pa.id');
+            })
+            ->select([
+                'pa.id',
+                'pa.coleta_id',
+                'pa.sample_index',
+                'pa.raw_offset',
+                'pa.timestamp_registro',
+                'pa.canal',
+                'pa.valor',
+                'pa.unidade',
+                'pa.qualidade',
+            ])
+            ->orderBy('pa.timestamp_registro')
+            ->orderBy('pa.canal')
+            ->orderByDesc('pa.id');
+    }
+
+    private function aplicarFiltrosAmostrasPeriodo(
+        $query,
+        Request $request,
+        string $alias,
+        mixed $ultimaColetaId
+    ): void {
+        $canal = (string) $request->query('canal', 'Todos');
+        if ($canal !== '' && $canal !== 'Todos') {
+            $query->where($alias.'.canal', $canal);
+        }
+
+        if (! $request->filled('inicio') && ! $request->filled('fim') && $ultimaColetaId !== null) {
+            $query->where($alias.'.coleta_id', $ultimaColetaId);
         }
 
         if ($request->filled('inicio')) {
-            $horaInicio = $this->normalizarHoraComSegundos((string) $request->query('hora_inicio', '00:00:00'), '00:00:00');
-            $query->where('timestamp_registro', '>=', (string) $request->query('inicio') . ' ' . $horaInicio);
+            $horaInicio = $this->normalizarHoraComSegundos(
+                (string) $request->query('hora_inicio', '00:00:00'),
+                '00:00:00'
+            );
+            $query->where(
+                $alias.'.timestamp_registro',
+                '>=',
+                (string) $request->query('inicio').' '.$horaInicio
+            );
         }
 
         if ($request->filled('fim')) {
-            $horaFim = $this->normalizarHoraComSegundos((string) $request->query('hora_fim', '23:59:59'), '23:59:59');
-            $query->where('timestamp_registro', '<=', (string) $request->query('fim') . ' ' . $horaFim);
+            $horaFim = $this->normalizarHoraComSegundos(
+                (string) $request->query('hora_fim', '23:59:59'),
+                '23:59:59'
+            );
+            $query->where(
+                $alias.'.timestamp_registro',
+                '<=',
+                (string) $request->query('fim').' '.$horaFim
+            );
+        }
+    }
+
+    private function serieAmostrasPeriodo(Request $request, int $maxPoints): array
+    {
+        $maxPoints = max(1, min($maxPoints, self::GRAPH_MAX_POINTS));
+        $query = $this->queryAmostrasPeriodo($request);
+        $channelStats = $this->estatisticasCanaisPeriodo($query);
+        $sourceTotal = array_sum(array_column($channelStats, 'total'));
+
+        if ($sourceTotal === 0) {
+            return [
+                'items' => [],
+                'meta' => [
+                    'source_total' => 0,
+                    'returned' => 0,
+                    'max_points' => $maxPoints,
+                    'reduced' => false,
+                    'truncated' => false,
+                    'first_timestamp' => null,
+                    'last_timestamp' => null,
+                    'channels' => [],
+                ],
+            ];
         }
 
-        return $query;
+        $amostras = $sourceTotal <= $maxPoints
+            ? $query->get()
+            : $this->reduzirAmostrasPeriodo($query, $channelStats, $maxPoints);
+
+        $items = $amostras
+            ->map(fn (PasteurizadorAmostra $amostra): array => $this->formatarAmostra($amostra))
+            ->values()
+            ->all();
+
+        $primeira = $amostras->first();
+        $ultima = $amostras->last();
+
+        return [
+            'items' => $items,
+            'meta' => [
+                'source_total' => $sourceTotal,
+                'returned' => count($items),
+                'max_points' => $maxPoints,
+                'reduced' => $sourceTotal > count($items),
+                'truncated' => false,
+                'first_timestamp' => optional($primeira?->timestamp_registro)->toDateTimeString(),
+                'last_timestamp' => optional($ultima?->timestamp_registro)->toDateTimeString(),
+                'channels' => $channelStats,
+            ],
+        ];
+    }
+
+    private function estatisticasCanaisPeriodo(Builder $query): array
+    {
+        return (clone $query)
+            ->reorder()
+            ->select(['pa.canal'])
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw('MIN(pa.valor) as minimo')
+            ->selectRaw('MAX(pa.valor) as maximo')
+            ->selectRaw('AVG(pa.valor) as media')
+            ->groupBy('pa.canal')
+            ->orderBy('pa.canal')
+            ->get()
+            ->map(fn (PasteurizadorAmostra $row): array => [
+                'canal' => (string) $row->canal,
+                'total' => (int) $row->getAttribute('total'),
+                'minimo' => (float) $row->getAttribute('minimo'),
+                'maximo' => (float) $row->getAttribute('maximo'),
+                'media' => (float) $row->getAttribute('media'),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function reduzirAmostrasPeriodo(
+        Builder $query,
+        array $channelStats,
+        int $maxPoints
+    ): Collection {
+        $allocations = $this->alocarPontosPorCanal($channelStats, $maxPoints);
+        $totals = collect($channelStats)
+            ->mapWithKeys(fn (array $stats): array => [$stats['canal'] => (int) $stats['total']])
+            ->all();
+        $positions = [];
+        $selected = [];
+        $buckets = [];
+        $smallChannelBuckets = [];
+
+        foreach ($this->iterarAmostrasPeriodo($query) as $amostra) {
+            $channel = (string) $amostra->canal;
+            $position = $positions[$channel] ?? 0;
+            $positions[$channel] = $position + 1;
+            $allocation = $allocations[$channel] ?? 0;
+            $channelTotal = $totals[$channel] ?? 0;
+
+            if ($allocation <= 0) {
+                continue;
+            }
+
+            if ($channelTotal <= $allocation) {
+                $selected[(int) $amostra->id] = $amostra;
+
+                continue;
+            }
+
+            if ($allocation < 4) {
+                $smallChannelBuckets[$channel] ??= null;
+                $this->atualizarBucket($smallChannelBuckets[$channel], $amostra);
+
+                continue;
+            }
+
+            $bucketCount = max(1, intdiv($allocation, 4));
+            $bucketIndex = min(
+                $bucketCount - 1,
+                intdiv($position * $bucketCount, max($channelTotal, 1))
+            );
+            $buckets[$channel] ??= [];
+            $buckets[$channel][$bucketIndex] ??= null;
+            $this->atualizarBucket($buckets[$channel][$bucketIndex], $amostra);
+        }
+
+        foreach ($buckets as $channelBuckets) {
+            foreach ($channelBuckets as $bucket) {
+                foreach (['first', 'min', 'max', 'last'] as $key) {
+                    $amostra = $bucket[$key] ?? null;
+                    if ($amostra instanceof PasteurizadorAmostra) {
+                        $selected[(int) $amostra->id] = $amostra;
+                    }
+                }
+            }
+        }
+
+        foreach ($smallChannelBuckets as $channel => $bucket) {
+            $keys = match ($allocations[$channel] ?? 0) {
+                1 => ['last'],
+                2 => ['first', 'last'],
+                default => ['first', 'min', 'last'],
+            };
+
+            foreach ($keys as $key) {
+                $amostra = $bucket[$key] ?? null;
+                if ($amostra instanceof PasteurizadorAmostra) {
+                    $selected[(int) $amostra->id] = $amostra;
+                }
+            }
+        }
+
+        return collect(array_values($selected))
+            ->sort(function (PasteurizadorAmostra $a, PasteurizadorAmostra $b): int {
+                $timestamp = strcmp(
+                    (string) optional($a->timestamp_registro)->toDateTimeString(),
+                    (string) optional($b->timestamp_registro)->toDateTimeString()
+                );
+
+                return $timestamp !== 0
+                    ? $timestamp
+                    : strcmp((string) $a->canal, (string) $b->canal);
+            })
+            ->values();
+    }
+
+    private function alocarPontosPorCanal(array $channelStats, int $maxPoints): array
+    {
+        $ordered = collect($channelStats)
+            ->filter(fn (array $stats): bool => (int) $stats['total'] > 0)
+            ->sort(function (array $a, array $b): int {
+                if ($a['canal'] === 'Temp.Pasteuriza') {
+                    return -1;
+                }
+                if ($b['canal'] === 'Temp.Pasteuriza') {
+                    return 1;
+                }
+
+                return strcmp((string) $a['canal'], (string) $b['canal']);
+            })
+            ->values()
+            ->all();
+
+        $allocations = array_fill_keys(
+            array_map(fn (array $stats): string => (string) $stats['canal'], $ordered),
+            0
+        );
+        $minimum = $maxPoints >= count($ordered) * 4 ? 4 : 1;
+        $remaining = $maxPoints;
+
+        foreach ($ordered as $stats) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $channel = (string) $stats['canal'];
+            $allocation = min($minimum, (int) $stats['total'], $remaining);
+            $allocations[$channel] = $allocation;
+            $remaining -= $allocation;
+        }
+
+        while ($remaining > 0) {
+            $progress = false;
+            foreach ($ordered as $stats) {
+                $channel = (string) $stats['canal'];
+                if ($allocations[$channel] >= (int) $stats['total']) {
+                    continue;
+                }
+
+                $allocations[$channel]++;
+                $remaining--;
+                $progress = true;
+
+                if ($remaining === 0) {
+                    break;
+                }
+            }
+
+            if (! $progress) {
+                break;
+            }
+        }
+
+        return $allocations;
+    }
+
+    private function atualizarBucket(?array &$bucket, PasteurizadorAmostra $amostra): void
+    {
+        if ($bucket === null) {
+            $bucket = [
+                'first' => $amostra,
+                'last' => $amostra,
+                'min' => $amostra,
+                'max' => $amostra,
+            ];
+
+            return;
+        }
+
+        $bucket['last'] = $amostra;
+        if ((float) $amostra->valor < (float) $bucket['min']->valor) {
+            $bucket['min'] = $amostra;
+        }
+        if ((float) $amostra->valor > (float) $bucket['max']->valor) {
+            $bucket['max'] = $amostra;
+        }
+    }
+
+    private function iterarAmostrasPeriodo(Builder $query): Generator
+    {
+        $lastTimestamp = null;
+        $lastChannel = null;
+
+        while (true) {
+            $pageQuery = clone $query;
+            if ($lastTimestamp !== null && $lastChannel !== null) {
+                $pageQuery->where(function (Builder $cursor) use ($lastTimestamp, $lastChannel): void {
+                    $cursor
+                        ->where('pa.timestamp_registro', '>', $lastTimestamp)
+                        ->orWhere(function (Builder $sameTimestamp) use ($lastTimestamp, $lastChannel): void {
+                            $sameTimestamp
+                                ->where('pa.timestamp_registro', $lastTimestamp)
+                                ->where('pa.canal', '>', $lastChannel);
+                        });
+                });
+            }
+
+            $page = $pageQuery
+                ->limit(self::QUERY_CHUNK_SIZE)
+                ->get();
+
+            if ($page->isEmpty()) {
+                return;
+            }
+
+            foreach ($page as $amostra) {
+                yield $amostra;
+            }
+
+            /** @var PasteurizadorAmostra $last */
+            $last = $page->last();
+            $lastTimestamp = optional($last->timestamp_registro)->toDateTimeString();
+            $lastChannel = (string) $last->canal;
+
+            if ($page->count() < self::QUERY_CHUNK_SIZE) {
+                return;
+            }
+        }
     }
 
     private function payloadGraficoPeriodo(Request $request): array
@@ -341,19 +864,7 @@ class PasteurizadorService
         $horaFim = $this->normalizarHoraComSegundos((string) $request->query('hora_fim', '23:59:59'), '23:59:59');
         $canal = (string) $request->query('canal', 'Todos');
 
-        $amostras = $this->deduplicarAmostrasPeriodo($this->queryAmostrasPeriodo($request)->limit(50000)->get())
-            ->map(fn (PasteurizadorAmostra $amostra): array => [
-                'coleta_id' => (int) $amostra->coleta_id,
-                'sample_index' => (int) $amostra->sample_index,
-                'timestamp_registro' => optional($amostra->timestamp_registro)->toDateTimeString(),
-                'canal' => (string) $amostra->canal,
-                'valor' => (float) $amostra->valor,
-                'unidade' => $amostra->unidade,
-                'qualidade' => $amostra->qualidade !== null ? (float) $amostra->qualidade : null,
-                'raw_offset' => $amostra->raw_offset !== null ? (int) $amostra->raw_offset : null,
-            ])
-            ->values()
-            ->all();
+        $series = $this->serieAmostrasPeriodo($request, self::PDF_MAX_POINTS);
 
         return [
             'titulo' => 'Histórico do pasteurizador',
@@ -368,7 +879,8 @@ class PasteurizadorService
             'filtros' => [
                 'canal' => $canal,
             ],
-            'samples' => $amostras,
+            'samples' => $series['items'],
+            'series_meta' => $series['meta'],
         ];
     }
 
@@ -378,10 +890,10 @@ class PasteurizadorService
             return 'Última coleta salva';
         }
 
-        $inicioLabel = $inicio !== '' ? date('d/m/Y', strtotime($inicio)) . ' ' . $horaInicio : 'início';
-        $fimLabel = $fim !== '' ? date('d/m/Y', strtotime($fim)) . ' ' . $horaFim : 'fim';
+        $inicioLabel = $inicio !== '' ? date('d/m/Y', strtotime($inicio)).' '.$horaInicio : 'início';
+        $fimLabel = $fim !== '' ? date('d/m/Y', strtotime($fim)).' '.$horaFim : 'fim';
 
-        return $inicioLabel . ' a ' . $fimLabel;
+        return $inicioLabel.' a '.$fimLabel;
     }
 
     private function executarExportadorGraficoPdf(array $payload, string $outputPath): array
@@ -391,7 +903,7 @@ class PasteurizadorService
             $response = Http::timeout(120)
                 ->accept('application/pdf')
                 ->asJson()
-                ->post($processorUrl . '/export-chart/pdf', $payload);
+                ->post($processorUrl.'/export-chart/pdf', $payload);
 
             if ($response->successful() && str_contains((string) $response->header('Content-Type'), 'application/pdf')) {
                 file_put_contents($outputPath, $response->body());
@@ -450,12 +962,12 @@ class PasteurizadorService
     private function temporaryOutputPath(string $fileName, string $extension): string
     {
         return rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
-            . DIRECTORY_SEPARATOR
-            . pathinfo($fileName, PATHINFO_FILENAME)
-            . '_'
-            . bin2hex(random_bytes(4))
-            . '.'
-            . $extension;
+            .DIRECTORY_SEPARATOR
+            .pathinfo($fileName, PATHINFO_FILENAME)
+            .'_'
+            .bin2hex(random_bytes(4))
+            .'.'
+            .$extension;
     }
 
     private function temporaryPayload(array $payload, string $prefix): string
@@ -464,18 +976,6 @@ class PasteurizadorService
         file_put_contents($inputPath, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         return $inputPath;
-    }
-
-    private function deduplicarAmostrasPeriodo($amostras)
-    {
-        return $amostras
-            ->unique(fn (PasteurizadorAmostra $amostra): string => (string) $amostra->canal . '|' . optional($amostra->timestamp_registro)->toDateTimeString())
-            ->sort(function (PasteurizadorAmostra $a, PasteurizadorAmostra $b): int {
-                $time = strcmp((string) optional($a->timestamp_registro)->toDateTimeString(), (string) optional($b->timestamp_registro)->toDateTimeString());
-
-                return $time !== 0 ? $time : strcmp((string) $a->canal, (string) $b->canal);
-            })
-            ->values();
     }
 
     private function formatarColeta(PasteurizadorColeta $coleta): array
@@ -490,6 +990,10 @@ class PasteurizadorService
             'total_amostras' => (int) $coleta->total_amostras,
             'status' => (string) $coleta->status,
             'mensagem_erro' => $coleta->mensagem_erro,
+            'ingestion_key' => $coleta->ingestion_key,
+            'period_start' => optional($coleta->period_start)->toDateTimeString(),
+            'period_end' => optional($coleta->period_end)->toDateTimeString(),
+            'raw_sha256' => $coleta->raw_sha256,
         ];
     }
 
@@ -506,25 +1010,21 @@ class PasteurizadorService
         ];
     }
 
-    private function normalizarHora(string $hora): string
-    {
-        if (preg_match('/^\d{2}:\d{2}$/', $hora)) {
-            return $hora;
-        }
-
-        return '00:00';
-    }
-
-    private function normalizarHoraComSegundos(string $hora, string $fallback): string
+    private function normalizarHora(string $hora, string $fallback = '00:00:00'): string
     {
         if (preg_match('/^\d{2}:\d{2}:\d{2}$/', $hora)) {
             return $hora;
         }
 
         if (preg_match('/^\d{2}:\d{2}$/', $hora)) {
-            return $hora . ':00';
+            return $hora.':'.substr($fallback, -2);
         }
 
         return $fallback;
+    }
+
+    private function normalizarHoraComSegundos(string $hora, string $fallback): string
+    {
+        return $this->normalizarHora($hora, $fallback);
     }
 }
