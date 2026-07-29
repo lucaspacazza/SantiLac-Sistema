@@ -147,5 +147,19 @@ class DownloadHistoryFileTests(unittest.TestCase):
             self.run_download(link, payload)
 
 
+class FieldLoggerRequestTimeoutTests(unittest.TestCase):
+    def test_history_chunk_uses_configured_socket_timeout(self):
+        link = core.FieldLoggerModbus(timeout=30)
+
+        with patch.object(
+            link,
+            "request",
+            return_value=b"\x50\x00\x00",
+        ) as request:
+            link.read_file(0, 1)
+
+        self.assertEqual(30, request.call_args.kwargs["timeout"])
+
+
 if __name__ == "__main__":
     unittest.main()
