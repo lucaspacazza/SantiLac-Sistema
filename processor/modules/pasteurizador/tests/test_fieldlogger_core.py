@@ -139,6 +139,25 @@ class ExtractHistorySamplesTests(unittest.TestCase):
             [sample.raw_offset for sample in samples],
         )
 
+    def test_keeps_valid_records_before_a_gap_in_the_selected_alignment(self):
+        timestamps = [
+            datetime(2026, 7, 16, 8, minute, 0)
+            for minute in range(5)
+        ]
+        payload = (
+            bytes(core.RECORD_START)
+            + history_record(timestamps[0])
+            + history_record(timestamps[1])
+            + bytes(core.RECORD_STRIDE)
+            + history_record(timestamps[2])
+            + history_record(timestamps[3])
+            + history_record(timestamps[4])
+        )
+
+        samples, _channels = core.extract_history_samples(payload)
+
+        self.assertEqual(timestamps, [sample.timestamp for sample in samples])
+
 
 class DownloadHistoryFileTests(unittest.TestCase):
     def run_download(self, link, payload):
