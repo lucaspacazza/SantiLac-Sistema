@@ -106,12 +106,10 @@ assert_log_lines() {
 
 assert_legacy_state() {
   local ct
-  local suffix
   for ct in 120 121 122; do
-    suffix="$((ct + 81))"
     grep -Fq "gw=192.168.0.1" "$state_dir/${ct}.conf" ||
       fail "CT ${ct} nao voltou ao gateway legado"
-    grep -Fq "ip=192.168.0.${suffix}/24" "$state_dir/${ct}.conf" ||
+    grep -Fq "ip=192.168.0.${ct}/24" "$state_dir/${ct}.conf" ||
       fail "CT ${ct} nao voltou ao IP legado"
   done
 
@@ -132,14 +130,12 @@ assert_legacy_state() {
 write_state() {
   local network="$1"
   local gateway="$2"
-  local suffix
   local ct
   for ct in 120 121 122; do
-    suffix="$((ct + 81))"
     cat >"$state_dir/${ct}.conf" <<EOF
 arch: amd64
 hostname: santilac-test-${ct}
-net0: name=eth0,bridge=vmbr-test,firewall=1,gw=${gateway},hwaddr=DE:AD:BE:EF:00:${ct: -2},ip=192.168.${network}.${suffix}/24,mtu=1400,rate=50,tag=7,type=veth
+net0: name=eth0,bridge=vmbr-test,firewall=1,gw=${gateway},hwaddr=DE:AD:BE:EF:00:${ct: -2},ip=192.168.${network}.${ct}/24,mtu=1400,rate=50,tag=7,type=veth
 onboot: 1
 EOF
   done
@@ -195,13 +191,13 @@ write_legacy_state
 : >"$log_file"
 output="$(run_migrator)"
 assert_contains "$output" "Dry-run"
-assert_contains "$output" "192.168.5.201/24"
-assert_contains "$output" "192.168.5.203/24"
+assert_contains "$output" "192.168.5.120/24"
+assert_contains "$output" "192.168.5.122/24"
 if [[ "$output" == *"super-secret"* ]]; then
   fail "dry-run revelou um segredo"
 fi
 assert_log_lines "0"
-grep -Fq 'ip=192.168.0.201/24' "$state_dir/120.conf" ||
+grep -Fq 'ip=192.168.0.120/24' "$state_dir/120.conf" ||
   fail "dry-run alterou o estado"
 
 printf 'Contrato: check recusa a rede legada sem escrever...\n'
@@ -214,7 +210,7 @@ assert_log_lines "0"
 
 printf 'Contrato: preflight global recusa estado desconhecido antes de qualquer escrita...\n'
 write_legacy_state
-sed -i 's/ip=192\.168\.0\.202\/24/ip=192.168.0.250\/24/' "$state_dir/121.conf"
+sed -i 's/ip=192\.168\.0\.121\/24/ip=192.168.0.250\/24/' "$state_dir/121.conf"
 : >"$log_file"
 if output="$(run_migrator --apply --backup-dir "$backup_dir" 2>&1)"; then
   fail "--apply deveria recusar endereco inesperado"
@@ -290,7 +286,7 @@ output="$(run_migrator --apply --backup-dir "$backup_dir")"
 assert_contains "$output" "Nenhum container foi reiniciado"
 assert_log_lines "3"
 grep -Fq \
-  'net0: name=eth0,bridge=vmbr-test,firewall=1,gw=192.168.5.1,hwaddr=DE:AD:BE:EF:00:20,ip=192.168.5.201/24,mtu=1400,rate=50,tag=7,type=veth' \
+  'net0: name=eth0,bridge=vmbr-test,firewall=1,gw=192.168.5.1,hwaddr=DE:AD:BE:EF:00:20,ip=192.168.5.120/24,mtu=1400,rate=50,tag=7,type=veth' \
   "$state_dir/120.conf" ||
   fail "CT 120 perdeu ou alterou opcoes preservadas"
 grep -Fq $'120\tname=eth0,bridge=vmbr-test,firewall=1,gw=192.168.0.1' \
@@ -353,6 +349,17 @@ backups_after="$(
 )"
 [[ "$backups_after" == "$backups_before" ]] ||
   fail "apply idempotente criou backups desnecessarios"
+
+printf 'Contrato: inventario antigo .201 do CT 120 e recusado...\n'
+write_target_state
+sed -i 's/ip=192\.168\.5\.120\/24/ip=192.168.5.201\/24/' "$state_dir/120.conf"
+: >"$log_file"
+if output="$(run_migrator --check 2>&1)"; then
+  fail "--check deveria recusar o antigo IP .201 do CT 120"
+fi
+assert_contains "$output" "esperado legado ip=192.168.0.120/24"
+assert_contains "$output" "final ip=192.168.5.120/24"
+assert_log_lines "0"
 
 printf 'Contrato: pares mistos de ip/gateway sao recusados...\n'
 write_target_state

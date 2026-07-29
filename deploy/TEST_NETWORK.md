@@ -8,11 +8,15 @@ a rede de producao.
 
 | CT | Funcao | IP legado | IP final |
 | --- | --- | --- | --- |
-| `120` | frontend | `192.168.0.201/24` | `192.168.5.201/24` |
-| `121` | backend e backend do PWA | `192.168.0.202/24` | `192.168.5.202/24` |
-| `122` | processor | `192.168.0.203/24` | `192.168.5.203/24` |
+| `120` | frontend | `192.168.0.120/24` | `192.168.5.120/24` |
+| `121` | backend e backend do PWA | `192.168.0.121/24` | `192.168.5.121/24` |
+| `122` | processor | `192.168.0.122/24` | `192.168.5.122/24` |
 
 O gateway final dos tres CTs e `192.168.5.1`.
+
+Os IPs `192.168.5.202`, `192.168.5.203` e `192.168.5.204` citados abaixo
+sao endpoints consumidos pelo ambiente de testes. Eles nao sao os enderecos
+`net0` dos CTs `120`, `121` e `122`.
 
 O FieldLogger do pasteurizador tambem foi movido para a nova bridge e passa de
 `192.168.0.101:502` para **`192.168.5.101:502`**.

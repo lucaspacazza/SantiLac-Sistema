@@ -10,14 +10,14 @@ readonly REMOTE_ENV_HELPER="$SCRIPT_DIR/lib/migrate-test-env-file.sh"
 
 readonly -a TEST_CTS=("120" "121" "122")
 declare -Ar LEGACY_IPS=(
-  ["120"]="192.168.0.201/${PREFIX_LENGTH}"
-  ["121"]="192.168.0.202/${PREFIX_LENGTH}"
-  ["122"]="192.168.0.203/${PREFIX_LENGTH}"
+  ["120"]="192.168.0.120/${PREFIX_LENGTH}"
+  ["121"]="192.168.0.121/${PREFIX_LENGTH}"
+  ["122"]="192.168.0.122/${PREFIX_LENGTH}"
 )
 declare -Ar TARGET_IPS=(
-  ["120"]="192.168.5.201/${PREFIX_LENGTH}"
-  ["121"]="192.168.5.202/${PREFIX_LENGTH}"
-  ["122"]="192.168.5.203/${PREFIX_LENGTH}"
+  ["120"]="192.168.5.120/${PREFIX_LENGTH}"
+  ["121"]="192.168.5.121/${PREFIX_LENGTH}"
+  ["122"]="192.168.5.122/${PREFIX_LENGTH}"
 )
 readonly -a ENV_CTS=("121" "121" "122" "122")
 readonly -a ENV_PATHS=(
@@ -449,7 +449,7 @@ for ct in "${TEST_CTS[@]}"; do
     continue
   fi
 
-  die "CT ${ct}: estado recusado (ip=${current_ip}, gw=${current_gateway}); esperado o par legado ou o par final"
+  die "CT ${ct}: estado recusado (ip=${current_ip}, gw=${current_gateway}); esperado legado ip=${legacy_ip},gw=${LEGACY_GATEWAY} ou final ip=${target_ip},gw=${TARGET_GATEWAY}"
 done
 
 # Os arquivos .env sao preservados pelo deploy; eles fazem parte do mesmo preflight.

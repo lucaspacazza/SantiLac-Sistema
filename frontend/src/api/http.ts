@@ -284,7 +284,7 @@ export async function apiDownload(
   const arquivo = filenameFromDisposition(response.headers.get('Content-Disposition'), options.fallback)
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
-  link.href = url
+  link.href = url   
   link.download = arquivo
   document.body.appendChild(link)
   link.click()
