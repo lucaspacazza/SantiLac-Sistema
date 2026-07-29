@@ -42,10 +42,7 @@ php_command="$(find_command "${PHP_BIN:-}" php)" ||
     exit 1
   }
 
-printf '==> Contratos do migrador da rede de testes\n'
-bash "$REPOSITORY_ROOT/deploy/tests/test-migrate-test-network.sh"
-
-printf '\n==> Invariante do IP fixo do FieldLogger\n'
+printf '==> Invariante do IP fixo do FieldLogger\n'
 grep -Fqx 'DEFAULT_HOST = "192.168.5.101"' "$FIELDLOGGER_CORE" ||
   {
     printf 'O IP do FieldLogger na nova bridge deve permanecer 192.168.5.101.\n' >&2

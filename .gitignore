@@ -45,7 +45,6 @@ database/
 !deploy/
 !deploy/**
 !deploy/*.md
-deploy/network-backups/
 !.md
 
 .docx
