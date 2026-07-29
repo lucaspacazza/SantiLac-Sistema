@@ -35,11 +35,19 @@ export function PreenchimentoFormulacaoQueijo({
     return catalogos.insumos.find((insumo) => String(insumo.id) === selectedInsumos[rowId]) ?? null
   }
 
+  function restoreInsumoRows(event: FormEvent<HTMLInputElement>) {
+    const count = Math.max(1, Number.parseInt(event.currentTarget.value, 10) || 1)
+    setInsumoRows((current) => current.length === count
+      ? current
+      : Array.from({ length: count }, (_, index) => index + 1))
+  }
+
   return (
     <section className="panel">
       <h2>Preenchimento</h2>
-      <form className="form-grid" onSubmit={handleSubmit}>
+      <form className="form-grid" data-draft-key="producao:formulacao-queijo:nova" onSubmit={handleSubmit}>
         <input name="data_formulacao" type="hidden" value={today()} />
+        <input name="__draft_insumo_rows" type="hidden" value={insumoRows.length} readOnly onInput={restoreInsumoRows} />
         <label>
           Tipo de queijo
           <select name="tipo_queijo" required>
@@ -78,7 +86,7 @@ export function PreenchimentoFormulacaoQueijo({
                 <span>Insumo {index + 1}</span>
                 <label>
                   Tipo
-                  <select value={selectedInsumos[rowId] ?? ''} onChange={(event) => setSelectedInsumos((current) => ({ ...current, [rowId]: event.target.value }))}>
+                  <select name="insumo_catalogo_id" value={selectedInsumos[rowId] ?? ''} onChange={(event) => setSelectedInsumos((current) => ({ ...current, [rowId]: event.target.value }))}>
                     <option value="">Selecionar</option>
                     {catalogos.insumos.map((item) => (
                       <option key={item.id} value={item.id}>{item.nome}</option>

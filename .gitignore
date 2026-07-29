@@ -51,10 +51,10 @@ database/
 docs/
 .codex-tmp/
 .local-tools/
-graphify-out/
+graphify-out*/
 .agents/
 .continue/
-\index.html
+/index.html
 dash/
 
 !pwa-producao/

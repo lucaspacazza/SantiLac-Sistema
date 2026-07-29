@@ -33,7 +33,10 @@ class PasteurizadorController extends Controller
 
     public function criarColeta(Request $request): JsonResponse
     {
-        set_time_limit(240);
+        set_time_limit(max(
+            (int) config('services.pasteurizador.timeout_seconds', 7200),
+            1
+        ));
 
         $payload = $request->validate([
             'source' => ['nullable', 'string', 'max:80'],

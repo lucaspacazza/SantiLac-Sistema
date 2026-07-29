@@ -1,14 +1,30 @@
 #!/usr/bin/env python3
 import json
+import os
 import subprocess
 import tempfile
 import threading
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from collect_and_post import DEFAULT_ENV_FILE, load_env
+
 LOCK = threading.Lock()
 BASE_COMMAND = ["/usr/bin/python3", "/opt/santilac-pasteurizador-processor/collect_and_post.py"]
 PDF_COMMAND = ["/usr/bin/python3", "/opt/santilac-pasteurizador-processor/export_chart_pdf.py"]
+DEFAULT_COLLECTION_TIMEOUT_SECONDS = 7200
+
+
+def collection_timeout_seconds():
+    env_path = os.environ.get("PASTEURIZADOR_ENV", DEFAULT_ENV_FILE)
+    env = {**load_env(env_path), **os.environ}
+    try:
+        return max(
+            int(env.get("PASTEURIZADOR_COLLECTION_TIMEOUT_SECONDS", DEFAULT_COLLECTION_TIMEOUT_SECONDS)),
+            1,
+        )
+    except (TypeError, ValueError):
+        return DEFAULT_COLLECTION_TIMEOUT_SECONDS
 
 
 def normalize_time(value, fallback):
@@ -124,7 +140,13 @@ class Handler(BaseHTTPRequestHandler):
         try:
             payload = self._read_json()
             command = command_from_payload(payload)
-            result = subprocess.run(command, cwd="/opt/santilac-pasteurizador-processor", text=True, capture_output=True, timeout=300)
+            result = subprocess.run(
+                command,
+                cwd="/opt/santilac-pasteurizador-processor",
+                text=True,
+                capture_output=True,
+                timeout=collection_timeout_seconds(),
+            )
             self._send_json(200 if result.returncode == 0 else 500, {
                 "ok": result.returncode == 0,
                 "returncode": result.returncode,

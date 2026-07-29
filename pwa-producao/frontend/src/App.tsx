@@ -44,10 +44,12 @@ import {
   draftFieldCount,
   draftFieldValue,
   readFormDraft,
+  snapshotActiveFormDrafts,
 } from './drafts'
 import { KioskSelect, type KioskSelectOption } from './KioskSelect'
 import { TimeWheelInput } from './TimeWheelPicker'
 import { PRODUCTION_WORKFLOWS, type View, type WorkflowId } from './workflows'
+import { readWorkspaceState, saveWorkspaceState, type ProductionWorkspaceState } from './workspace'
 
 type AuthState = 'booting' | 'guest' | 'authenticated'
 type LoadState = 'loading' | 'ready' | 'error' | 'saving'
@@ -71,7 +73,6 @@ const analysisOptions: KioskSelectOption[] = [
   { value: 'positivo', label: 'Positivo' },
   { value: 'nao_aplicavel', label: 'Não aplicável' },
 ]
-const SESSION_CHECK_INTERVAL = 30_000
 const DEFAULT_SESSION_TIMEOUT_MS = 120 * 60 * 1000
 const DraftOwnerContext = createContext('anonymous')
 
@@ -184,6 +185,28 @@ export function App() {
   const cheeseSavingRef = useRef(false)
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null)
   const confirmationResolverRef = useRef<((answer: boolean) => void) | null>(null)
+  const currentUserRef = useRef<AuthUser | null>(null)
+  const workspaceHydratedOwnerRef = useRef<string | null>(null)
+  const workspaceStateRef = useRef<Omit<ProductionWorkspaceState, 'version' | 'userId' | 'updatedAt'>>({
+    view: 'inicio',
+    date,
+    orderEditorOpen: false,
+    activeOrderId: null,
+    cheeseEditorOpen: false,
+    activeCheeseFormulaId: null,
+    scrollY: 0,
+  })
+
+  currentUserRef.current = user
+  workspaceStateRef.current = {
+    view,
+    date,
+    orderEditorOpen,
+    activeOrderId: activeOrder?.id ?? null,
+    cheeseEditorOpen,
+    activeCheeseFormulaId: activeCheeseFormula?.id ?? null,
+    scrollY: window.scrollY,
+  }
 
   function askConfirmation(request: ConfirmationRequest): Promise<boolean> {
     confirmationResolverRef.current?.(false)
@@ -201,9 +224,107 @@ export function App() {
     resolve?.(answer)
   }
 
+  function persistWorkspace(owner = currentUserRef.current) {
+    if (!owner) return
+    saveWorkspaceState(owner.id, {
+      ...workspaceStateRef.current,
+      scrollY: window.scrollY,
+    })
+  }
+
+  function restoreWorkspaceScroll(scrollY: number) {
+    let pass = 0
+    const restore = () => {
+      window.scrollTo({ top: scrollY, left: 0, behavior: 'auto' })
+      pass += 1
+      if (pass < 3) window.requestAnimationFrame(restore)
+    }
+    window.requestAnimationFrame(restore)
+  }
+
+  async function resumeWorkspace(owner: AuthUser) {
+    const ownerId = String(owner.id)
+    workspaceHydratedOwnerRef.current = null
+    const saved = readWorkspaceState(owner.id)
+    const savedView = saved && (saved.view === 'inicio' || PRODUCTION_WORKFLOWS.some(({ id }) => id === saved.view))
+      ? saved.view as View
+      : 'inicio'
+    const nextDate = saved?.date || today()
+
+    setView(savedView)
+    setDate(nextDate)
+    setOrderEditorOpen(saved?.orderEditorOpen ?? false)
+    setActiveOrder(null)
+    setCheeseEditorOpen(saved?.cheeseEditorOpen ?? false)
+    setActiveCheeseFormula(null)
+
+    const loaded = await loadBase(nextDate)
+    let restoredOrderId: number | null = null
+    if (saved?.activeOrderId) {
+      try {
+        const restoredOrder = await producaoApi.ordemProducao(saved.activeOrderId)
+        restoredOrderId = restoredOrder.id
+        setActiveOrder(restoredOrder)
+      } catch {
+        setActiveOrder(null)
+      }
+    }
+    let restoredFormulaId: number | null = null
+    if (saved?.activeCheeseFormulaId) {
+      const formula = loaded?.openFormulas.find(({ id }) => id === saved.activeCheeseFormulaId) ?? null
+      restoredFormulaId = formula?.id ?? null
+      setActiveCheeseFormula(formula)
+      if (!formula) setCheeseEditorOpen(false)
+    }
+
+    workspaceStateRef.current = {
+      view: savedView,
+      date: nextDate,
+      orderEditorOpen: saved?.orderEditorOpen ?? false,
+      activeOrderId: restoredOrderId,
+      cheeseEditorOpen: (saved?.cheeseEditorOpen ?? false) && (saved?.activeCheeseFormulaId ? restoredFormulaId !== null : true),
+      activeCheeseFormulaId: restoredFormulaId,
+      scrollY: saved?.scrollY ?? 0,
+    }
+    workspaceHydratedOwnerRef.current = ownerId
+    saveWorkspaceState(owner.id, workspaceStateRef.current)
+    restoreWorkspaceScroll(saved?.scrollY ?? 0)
+  }
+
+  function navigateTo(nextView: View) {
+    if (view === nextView) return
+    snapshotActiveFormDrafts()
+    persistWorkspace()
+    setView(nextView)
+  }
+
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, [view])
+
+  useEffect(() => {
+    if (authState !== 'authenticated' || !user) return
+    if (workspaceHydratedOwnerRef.current !== String(user.id)) return
+    persistWorkspace(user)
+  }, [
+    activeCheeseFormula?.id,
+    activeOrder?.id,
+    authState,
+    cheeseEditorOpen,
+    date,
+    orderEditorOpen,
+    user,
+    view,
+  ])
+
+  useEffect(() => {
+    const snapshotWorkspace = () => {
+      snapshotActiveFormDrafts()
+      persistWorkspace()
+    }
+    window.addEventListener('pagehide', snapshotWorkspace)
+    return () => window.removeEventListener('pagehide', snapshotWorkspace)
+  }, [])
 
   const summary = useMemo(() => [
     { label: 'OPs do dia', value: ordens.length },
@@ -233,9 +354,11 @@ export function App() {
       setOpenCheeseFormulas(openFormulas.items)
       setState('ready')
       setMessage('')
+      return { openFormulas: openFormulas.items }
     } catch (error) {
       setState('error')
       setMessage(error instanceof Error ? error.message : 'Não foi possível carregar a produção.')
+      return null
     }
   }
 
@@ -249,7 +372,7 @@ export function App() {
           setUser(session.user)
           setSessionTimeoutMs(timeoutFromSession(session))
           setAuthState('authenticated')
-          await loadBase()
+          await resumeWorkspace(session.user)
           return
         }
       } catch {
@@ -266,17 +389,34 @@ export function App() {
   useEffect(() => {
     if (authState !== 'authenticated') return
     let checking = false
+    let expiryTimer: number | null = null
 
     const requireLogin = () => {
+      snapshotActiveFormDrafts()
+      persistWorkspace()
       setSessionExpired(true)
       setState('ready')
       setMessage('Sessão expirada. Entre novamente para continuar de onde parou.')
     }
+    const scheduleLocalExpiry = () => {
+      if (expiryTimer !== null) window.clearTimeout(expiryTimer)
+      const remaining = Math.max(
+        0,
+        sessionTimeoutMs - (Date.now() - lastSessionActivityRef.current),
+      )
+      expiryTimer = window.setTimeout(requireLogin, remaining)
+    }
     const noteSessionActivity = () => {
       lastSessionActivityRef.current = Date.now()
+      scheduleLocalExpiry()
     }
     const checkLocalExpiry = () => {
-      if (Date.now() - lastSessionActivityRef.current >= sessionTimeoutMs) requireLogin()
+      if (Date.now() - lastSessionActivityRef.current >= sessionTimeoutMs) {
+        requireLogin()
+        return true
+      }
+      scheduleLocalExpiry()
+      return false
     }
     const checkSession = async () => {
       if (checking || sessionExpired) return
@@ -297,17 +437,17 @@ export function App() {
       }
     }
     const checkWhenVisible = () => {
-      if (document.visibilityState === 'visible') void checkSession()
+      if (document.visibilityState !== 'visible') return
+      if (!checkLocalExpiry()) void checkSession()
     }
     noteSessionActivity()
-    const interval = window.setInterval(checkLocalExpiry, SESSION_CHECK_INTERVAL)
 
     window.addEventListener(AUTH_EXPIRED_EVENT, requireLogin)
     window.addEventListener(SESSION_ACTIVITY_EVENT, noteSessionActivity)
     window.addEventListener('focus', checkSession)
     document.addEventListener('visibilitychange', checkWhenVisible)
     return () => {
-      window.clearInterval(interval)
+      if (expiryTimer !== null) window.clearTimeout(expiryTimer)
       window.removeEventListener(AUTH_EXPIRED_EVENT, requireLogin)
       window.removeEventListener(SESSION_ACTIVITY_EVENT, noteSessionActivity)
       window.removeEventListener('focus', checkSession)
@@ -323,16 +463,22 @@ export function App() {
 
     try {
       const resumingExpiredSession = sessionExpired
+      const previousUserId = currentUserRef.current?.id ?? null
       const result = await authApi.login(field(form, 'login'), field(form, 'password'), true)
+      const sameUser = previousUserId !== null && String(previousUserId) === String(result.user.id)
       setUser(result.user)
       setSessionTimeoutMs(timeoutFromSession(result))
       setAuthState('authenticated')
       setSessionExpired(false)
-      if (resumingExpiredSession) {
+      if (sameUser) {
+        workspaceHydratedOwnerRef.current = String(result.user.id)
         setState('ready')
-        setMessage('Sessão renovada. Seu preenchimento foi mantido.')
+        setMessage(resumingExpiredSession
+          ? 'Sessão renovada. Seu preenchimento foi mantido.'
+          : 'Sessão iniciada. Você voltou exatamente de onde parou.')
+        persistWorkspace(result.user)
       } else {
-        await loadBase()
+        await resumeWorkspace(result.user)
       }
     } catch {
       setLoginError('Usuário ou senha incorretos.')
@@ -344,28 +490,24 @@ export function App() {
   async function logout() {
     setState('saving')
     setMessage('Encerrando sessão')
+    snapshotActiveFormDrafts()
+    persistWorkspace()
 
     try {
       await authApi.logout()
-      setUser(null)
-      setAuthState('guest')
-      setSessionExpired(false)
-      setView('inicio')
-      setMessage('')
-      setLoginError(null)
-      setOverview(null)
-      setOrdens([])
-      setOpenOrders([])
-      setOpenCheeseFormulas([])
-      setActiveOrder(null)
-      setActiveCheeseFormula(null)
-    } catch (error) {
-      setState('error')
-      setMessage(error instanceof Error ? error.message : 'Não foi possível sair.')
+    } catch {
+      // The local session must close even when the server is unavailable.
     }
+    setAuthState('guest')
+    setSessionExpired(false)
+    setState('ready')
+    setMessage('')
+    setLoginError(null)
   }
 
   async function changeDate(nextDate: string) {
+    snapshotActiveFormDrafts()
+    persistWorkspace()
     setDate(nextDate)
     await loadBase(nextDate)
   }
@@ -473,6 +615,7 @@ export function App() {
 
     try {
       await producaoApi.finalizarOrdemProducao(activeOrder.id)
+      clearFormDraft(`${String(user?.id ?? 'anonymous')}:ordem-producao:edicao:${activeOrder.id}`)
       await loadBase(activeOrder.data ?? date)
       setActiveOrder(null)
       setMessage('OP finalizada')
@@ -494,6 +637,7 @@ export function App() {
 
     try {
       await producaoApi.definirFormatoOrdemProducao(activeOrder.id, format)
+      clearFormDraft(`${String(user?.id ?? 'anonymous')}:ordem-producao:edicao:${activeOrder.id}`)
       await loadBase(activeOrder.data ?? date)
       setActiveOrder(null)
       setMessage('Formato definido e OP finalizada')
@@ -515,6 +659,7 @@ export function App() {
 
     try {
       const updated = await producaoApi.atualizarOrdemProducao(activeOrder.id, payload)
+      clearFormDraft(`${String(user?.id ?? 'anonymous')}:ordem-producao:edicao:${activeOrder.id}`)
       setActiveOrder(updated)
       setDate(payload.data)
       await loadBase(payload.data)
@@ -545,6 +690,7 @@ export function App() {
 
     try {
       await producaoApi.cancelarOrdemProducao(activeOrder.id)
+      clearFormDraft(`${String(user?.id ?? 'anonymous')}:ordem-producao:edicao:${activeOrder.id}`)
       await loadBase(activeOrder.data ?? date)
       setActiveOrder(null)
       setMessage('OP excluída')
@@ -743,7 +889,7 @@ export function App() {
     await finishSave(event, payload.data_fabricacao, () => producaoApi.criarProducaoCreme(payload), producaoApi.finalizarProducaoCreme)
   }
 
-  if (authState !== 'authenticated') {
+  if (!user) {
     return (
       <main className="factory-auth">
         <form className="auth-panel" onSubmit={login}>
@@ -764,10 +910,10 @@ export function App() {
   }
 
   return (
-    <DraftOwnerContext.Provider value={String(user?.id ?? 'anonymous')}>
-    <div className="factory-shell" aria-hidden={sessionExpired || undefined}>
+    <DraftOwnerContext.Provider key={String(user.id)} value={String(user.id)}>
+    <div className="factory-shell" aria-hidden={sessionExpired || authState === 'guest' || undefined}>
       <aside className="process-rail" aria-label="Processos da produção">
-        <button className={`rail-home ${view === 'inicio' ? 'is-active' : ''}`} type="button" onClick={() => setView('inicio')} aria-label="Início">
+        <button className={`rail-home ${view === 'inicio' ? 'is-active' : ''}`} type="button" onClick={() => navigateTo('inicio')} aria-label="Início">
           <Home size={23} />
         </button>
         <div className="rail-divider" />
@@ -776,11 +922,7 @@ export function App() {
             className={view === workflow.id ? 'is-active' : ''}
             key={workflow.id}
             type="button"
-            onClick={() => {
-              if (workflow.id === 'ordens') { setOrderEditorOpen(false); setActiveOrder(null) }
-              if (workflow.id === 'queijo') { setCheeseEditorOpen(false); setActiveCheeseFormula(null) }
-              setView(workflow.id)
-            }}
+            onClick={() => navigateTo(workflow.id)}
           >
             {workflowIcon(workflow.id)}
             <span>{workflow.shortLabel}</span>
@@ -821,7 +963,7 @@ export function App() {
               <section className="work-list">
                 <div className="section-heading">
                   <div><span className="section-kicker">Hoje</span><h1>Ordens de produção</h1></div>
-                  <button className="compact-button" type="button" onClick={() => { setActiveOrder(null); setOrderEditorOpen(true); setView('ordens') }}><Plus size={18} />Nova OP</button>
+                  <button className="compact-button" type="button" onClick={() => { setActiveOrder(null); setOrderEditorOpen(true); navigateTo('ordens') }}><Plus size={18} />Nova OP</button>
                 </div>
                 <div className="order-list">
                   {ordens.length === 0 ? (
@@ -839,11 +981,7 @@ export function App() {
               <aside className="launch-list">
                 <div className="section-heading"><div><span className="section-kicker">Novo</span><h2>Lançamento</h2></div></div>
                 {PRODUCTION_WORKFLOWS.map((workflow) => (
-                  <button key={workflow.id} type="button" onClick={() => {
-                    if (workflow.id === 'ordens') { setOrderEditorOpen(false); setActiveOrder(null) }
-                    if (workflow.id === 'queijo') { setCheeseEditorOpen(false); setActiveCheeseFormula(null) }
-                    setView(workflow.id)
-                  }}>
+                  <button key={workflow.id} type="button" onClick={() => navigateTo(workflow.id)}>
                     <span className="launch-icon">{workflowIcon(workflow.id, 20)}</span>
                     <strong>{workflow.label}</strong>
                     <ChevronRight size={19} />
@@ -868,7 +1006,7 @@ export function App() {
         ) : orderEditorOpen ? (
           <OrderForm key={`${view}-${date}`} date={date} catalogs={orderCatalogs} busy={state === 'saving'} onBack={() => setOrderEditorOpen(false)} onSubmit={saveOrdem} />
         ) : (
-          <OpenOrderList items={openOrders} onBack={() => setView('inicio')} onCreate={() => setOrderEditorOpen(true)} onOpen={(id) => void openOrder(id)} />
+          <OpenOrderList items={openOrders} onBack={() => navigateTo('inicio')} onCreate={() => setOrderEditorOpen(true)} onOpen={(id) => void openOrder(id)} />
         ))}
         {view === 'queijo' && (cheeseEditorOpen ? (
           <CheeseForm
@@ -884,23 +1022,24 @@ export function App() {
         ) : (
           <CheeseFormulaList
             items={openCheeseFormulas}
-            onBack={() => setView('inicio')}
+            onBack={() => navigateTo('inicio')}
             onCreate={() => { setActiveCheeseFormula(null); setCheeseEditorOpen(true) }}
             onEdit={(item) => { setActiveCheeseFormula(item); setCheeseEditorOpen(true) }}
           />
         ))}
-        {view === 'soro' && <SoroForm key={`${view}-${date}`} date={date} onBack={() => setView('inicio')} onSubmit={saveSoro} />}
-        {view === 'formulacao-creme' && <CreamFormulaForm key={`${view}-${date}`} date={date} onBack={() => setView('inicio')} onSubmit={saveFormulacaoCreme} />}
-        {view === 'producao-creme' && <CreamProductionForm key={`${view}-${date}`} date={date} onBack={() => setView('inicio')} onSubmit={saveProducaoCreme} />}
+        {view === 'soro' && <SoroForm key={`${view}-${date}`} date={date} onBack={() => navigateTo('inicio')} onSubmit={saveSoro} />}
+        {view === 'formulacao-creme' && <CreamFormulaForm key={`${view}-${date}`} date={date} onBack={() => navigateTo('inicio')} onSubmit={saveFormulacaoCreme} />}
+        {view === 'producao-creme' && <CreamProductionForm key={`${view}-${date}`} date={date} onBack={() => navigateTo('inicio')} onSubmit={saveProducaoCreme} />}
       </main>
       {confirmation && <ConfirmationDialog request={confirmation} onAnswer={answerConfirmation} />}
     </div>
-    {sessionExpired && <ReauthDialog loading={isLoggingIn} error={loginError} onSubmit={login} />}
+    {(sessionExpired || authState === 'guest') && <ReauthDialog expired={sessionExpired} loading={isLoggingIn} error={loginError} onSubmit={login} />}
     </DraftOwnerContext.Provider>
   )
 }
 
-function ReauthDialog({ loading, error, onSubmit }: {
+function ReauthDialog({ expired, loading, error, onSubmit }: {
+  expired: boolean
   loading: boolean
   error: string | null
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
@@ -909,8 +1048,8 @@ function ReauthDialog({ loading, error, onSubmit }: {
     <main className="factory-auth reauth-backdrop" role="dialog" aria-modal="true" aria-labelledby="reauth-title">
       <form className="auth-panel" onSubmit={onSubmit}>
         <img className="auth-logo" src="https://sistema.santilac.com.br/assets/img/logo.png" alt="Santi'Lac" />
-        <h1 id="reauth-title">Sessão expirada</h1>
-        <p>Seu preenchimento está salvo. Entre novamente para continuar.</p>
+        <h1 id="reauth-title">{expired ? 'Sessão expirada' : 'Sessão encerrada'}</h1>
+        <p>Seu preenchimento está salvo. Entre novamente para continuar exatamente de onde parou.</p>
         <label>Usuário<input name="login" autoComplete="username" required autoFocus /></label>
         <label>Senha<input name="password" type="password" autoComplete="current-password" required /></label>
         {error && <span className="form-error">{error}</span>}
@@ -1026,17 +1165,38 @@ function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onDefineForm
   onDefineFormat: (format: 'f1' | 'f4' | 'f6') => void
   onCancel: () => void
 }) {
+  const draftKey = useDraftKey(`ordem-producao:edicao:${order.id}`)
+  const formRef = useRef<HTMLFormElement>(null)
   const editable = order.status === 'rascunho'
-  const [editDate, setEditDate] = useState(order.data ?? '')
-  const [editFields, setEditFields] = useState(order.campos)
+  const initialDraft = readFormDraft(draftKey)
+  const [editDate, setEditDate] = useState(draftFieldValue(initialDraft, 'ordem_data') ?? order.data ?? '')
+  const [editFields, setEditFields] = useState(() => order.campos.map((campo, index) => ({
+    ...campo,
+    valor: draftFieldValue(initialDraft, 'ordem_campo_valor', index) ?? campo.valor,
+  })))
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [mozzarellaFormat, setMozzarellaFormat] = useState<'f1' | 'f4' | 'f6'>('f4')
+  const [mozzarellaFormat, setMozzarellaFormat] = useState<'f1' | 'f4' | 'f6'>(
+    (draftFieldValue(initialDraft, 'ordem_formato') as 'f1' | 'f4' | 'f6' | undefined) ?? 'f4',
+  )
 
   useEffect(() => {
-    setEditDate(order.data ?? '')
-    setEditFields(order.campos)
-    setHasUnsavedChanges(false)
-  }, [order])
+    const draft = readFormDraft(draftKey)
+    setEditDate(draftFieldValue(draft, 'ordem_data') ?? order.data ?? '')
+    setEditFields(order.campos.map((campo, index) => ({
+      ...campo,
+      valor: draftFieldValue(draft, 'ordem_campo_valor', index) ?? campo.valor,
+    })))
+    setMozzarellaFormat(
+      (draftFieldValue(draft, 'ordem_formato') as 'f1' | 'f4' | 'f6' | undefined) ?? 'f4',
+    )
+    setHasUnsavedChanges(draft !== null)
+  }, [draftKey, order])
+
+  useEffect(() => {
+    const form = formRef.current
+    if (!form) return
+    return bindFormDraft(form, draftKey)
+  }, [draftKey])
 
   function updateField(index: number, value: string) {
     setHasUnsavedChanges(true)
@@ -1054,7 +1214,7 @@ function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onDefineForm
   }
 
   return (
-    <section className="formula-module order-detail">
+    <form ref={formRef} className="formula-module order-detail" data-draft-key={draftKey} onSubmit={(event) => event.preventDefault()}>
       <div className="form-heading formula-module-heading">
         <button className="back-button" type="button" onClick={onBack}><ArrowLeft size={20} />Voltar</button>
         <div><span className="section-kicker">OP</span><h1>{order.codigo_ordem}</h1></div>
@@ -1063,7 +1223,7 @@ function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onDefineForm
         <div className="order-detail-summary">
           <div>
             <span>Data</span>
-            {editable ? <DateInput value={editDate} required onChange={updateOrderDate} /> : <strong>{order.data ? formatDateInput(order.data) : 'Sem data'}</strong>}
+            {editable ? <DateInput name="ordem_data" value={editDate} required onChange={updateOrderDate} /> : <strong>{order.data ? formatDateInput(order.data) : 'Sem data'}</strong>}
           </div>
           <div><span>Origem</span><strong>{order.manual ? 'Manual' : 'Formulação'}</strong></div>
           <div><span>Status</span><strong>{order.status.replace('_', ' ')}</strong></div>
@@ -1073,7 +1233,7 @@ function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onDefineForm
             <div key={`${campo.rotulo}-${index}`}>
               <span>{campo.rotulo}</span>
               {editable ? (
-                <input aria-label={campo.rotulo} value={campo.valor ?? ''} onChange={(event) => updateField(index, event.target.value)} />
+                <input name="ordem_campo_valor" aria-label={campo.rotulo} value={campo.valor ?? ''} onChange={(event) => updateField(index, event.target.value)} />
               ) : (
                 <strong>{campo.valor || '—'}</strong>
               )}
@@ -1086,6 +1246,7 @@ function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onDefineForm
           <label>
             <span>Formato da mussarela</span>
             <KioskSelect
+              name="ordem_formato"
               ariaLabel="Formato da mussarela"
               value={mozzarellaFormat}
               options={formatOptions}
@@ -1128,7 +1289,7 @@ function OpenOrderDetail({ order, busy, onBack, onSave, onFinalize, onDefineForm
           )}
         </div>
       )}
-    </section>
+    </form>
   )
 }
 

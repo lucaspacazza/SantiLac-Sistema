@@ -11,7 +11,17 @@ from datetime import datetime, time as datetime_time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from fieldlogger_core import DEFAULT_HOST, DEFAULT_PORT, DEFAULT_UNIT_ID, download_history_file, extract_history_samples
+from fieldlogger_core import (
+    DEFAULT_HOST,
+    DEFAULT_MAX_BYTES,
+    DEFAULT_PORT,
+    DEFAULT_READ_RETRY_ATTEMPTS,
+    DEFAULT_READ_RETRY_DELAY_SECONDS,
+    DEFAULT_REQUEST_TIMEOUT_SECONDS,
+    DEFAULT_UNIT_ID,
+    download_history_file,
+    extract_history_samples,
+)
 
 APP_NAME = "santilac-pasteurizador"
 DEFAULT_ENV_FILE = "/etc/santilac-pasteurizador/processor.env"
@@ -386,11 +396,20 @@ def main():
     port = int(env.get("FIELDLOGGER_PORT", DEFAULT_PORT))
     unit_id = int(env.get("FIELDLOGGER_UNIT_ID", DEFAULT_UNIT_ID))
     equipment = env.get("EQUIPMENT_NAME", "pasteurizador")
-    max_bytes = int(env.get("FIELDLOGGER_MAX_BYTES", "8000000"))
+    max_bytes = int(env.get("FIELDLOGGER_MAX_BYTES", str(DEFAULT_MAX_BYTES)))
+    fieldlogger_request_timeout = float(
+        env.get("FIELDLOGGER_REQUEST_TIMEOUT_SECONDS", str(DEFAULT_REQUEST_TIMEOUT_SECONDS))
+    )
+    fieldlogger_read_retry_attempts = int(
+        env.get("FIELDLOGGER_READ_RETRY_ATTEMPTS", str(DEFAULT_READ_RETRY_ATTEMPTS))
+    )
+    fieldlogger_read_retry_delay = float(
+        env.get("FIELDLOGGER_READ_RETRY_DELAY_SECONDS", str(DEFAULT_READ_RETRY_DELAY_SECONDS))
+    )
     api_url = env.get("SANTILAC_API_URL", "").strip()
     api_token = env.get("SANTILAC_API_TOKEN", "").strip()
     sync_state_url = env.get("SANTILAC_SYNC_STATE_URL", "").strip()
-    http_timeout = int(env.get("SANTILAC_HTTP_TIMEOUT", "240"))
+    http_timeout = int(env.get("SANTILAC_HTTP_TIMEOUT", "7200"))
     out_dir = env.get("OUTBOX_DIR", "/var/lib/santilac-pasteurizador/outbox")
     post_empty_periods = env.get("POST_EMPTY_PERIODS", "1").strip().lower() in {"1", "true", "yes", "sim"}
     state_file = env.get("PASTEURIZADOR_STATE_FILE", DEFAULT_STATE_FILE)
@@ -420,7 +439,15 @@ def main():
 
     started = time.time()
     print(f"[{APP_NAME}] coletando historico {equipment} em {host}:{port} unit={unit_id} max_bytes={max_bytes}")
-    result = download_history_file(host=host, port=port, unit_id=unit_id, max_bytes=max_bytes)
+    result = download_history_file(
+        host=host,
+        port=port,
+        unit_id=unit_id,
+        max_bytes=max_bytes,
+        request_timeout=fieldlogger_request_timeout,
+        read_retry_attempts=fieldlogger_read_retry_attempts,
+        read_retry_delay_seconds=fieldlogger_read_retry_delay,
+    )
     all_samples, channels = extract_history_samples(result["data"])
     samples = filter_samples_by_period(all_samples, period_start, period_end)
     _, raw_path = write_outbox(out_dir, {"status": "raw_downloaded"}, result["data"])

@@ -46,6 +46,13 @@ export function PreenchimentoOrdemProducao({
     return catalogos.insumos.find((insumo) => String(insumo.id) === selectedInsumos[rowId]) ?? null
   }
 
+  function restoreInsumoRows(event: FormEvent<HTMLInputElement>) {
+    const count = Math.max(1, Number.parseInt(event.currentTarget.value, 10) || 1)
+    setInsumoRows((current) => current.length === count
+      ? current
+      : Array.from({ length: count }, (_, index) => index + 1))
+  }
+
   const produtoRotulo = selectedQueijo?.precisa_formato
     ? `PEÇAS ${selectedFormato.toUpperCase()}`
     : selectedQueijo?.op_rotulo ?? ''
@@ -61,7 +68,8 @@ export function PreenchimentoOrdemProducao({
         </button>
       </div>
 
-      <form className="op-manual-form" onSubmit={onCreate}>
+      <form className="op-manual-form" data-draft-key="producao:ordem-producao:nova" onSubmit={onCreate}>
+        <input name="__draft_insumo_rows" type="hidden" value={insumoRows.length} readOnly onInput={restoreInsumoRows} />
         <div className="op-create-head">
           <label>
             Data
@@ -69,7 +77,7 @@ export function PreenchimentoOrdemProducao({
           </label>
           <label>
             Queijo
-            <select value={selectedQueijoId} onChange={(event) => setSelectedQueijoId(event.target.value)} required>
+            <select name="produto_catalogo_id" value={selectedQueijoId} onChange={(event) => setSelectedQueijoId(event.target.value)} required>
               <option value="" disabled>Selecione</option>
               {catalogos.queijos.map((queijo) => (
                 <option key={queijo.id} value={queijo.id}>{queijo.nome}</option>
@@ -83,7 +91,7 @@ export function PreenchimentoOrdemProducao({
           {selectedQueijo?.precisa_formato && (
             <label>
               Formato
-              <select value={selectedFormato} onChange={(event) => setSelectedFormato(event.target.value)}>
+              <select name="produto_formato" value={selectedFormato} onChange={(event) => setSelectedFormato(event.target.value)}>
                 <option value="f1">F1</option>
                 <option value="f4">F4</option>
                 <option value="f6">F6</option>
@@ -109,6 +117,7 @@ export function PreenchimentoOrdemProducao({
                 <label>
                   Tipo
                   <select
+                    name="insumo_catalogo_id"
                     value={selectedInsumos[rowId] ?? ''}
                     onChange={(event) => setSelectedInsumos((current) => ({ ...current, [rowId]: event.target.value }))}
                   >

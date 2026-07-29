@@ -148,10 +148,13 @@ test('forces reauthentication as soon as the server reports an expired session',
   assert.match(api, /SESSION_ACTIVITY_EVENT/)
   assert.match(api, /response\.status\s*===\s*401/)
   assert.match(api, /response\.status\s*===\s*419/)
-  assert.match(app, /SESSION_CHECK_INTERVAL/)
   assert.match(app, /lastSessionActivityRef/)
-  assert.match(app, /Date\.now\(\)\s*-\s*lastSessionActivityRef\.current\s*>=\s*sessionTimeoutMs/)
-  assert.doesNotMatch(app, /setInterval\(\(\)\s*=>\s*void checkSession/)
+  assert.match(app, /scheduleLocalExpiry/)
+  assert.match(app, /window\.setTimeout\(/)
+  assert.match(app, /window\.clearTimeout\(/)
+  assert.doesNotMatch(app, /SESSION_CHECK_INTERVAL/)
+  assert.doesNotMatch(app, /setInterval\(/)
+  assert.match(app, /snapshotActiveFormDrafts\(\)/)
   assert.match(app, /visibilitychange/)
   assert.match(app, /ReauthDialog/)
 })
@@ -193,6 +196,34 @@ test('does not recreate a completed kiosk draft during pagehide cleanup', () => 
 
   assert.match(drafts, /const snapshot = \(\) => \{[\s\S]*?if \(committedDrafts\.has\(key\)\) return/)
   assert.match(drafts, /addEventListener\('pagehide', snapshot\)/)
+})
+
+test('snapshots the active PWA form before any module navigation can unmount it', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const drafts = readFileSync(new URL('./drafts.ts', import.meta.url), 'utf8')
+
+  assert.match(drafts, /activeDraftForms/)
+  assert.match(drafts, /export function snapshotActiveFormDrafts/)
+  assert.match(drafts, /if\s*\(!hydrated\s*&&\s*!dirty\)\s*return/)
+  assert.match(app, /function navigateTo/)
+  assert.match(app, /snapshotActiveFormDrafts\(\)/)
+  assert.match(app, /if\s*\(view\s*===\s*nextView\)\s*return/)
+})
+
+test('restores the exact PWA workspace for the same operator after logout or authentication expiry', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const workspace = readFileSync(new URL('./workspace.ts', import.meta.url), 'utf8')
+
+  assert.match(workspace, /saveWorkspaceState/)
+  assert.match(workspace, /readWorkspaceState/)
+  assert.match(workspace, /userId/)
+  assert.match(app, /persistWorkspace/)
+  assert.match(app, /resumeWorkspace/)
+  assert.match(app, /sameUser/)
+  const logout = app.match(/async function logout\(\) \{[\s\S]*?\n  \}/)?.[0] ?? ''
+  assert.doesNotMatch(logout, /setView\('inicio'\)/)
+  assert.doesNotMatch(logout, /setUser\(null\)/)
+  assert.match(app, /authState === 'guest'[\s\S]*ReauthDialog/)
 })
 
 test('all kiosk choices use the opaque custom list and can never open a native select popup', () => {

@@ -73,7 +73,7 @@ Route::withoutMiddleware($statelessApiMiddleware)
     });
 
 Route::post('/api/pasteurizador/coletas', [PasteurizadorController::class, 'criarColeta'])
-    ->middleware('throttle:6,1');
+    ->middleware(['coletas.mobile.key', 'throttle:6,1']);
 
 Route::get('/api/pasteurizador/sync-state', [PasteurizadorController::class, 'syncState'])
     ->middleware('coletas.mobile.key');

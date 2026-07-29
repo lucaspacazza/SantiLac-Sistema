@@ -12,8 +12,12 @@ export type FormDraft = {
 
 export const DRAFT_RESTORED_EVENT = 'santilac:draft-restored'
 const STORAGE_PREFIX = 'santilac:pwa-producao:draft:'
-const DEFAULT_MAX_AGE = 7 * 24 * 60 * 60 * 1_000
 const committedDrafts = new Set<string>()
+const activeDraftForms = new Map<HTMLFormElement, { key: string; snapshot: () => void }>()
+
+export function snapshotActiveFormDrafts(): void {
+  activeDraftForms.forEach(({ snapshot }) => snapshot())
+}
 
 export function draftFieldValue(draft: FormDraft | null, name: string, index = 0): string | undefined {
   return draft?.fields.filter((field) => field.name === name)[index]?.value
@@ -23,8 +27,8 @@ export function draftFieldCount(draft: FormDraft | null, name: string): number {
   return draft?.fields.filter((field) => field.name === name).length ?? 0
 }
 
-export function isDraftFresh(draft: FormDraft, now = Date.now(), maxAge = DEFAULT_MAX_AGE): boolean {
-  return now - draft.updatedAt <= maxAge
+export function isDraftFresh(draft: FormDraft): boolean {
+  return Number.isFinite(draft.updatedAt)
 }
 
 export function readFormDraft(key: string): FormDraft | null {
@@ -101,26 +105,44 @@ export function clearFormDraft(key: string | undefined): void {
 }
 
 export function bindFormDraft(form: HTMLFormElement, key: string): () => void {
-  const save = () => saveFormDraft(form, key)
+  let hydrated = false
+  let dirty = false
+  let restoring = false
+
+  const save = () => {
+    if (restoring) return
+    dirty = true
+    saveFormDraft(form, key)
+  }
   const snapshot = () => {
     if (committedDrafts.has(key)) return
+    if (!hydrated && !dirty) return
     saveFormDraft(form, key)
   }
   const restoreFrame = window.requestAnimationFrame(() => {
+    if (dirty) {
+      hydrated = true
+      return
+    }
+    restoring = true
     restoreFormDraft(form, key)
+    restoring = false
+    hydrated = true
   })
 
   form.addEventListener('input', save)
   form.addEventListener('change', save)
   window.addEventListener('pagehide', snapshot)
+  activeDraftForms.set(form, { key, snapshot })
 
   return () => {
     window.cancelAnimationFrame(restoreFrame)
     if (committedDrafts.has(key)) committedDrafts.delete(key)
-    else save()
+    else snapshot()
     form.removeEventListener('input', save)
     form.removeEventListener('change', save)
     window.removeEventListener('pagehide', snapshot)
+    activeDraftForms.delete(form)
   }
 }
 
