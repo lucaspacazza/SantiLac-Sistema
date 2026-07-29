@@ -1,7 +1,7 @@
 import { ChevronDown, Download, FileImage, FileText, RefreshCcw, Search } from 'lucide-react'
 import Plotly from 'plotly.js-dist-min'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Amostra, Coleta } from '../../api/pasteurizadorApi'
+import type { Amostra, Coleta, SerieAmostrasMeta } from '../../api/pasteurizadorApi'
 
 const CHANNEL_COLORS: Record<string, string> = {
   'Temp.Pasteuriza': '#f06b2f',
@@ -70,6 +70,9 @@ function useChartThemeMode() {
 export function HistoricoPasteurizacao({
   coletas,
   amostras,
+  seriesMeta,
+  seriesStale,
+  seriesCoverageWarning,
   coletaSelecionada,
   inicio,
   fim,
@@ -89,6 +92,9 @@ export function HistoricoPasteurizacao({
 }: {
   coletas: Coleta[]
   amostras: Amostra[]
+  seriesMeta: SerieAmostrasMeta | null
+  seriesStale: boolean
+  seriesCoverageWarning: string | null
   coletaSelecionada: Coleta | null
   inicio: string
   fim: string
@@ -106,15 +112,39 @@ export function HistoricoPasteurizacao({
   onRecarregar: () => void
   exportPdfUrl: string | null
 }) {
-  const valores = amostras.map((item) => item.valor)
-  const valoresCanalSelecionado = canal !== 'Todos' ? amostras.filter((item) => item.canal === canal).map((item) => item.valor) : []
-  const valoresTemperatura = amostras.filter((item) => item.canal === 'Temp.Pasteuriza').map((item) => item.valor)
-  const valoresEstatisticas = valoresCanalSelecionado.length
-    ? valoresCanalSelecionado
-    : (valoresTemperatura.length ? valoresTemperatura : valores)
-  const minimo = valoresEstatisticas.length ? Math.min(...valoresEstatisticas) : null
-  const maximo = valoresEstatisticas.length ? Math.max(...valoresEstatisticas) : null
-  const media = valoresEstatisticas.length ? valoresEstatisticas.reduce((total, valor) => total + valor, 0) / valoresEstatisticas.length : null
+  const estatisticas = useMemo(() => {
+    const canalEstatisticas = canal === 'Todos' ? 'Temp.Pasteuriza' : canal
+    const metaCanal = seriesMeta?.channels.find((item) => item.canal === canalEstatisticas)
+      ?? (canal === 'Todos' ? seriesMeta?.channels[0] : undefined)
+
+    if (metaCanal) {
+      return {
+        minimo: metaCanal.minimo,
+        maximo: metaCanal.maximo,
+        media: metaCanal.media,
+      }
+    }
+
+    const preferidas = amostras.filter((item) => item.canal === canalEstatisticas)
+    const fonte = preferidas.length ? preferidas : amostras
+    let minimo: number | null = null
+    let maximo: number | null = null
+    let soma = 0
+    let total = 0
+
+    for (const item of fonte) {
+      minimo = minimo === null || item.valor < minimo ? item.valor : minimo
+      maximo = maximo === null || item.valor > maximo ? item.valor : maximo
+      soma += item.valor
+      total += 1
+    }
+
+    return {
+      minimo,
+      maximo,
+      media: total ? soma / total : null,
+    }
+  }, [amostras, canal, seriesMeta])
   const canais = useMemo(() => Array.from(new Set([...canaisDisponiveis, ...amostras.map((item) => item.canal)])), [amostras, canaisDisponiveis])
   const chartRef = useRef<HTMLDivElement | null>(null)
   const imageFileName = `pasteurizador_grafico_${inicio || 'sem_inicio'}_${fim || 'sem_fim'}_${canal}`
@@ -173,10 +203,28 @@ export function HistoricoPasteurizacao({
           <ExportMenu pdfUrl={exportPdfUrl} onExportPng={exportarPng} />
         </div>
 
+        {seriesStale ? (
+          <div className="pasteurizador-series-notice is-warning" role="alert">
+            A atualização falhou. Este é o último gráfico carregado com sucesso; os dados não foram substituídos por uma resposta incompleta.
+          </div>
+        ) : null}
+
+        {seriesCoverageWarning ? (
+          <div className="pasteurizador-series-notice is-warning" role="alert">
+            {seriesCoverageWarning}
+          </div>
+        ) : null}
+
+        {seriesMeta?.reduced ? (
+          <div className="pasteurizador-series-notice" role="status">
+            Exibição otimizada: {seriesMeta.returned.toLocaleString('pt-BR')} pontos representam os {seriesMeta.source_total.toLocaleString('pt-BR')} registros de todo o período, preservando extremos e as duas pontas. O CSV continua completo.
+          </div>
+        ) : null}
+
         <div className="chart-stats">
-          <div><span>Média temp.</span><strong>{media === null ? '-' : `${media.toFixed(2)} C`}</strong></div>
-          <div><span>Mínima</span><strong>{minimo === null ? '-' : minimo.toFixed(2)}</strong></div>
-          <div><span>Máxima</span><strong>{maximo === null ? '-' : maximo.toFixed(2)}</strong></div>
+          <div><span>Média temp.</span><strong>{estatisticas.media === null ? '-' : `${estatisticas.media.toFixed(2)} C`}</strong></div>
+          <div><span>Mínima</span><strong>{estatisticas.minimo === null ? '-' : estatisticas.minimo.toFixed(2)}</strong></div>
+          <div><span>Máxima</span><strong>{estatisticas.maximo === null ? '-' : estatisticas.maximo.toFixed(2)}</strong></div>
         </div>
 
         <PlotlyTemperatureChart

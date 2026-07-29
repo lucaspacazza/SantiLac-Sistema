@@ -2,9 +2,14 @@
 Description=SantiLac pasteurizador - coleta historico pendente
 Wants=network-online.target
 After=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
 Environment=TZ=America/Sao_Paulo
-ExecStart=/usr/bin/python3 /opt/santilac-pasteurizador-processor/collect_and_post.py --catch-up --timezone America/Sao_Paulo
+ExecStart=/usr/bin/flock --nonblock --conflict-exit-code 75 /run/lock/santilac-pasteurizador.lock /usr/bin/python3 /opt/santilac-pasteurizador-processor/collect_and_post.py --catch-up --timezone America/Sao_Paulo
 WorkingDirectory=/opt/santilac-pasteurizador-processor
+StateDirectory=santilac-pasteurizador
+Restart=on-failure
+RestartSec=5min
+TimeoutStartSec=3h

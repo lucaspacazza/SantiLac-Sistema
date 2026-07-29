@@ -86,9 +86,28 @@ jobs:
           if has_change '^(pwa-producao/backend/)'; then echo "pwa_backend=true" >> "$GITHUB_OUTPUT"; else echo "pwa_backend=false" >> "$GITHUB_OUTPUT"; fi
           if has_change '^(processor/)'; then echo "processor=true" >> "$GITHUB_OUTPUT"; else echo "processor=false" >> "$GITHUB_OUTPUT"; fi
 
+  verify:
+    name: Validate test deploy gates
+    needs: detect
+    if: |
+      needs.detect.outputs.frontend == 'true' ||
+      needs.detect.outputs.backend == 'true' ||
+      needs.detect.outputs.pwa_backend == 'true' ||
+      needs.detect.outputs.processor == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run pasteurizer and deployment contracts
+        run: bash deploy/scripts/run-test-deploy-gates.sh
+
   deploy:
     name: Deploy testes
-    needs: detect
+    needs: [detect, verify]
     if: |
       needs.detect.outputs.frontend == 'true' ||
       needs.detect.outputs.backend == 'true' ||
@@ -109,6 +128,9 @@ jobs:
       PROCESSOR_SERVICES: "santilac-processor.service"
     steps:
       - uses: actions/checkout@v5
+
+      - name: Validate test container network
+        run: bash deploy/scripts/migrate-test-network.sh --check --connectivity
 
       - uses: actions/setup-node@v5
         if: needs.detect.outputs.frontend == 'true'

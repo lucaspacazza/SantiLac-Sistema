@@ -1,6 +1,7 @@
 [Unit]
 Description=SantiLac pasteurizador - gatilho HTTP do coletor
-After=network.target
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=simple
@@ -10,6 +11,8 @@ Restart=always
 RestartSec=3
 User=root
 Environment=PYTHONUNBUFFERED=1
+Environment=TZ=America/Sao_Paulo
+StateDirectory=santilac-pasteurizador
 
 [Install]
 WantedBy=multi-user.target

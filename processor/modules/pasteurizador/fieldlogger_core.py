@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 
-DEFAULT_HOST = "192.168.0.101"
+DEFAULT_HOST = "192.168.5.101"
 DEFAULT_PORT = 502
 DEFAULT_UNIT_ID = 1
 REMOTE_HISTORY_DIR = "2:/24085425"
@@ -14,16 +14,28 @@ REMOTE_HISTORY_FILE = f"{REMOTE_HISTORY_DIR}/MemFlash.fl"
 DOWNLOAD_CHUNK_SIZE = 1232
 DOWNLOAD_PAUSE_EVERY_CHUNKS = 50
 DOWNLOAD_PAUSE_SECONDS = 0.35
-DEFAULT_MAX_BYTES = 64 * 1024 * 1024
+# Zero means "use the complete size advertised by the FieldLogger".  A
+# positive value is only a safety ceiling and must never turn into a silent
+# prefix download, otherwise the graph freezes forever at the cutoff point.
+DEFAULT_MAX_BYTES = 0
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 30
 DEFAULT_READ_RETRY_ATTEMPTS = 10
 DEFAULT_READ_RETRY_DELAY_SECONDS = 1.0
+DEFAULT_SNAPSHOT_SYNC_ATTEMPTS = 5
 RECORD_START = 420
 RECORD_STRIDE = 36
 RECORD_MARKER = b"\x80\xff\x00\x00"
 
 
 class IncompleteHistoryDownload(RuntimeError):
+    pass
+
+
+class HistoryFileTooLarge(RuntimeError):
+    pass
+
+
+class InvalidHistoryFile(RuntimeError):
     pass
 
 
@@ -76,6 +88,7 @@ class FieldLoggerModbus:
         for attempt in range(3):
             try:
                 self.tid = (self.tid + 1) & 0xFFFF or 1
+                request_tid = self.tid
                 pdu = bytes([function]) + payload
                 packet = struct.pack(">HHHB", self.tid, 0, len(pdu) + 1, self.unit_id) + pdu
                 if self.sock is not None:
@@ -85,7 +98,7 @@ class FieldLoggerModbus:
                     header = self._recv_exact(sock, 7)
                     if len(header) != 7:
                         raise RuntimeError(f"Cabeçalho Modbus incompleto: {header.hex(' ')}")
-                    _, _, length, unit = struct.unpack(">HHHB", header)
+                    response_tid, protocol_id, length, unit = struct.unpack(">HHHB", header)
                     body = self._recv_exact(sock, length - 1)
                 else:
                     with socket.create_connection((self.host, self.port), timeout=timeout or self.timeout) as sock:
@@ -93,9 +106,18 @@ class FieldLoggerModbus:
                         sock.sendall(packet)
                         header = self._recv_exact(sock, 7)
                         if len(header) != 7:
-                            raise RuntimeError(f"Cabecalho Modbus incompleto: {header.hex(' ')}")
-                        _, _, length, unit = struct.unpack(">HHHB", header)
+                            raise RuntimeError(f"Cabeçalho Modbus incompleto: {header.hex(' ')}")
+                        response_tid, protocol_id, length, unit = struct.unpack(">HHHB", header)
                         body = self._recv_exact(sock, length - 1)
+                if response_tid != request_tid:
+                    raise RuntimeError(
+                        "Transaction id Modbus inesperado: "
+                        f"esperado {request_tid}, recebido {response_tid}"
+                    )
+                if protocol_id != 0:
+                    raise RuntimeError(f"Protocol id Modbus inesperado: {protocol_id}")
+                if length < 2:
+                    raise RuntimeError(f"Tamanho MBAP Modbus inválido: {length}")
                 if len(body) != length - 1:
                     raise RuntimeError(
                         "Corpo Modbus incompleto: "
@@ -112,6 +134,11 @@ class FieldLoggerModbus:
                         )
                     raise RuntimeError(
                         f"Função 0x{function:02X} retornou exceção 0x{body[1]:02X}"
+                    )
+                if body[0] != function:
+                    raise RuntimeError(
+                        "Função Modbus inesperada: "
+                        f"esperada 0x{function:02X}, recebida 0x{body[0]:02X}"
                     )
                 return body
             except (OSError, TimeoutError, RuntimeError) as exc:
@@ -130,7 +157,16 @@ class FieldLoggerModbus:
 
     def read_words(self, address, count):
         body = self.request(0x03, struct.pack(">HH", address, count))
-        raw = body[2 : 2 + body[1]]
+        if len(body) < 2:
+            raise RuntimeError("Resposta Modbus de registradores incompleta")
+        byte_count = body[1]
+        expected = count * 2
+        raw = body[2:]
+        if byte_count != expected or len(raw) != expected:
+            raise RuntimeError(
+                "Quantidade de registradores Modbus inesperada: "
+                f"esperados {expected} bytes, declarados {byte_count}, recebidos {len(raw)}"
+            )
         return [int.from_bytes(raw[index : index + 2], "big") for index in range(0, len(raw), 2)]
 
     def write_single(self, address, value):
@@ -155,7 +191,7 @@ class FieldLoggerModbus:
             if status == 0xFFFF:
                 return False
             time.sleep(0.05)
-        raise TimeoutError(f"Comando {value} nao finalizou")
+        raise TimeoutError(f"Comando {value} não finalizou")
 
     def read_file(self, offset, count):
         body = self.request(
@@ -236,9 +272,9 @@ def _decode_record_timestamp(record):
 def list_history_file(link, remote_dir=REMOTE_HISTORY_DIR):
     link.write_path(remote_dir)
     if not link.command(1):
-        raise RuntimeError(f"Equipamento nao abriu o diretorio {remote_dir}")
+        raise RuntimeError(f"Equipamento não abriu o diretório {remote_dir}")
     if not link.command(2):
-        raise RuntimeError(f"Equipamento nao retornou arquivo no diretorio {remote_dir}")
+        raise RuntimeError(f"Equipamento não retornou arquivo no diretório {remote_dir}")
     words = link.read_words(0x05AB, 13)
     raw = _words_to_little_bytes(words)
     name = raw[:16].split(b"\x00", 1)[0].decode("ascii", errors="replace")
@@ -302,9 +338,10 @@ def download_history_file(
     request_timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
     read_retry_attempts=DEFAULT_READ_RETRY_ATTEMPTS,
     read_retry_delay_seconds=DEFAULT_READ_RETRY_DELAY_SECONDS,
+    snapshot_sync_attempts=DEFAULT_SNAPSHOT_SYNC_ATTEMPTS,
 ):
-    if int(max_bytes) <= 0:
-        raise ValueError("max_bytes deve ser maior que zero")
+    max_bytes = int(max_bytes)
+    snapshot_sync_attempts = max(int(snapshot_sync_attempts), 1)
 
     link = FieldLoggerModbus(host, port, unit_id, timeout=float(request_timeout))
     try:
@@ -313,32 +350,74 @@ def download_history_file(
         name, size_hint = list_history_file(link)
         if name.lower() != "memflash.fl":
             raise RuntimeError(f"Arquivo interno inesperado: {name!r}")
+        if size_hint < RECORD_START:
+            raise InvalidHistoryFile(
+                f"Tamanho inválido de {REMOTE_HISTORY_FILE}: {size_hint} bytes"
+            )
+        if max_bytes > 0 and size_hint > max_bytes:
+            raise HistoryFileTooLarge(
+                f"{REMOTE_HISTORY_FILE} possui {size_hint} bytes e excede "
+                f"FIELDLOGGER_MAX_BYTES={max_bytes}; o download não será truncado."
+            )
         link.write_path(REMOTE_HISTORY_FILE)
         data = bytearray()
-        target_size = min(size_hint or max_bytes, max_bytes)
+        target_size = size_hint
         chunk_index = 0
-        while len(data) < target_size:
-            requested = min(DOWNLOAD_CHUNK_SIZE, target_size - len(data))
-            chunk = _read_history_chunk(
-                link,
-                len(data),
-                requested,
-                target_size,
-                read_retry_attempts,
-                read_retry_delay_seconds,
-            )
-            data.extend(chunk)
-            chunk_index += 1
-            if DOWNLOAD_PAUSE_EVERY_CHUNKS > 0 and chunk_index % DOWNLOAD_PAUSE_EVERY_CHUNKS == 0:
-                time.sleep(DOWNLOAD_PAUSE_SECONDS)
+        size_changed_during_download = False
+        sync_attempt = 0
+        while True:
+            while len(data) < target_size:
+                requested = min(DOWNLOAD_CHUNK_SIZE, target_size - len(data))
+                chunk = _read_history_chunk(
+                    link,
+                    len(data),
+                    requested,
+                    target_size,
+                    read_retry_attempts,
+                    read_retry_delay_seconds,
+                )
+                data.extend(chunk)
+                chunk_index += 1
+                if DOWNLOAD_PAUSE_EVERY_CHUNKS > 0 and chunk_index % DOWNLOAD_PAUSE_EVERY_CHUNKS == 0:
+                    time.sleep(DOWNLOAD_PAUSE_SECONDS)
+
+            sync_attempt += 1
+            latest_name, latest_size = list_history_file(link)
+            if latest_name.lower() != "memflash.fl":
+                raise RuntimeError(f"Arquivo interno inesperado: {latest_name!r}")
+            if max_bytes > 0 and latest_size > max_bytes:
+                raise HistoryFileTooLarge(
+                    f"{REMOTE_HISTORY_FILE} cresceu para {latest_size} bytes e excede "
+                    f"FIELDLOGGER_MAX_BYTES={max_bytes}; o download não será truncado."
+                )
+            if latest_size < len(data):
+                raise IncompleteHistoryDownload(
+                    "O histórico do FieldLogger rotacionou durante o download: "
+                    f"tamanho inicial {size_hint}, baixados {len(data)}, tamanho atual {latest_size}."
+                )
+            if latest_size == len(data):
+                break
+
+            size_changed_during_download = True
+            if sync_attempt >= snapshot_sync_attempts:
+                raise IncompleteHistoryDownload(
+                    "O histórico do FieldLogger continuou crescendo durante o download: "
+                    f"baixados {len(data)} de {latest_size} bytes após "
+                    f"{snapshot_sync_attempts} sincronizações."
+                )
+            target_size = latest_size
+            link.write_path(REMOTE_HISTORY_FILE)
+
         if len(data) != target_size:
             raise IncompleteHistoryDownload(
-                "Download incompleto do historico do FieldLogger: "
+                "Download incompleto do histórico do FieldLogger: "
                 f"recebidos {len(data)} de {target_size} bytes."
             )
         return {
             "remote_file": REMOTE_HISTORY_FILE,
             "directory_size_hint": size_hint,
+            "snapshot_size": target_size,
+            "size_changed_during_download": size_changed_during_download,
             "downloaded_at": datetime.now().isoformat(timespec="seconds"),
             "data": bytes(data),
         }

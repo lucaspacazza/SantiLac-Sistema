@@ -501,6 +501,22 @@
   gap: 14px;
 }
 
+.pasteurizador-series-notice {
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--primary) 9%, var(--panel));
+  color: var(--body);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pasteurizador-series-notice.is-warning {
+  border-color: color-mix(in srgb, #f59e0b 55%, var(--line));
+  background: color-mix(in srgb, #f59e0b 10%, var(--panel));
+  color: var(--text);
+}
+
 .pasteurizador-loading-overlay {
   position: fixed;
   inset: 0;

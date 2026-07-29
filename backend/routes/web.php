@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Cadastros\CadastrosController;
+use App\Http\Controllers\Api\Coletas\ColetasGestaoController;
 use App\Http\Controllers\Api\Coletas\Mobile\AppLogsController;
 use App\Http\Controllers\Api\Coletas\Mobile\AppVersionController;
 use App\Http\Controllers\Api\Coletas\Mobile\CatalogoController;
@@ -14,29 +15,28 @@ use App\Http\Controllers\Api\Coletas\Mobile\RotasGpsChunkController;
 use App\Http\Controllers\Api\Coletas\Mobile\RotasOpenRouteController;
 use App\Http\Controllers\Api\Coletas\Mobile\RotasStartController;
 use App\Http\Controllers\Api\Coletas\Mobile\RotasStopsBatchController;
-use App\Http\Controllers\Api\Coletas\ColetasGestaoController;
 use App\Http\Controllers\Api\Combustivel\CombustivelController;
 use App\Http\Controllers\Api\Dashboard\DashboardResumoController;
 use App\Http\Controllers\Api\Embalagem\EmbalagemController;
 use App\Http\Controllers\Api\Estoque\EstoqueController;
 use App\Http\Controllers\Api\Expedicao\ExpedicaoController;
 use App\Http\Controllers\Api\Pasteurizador\PasteurizadorController;
-use App\Http\Controllers\Api\ProdutorController;
-use App\Http\Controllers\Api\ProdutorApp\ProdutorAppController;
 use App\Http\Controllers\Api\Producao\FormulacaoCremeController;
 use App\Http\Controllers\Api\Producao\FormulacaoQueijoController;
 use App\Http\Controllers\Api\Producao\OrdemProducaoController;
 use App\Http\Controllers\Api\Producao\ProducaoController;
 use App\Http\Controllers\Api\Producao\ProducaoCremeController;
 use App\Http\Controllers\Api\Producao\SoroRefrigeradoController;
+use App\Http\Controllers\Api\ProdutorApp\ProdutorAppController;
+use App\Http\Controllers\Api\ProdutorController;
 use App\Http\Controllers\Api\Qualidade\QualidadeController;
 use App\Http\Controllers\Api\Qualidade\RelatoriosController;
 use App\Http\Controllers\Api\Qualidade\RelatoriosV2Controller;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 Route::prefix('api/auth')->group(function (): void {
@@ -218,6 +218,7 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
 
     Route::prefix('pasteurizador')->group(function (): void {
         Route::get('/overview', [PasteurizadorController::class, 'overview']);
+        Route::get('/cobertura', [PasteurizadorController::class, 'syncState']);
         Route::get('/coletas', [PasteurizadorController::class, 'coletas']);
         Route::post('/coletar-agora', [PasteurizadorController::class, 'coletarAgora']);
         Route::get('/coletas/{id}', [PasteurizadorController::class, 'coleta']);

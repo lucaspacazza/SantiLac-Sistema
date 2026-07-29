@@ -99,6 +99,78 @@ def value_bounds(values: list[float]) -> tuple[float, float]:
     return minimum - padding, maximum + padding
 
 
+def exact_series_statistics(
+    payload: dict[str, Any],
+    grouped: dict[str, list[tuple[float, float, datetime | None]]],
+    visible_channels: list[str],
+) -> tuple[float | None, float | None, float | None, int]:
+    """Prefer exact SQL aggregates over statistics from reduced chart points."""
+    series_meta = payload.get("series_meta")
+    channel_meta = (
+        series_meta.get("channels")
+        if isinstance(series_meta, dict)
+        else None
+    )
+    exact_by_channel: dict[str, dict[str, Any]] = {}
+    if isinstance(channel_meta, list):
+        for item in channel_meta:
+            if not isinstance(item, dict):
+                continue
+            channel = str(item.get("canal") or "").strip()
+            if channel:
+                exact_by_channel[channel] = item
+
+    exact_visible = [
+        exact_by_channel[channel]
+        for channel in visible_channels
+        if channel in exact_by_channel
+    ]
+    if exact_visible:
+        totals_and_averages: list[tuple[int, float]] = []
+        minima: list[float] = []
+        maxima: list[float] = []
+        for item in exact_visible:
+            try:
+                total = max(int(item.get("total") or 0), 0)
+                average = float(item.get("media"))
+                minimum = float(item.get("minimo"))
+                maximum = float(item.get("maximo"))
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(average) and total > 0:
+                totals_and_averages.append((total, average))
+            if math.isfinite(minimum):
+                minima.append(minimum)
+            if math.isfinite(maximum):
+                maxima.append(maximum)
+
+        exact_total = sum(total for total, _average in totals_and_averages)
+        exact_average = (
+            sum(total * average for total, average in totals_and_averages)
+            / exact_total
+            if exact_total > 0
+            else None
+        )
+        return (
+            exact_average,
+            min(minima) if minima else None,
+            max(maxima) if maxima else None,
+            exact_total,
+        )
+
+    visible_values = [
+        point[1]
+        for channel in visible_channels
+        for point in grouped.get(channel, [])
+    ]
+    return (
+        sum(visible_values) / len(visible_values) if visible_values else None,
+        min(visible_values) if visible_values else None,
+        max(visible_values) if visible_values else None,
+        len(visible_values),
+    )
+
+
 def draw_pdf(payload: dict[str, Any], output: Path) -> None:
     deps = load_reportlab()
     colors = deps["colors"]
@@ -141,10 +213,11 @@ def draw_pdf(payload: dict[str, Any], output: Path) -> None:
         x_max = x_min + 1.0
     y_min, y_max = value_bounds(y_values)
 
-    temp_values = [point[1] for point in grouped.get("Temp.Pasteuriza", [])] or y_values
-    avg_temp = sum(temp_values) / len(temp_values) if temp_values else None
-    min_value = min(y_values) if y_values else None
-    max_value = max(y_values) if y_values else None
+    average_value, min_value, max_value, exact_points = exact_series_statistics(
+        payload,
+        grouped,
+        visible_channels,
+    )
 
     margin_x = 16 * mm
     top = height - 15 * mm
@@ -158,10 +231,10 @@ def draw_pdf(payload: dict[str, Any], output: Path) -> None:
 
     stat_y = top - 36
     stats = [
-        ("Media temp.", decimal_br(avg_temp, " C")),
+        ("Media", decimal_br(average_value)),
         ("Minima", decimal_br(min_value)),
         ("Maxima", decimal_br(max_value)),
-        ("Pontos", f"{len(samples):,}".replace(",", ".")),
+        ("Pontos", f"{exact_points:,}".replace(",", ".")),
     ]
     stat_x = margin_x
     for label, value in stats:
@@ -284,4 +357,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-   

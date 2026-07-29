@@ -161,17 +161,26 @@ class ExtractHistorySamplesTests(unittest.TestCase):
 
 
 class DownloadHistoryFileTests(unittest.TestCase):
-    def run_download(self, link, payload):
+    def run_download(self, link, payload, max_bytes=None, size_hints=None):
+        hints = size_hints or [len(payload)]
+        list_results = [
+            ("MemFlash.fl", size)
+            for size in hints
+        ]
+        if len(list_results) == 1:
+            list_results = list_results * 2
         with (
             patch.object(core, "FieldLoggerModbus", return_value=link),
             patch.object(
                 core,
                 "list_history_file",
-                return_value=("MemFlash.fl", len(payload)),
+                side_effect=list_results,
             ),
             patch.object(core.time, "sleep", return_value=None),
         ):
-            return core.download_history_file(max_bytes=len(payload))
+            return core.download_history_file(
+                max_bytes=len(payload) if max_bytes is None else max_bytes
+            )
 
     def test_retries_same_offset_after_transient_empty_chunk(self):
         payload = bytes((index % 251 for index in range(3_000)))
@@ -206,6 +215,39 @@ class DownloadHistoryFileTests(unittest.TestCase):
 
         self.assertEqual(payload, result["data"])
         self.assertGreater(len(link.read_attempts), 3)
+
+    def test_zero_max_bytes_downloads_complete_advertised_file(self):
+        payload = bytes((index % 251 for index in range(3_000)))
+        link = FakeFieldLogger(payload)
+
+        result = self.run_download(link, payload, max_bytes=0)
+
+        self.assertEqual(payload, result["data"])
+
+    def test_rejects_size_above_positive_ceiling_instead_of_truncating(self):
+        payload = bytes((index % 251 for index in range(3_000)))
+        link = FakeFieldLogger(payload)
+
+        with self.assertRaisesRegex(core.HistoryFileTooLarge, "não será truncado"):
+            self.run_download(link, payload, max_bytes=2_000)
+
+        self.assertEqual({}, link.read_attempts)
+
+    def test_catches_up_bytes_appended_while_downloading(self):
+        original_size = 2_000
+        payload = bytes((index % 251 for index in range(3_000)))
+        link = FakeFieldLogger(payload)
+
+        result = self.run_download(
+            link,
+            payload,
+            max_bytes=0,
+            size_hints=[original_size, len(payload), len(payload)],
+        )
+
+        self.assertEqual(payload, result["data"])
+        self.assertTrue(result["size_changed_during_download"])
+        self.assertEqual(len(payload), result["snapshot_size"])
 
 
 class FieldLoggerRequestTimeoutTests(unittest.TestCase):

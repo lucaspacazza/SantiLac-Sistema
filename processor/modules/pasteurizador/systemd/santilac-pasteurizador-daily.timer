@@ -1,12 +1,14 @@
 [Unit]
-Description=SantiLac pasteurizador - agenda coleta de producao 04:00 America/Sao_Paulo
+Description=SantiLac pasteurizador - reconcilia coletas pendentes a cada hora
 
 [Timer]
-# CT105 esta em UTC; 07:00 UTC equivale a 04:00 em Brasilia.
-# Roda de segunda a sabado.
-# Segunda coleta sabado; domingo nao roda porque o pasteurizador fica desligado.
-OnCalendar=Mon..Sat *-*-* 07:00:00
+# O coletor consulta o ledger remoto antes de tocar no FieldLogger. Quando não
+# há lacunas, esta execução é apenas um GET leve; quando uma tentativa falha,
+# a próxima hora reconcilia automaticamente sem esperar o dia seguinte.
+OnCalendar=*-*-* *:05:00
 Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=30s
 Unit=santilac-pasteurizador-daily.service
 
 [Install]
