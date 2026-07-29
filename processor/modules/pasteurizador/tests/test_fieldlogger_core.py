@@ -1,8 +1,9 @@
 import sys
+import struct
 import unittest
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
@@ -208,6 +209,38 @@ class DownloadHistoryFileTests(unittest.TestCase):
 
 
 class FieldLoggerRequestTimeoutTests(unittest.TestCase):
+    def test_retries_transient_empty_modbus_response(self):
+        link = core.FieldLoggerModbus(timeout=30)
+        link.sock = MagicMock()
+        empty_header = struct.pack(">HHHB", 2, 0, 1, link.unit_id)
+        valid_body = b"\x03\x01\x00"
+        valid_header = struct.pack(
+            ">HHHB",
+            3,
+            0,
+            len(valid_body) + 1,
+            link.unit_id,
+        )
+
+        with (
+            patch.object(
+                link,
+                "_recv_exact",
+                side_effect=[
+                    empty_header,
+                    b"",
+                    valid_header,
+                    valid_body,
+                ],
+            ),
+            patch.object(link, "close", return_value=None),
+            patch.object(core.time, "sleep", return_value=None),
+        ):
+            result = link.request(0x03, b"\x00\x00\x00\x01")
+
+        self.assertEqual(valid_body, result)
+        self.assertEqual(2, link.sock.sendall.call_count)
+
     def test_history_chunk_uses_configured_socket_timeout(self):
         link = core.FieldLoggerModbus(timeout=30)
 
