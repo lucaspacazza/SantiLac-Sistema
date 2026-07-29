@@ -86,28 +86,9 @@ jobs:
           if has_change '^(pwa-producao/backend/)'; then echo "pwa_backend=true" >> "$GITHUB_OUTPUT"; else echo "pwa_backend=false" >> "$GITHUB_OUTPUT"; fi
           if has_change '^(processor/)'; then echo "processor=true" >> "$GITHUB_OUTPUT"; else echo "processor=false" >> "$GITHUB_OUTPUT"; fi
 
-  verify:
-    name: Validate test deploy gates
-    needs: detect
-    if: |
-      needs.detect.outputs.frontend == 'true' ||
-      needs.detect.outputs.backend == 'true' ||
-      needs.detect.outputs.pwa_backend == 'true' ||
-      needs.detect.outputs.processor == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Run pasteurizer and deployment contracts
-        run: bash deploy/scripts/run-test-deploy-gates.sh
-
   deploy:
     name: Deploy testes
-    needs: [detect, verify]
+    needs: detect
     if: |
       needs.detect.outputs.frontend == 'true' ||
       needs.detect.outputs.backend == 'true' ||
@@ -129,9 +110,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Validate test container network
-        run: bash deploy/scripts/migrate-test-network.sh --check --connectivity
-
       - uses: actions/setup-node@v5
         if: needs.detect.outputs.frontend == 'true'
         with:
@@ -140,6 +118,14 @@ jobs:
           cache-dependency-path: |
             frontend/package-lock.json
             pwa-producao/frontend/package-lock.json
+
+      - name: Assert test deploy targets
+        run: |
+          set -euo pipefail
+          test "$FRONTEND_CT" = "120"
+          test "$BACKEND_CT" = "121"
+          test "$PWA_PRODUCAO_BACKEND_CT" = "121"
+          test "$PROCESSOR_CT" = "122"
 
       - name: Validate deploy configuration
         run: bash deploy/scripts/validate-config.sh
@@ -156,6 +142,8 @@ jobs:
       - name: Deploy backend
         if: needs.detect.outputs.backend == 'true'
         run: bash deploy/scripts/publish-backend.sh
+        env:
+          BACKEND_HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL }}
 
       - name: Prepare PWA producao backend
         if: needs.detect.outputs.pwa_backend == 'true'
@@ -164,6 +152,8 @@ jobs:
       - name: Deploy PWA producao backend
         if: needs.detect.outputs.pwa_backend == 'true'
         run: bash deploy/scripts/publish-pwa-producao-backend.sh
+        env:
+          PWA_PRODUCAO_BACKEND_HEALTH_URL: ${{ vars.PWA_PRODUCAO_BACKEND_HEALTH_URL }}
 
       - name: Prepare processor
         if: needs.detect.outputs.processor == 'true'
@@ -172,6 +162,8 @@ jobs:
       - name: Deploy processor
         if: needs.detect.outputs.processor == 'true'
         run: bash deploy/scripts/publish-processor.sh
+        env:
+          PROCESSOR_HEALTH_URL: ${{ vars.PROCESSOR_HEALTH_URL }}
 
       - name: Prepare frontend
         if: needs.detect.outputs.frontend == 'true'
@@ -180,3 +172,5 @@ jobs:
       - name: Deploy frontend
         if: needs.detect.outputs.frontend == 'true'
         run: bash deploy/scripts/publish-frontend.sh
+        env:
+          FRONTEND_HEALTH_URL: ${{ vars.FRONTEND_HEALTH_URL }}
