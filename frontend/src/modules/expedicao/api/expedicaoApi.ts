@@ -90,7 +90,7 @@ export type OrdemPayload = {
   paletes: number[]
 }
 
-type Resumo = {
+export type Resumo = {
   totais: {
     paletes: number
     caixas: number

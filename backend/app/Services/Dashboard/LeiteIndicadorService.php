@@ -12,6 +12,7 @@ class LeiteIndicadorService
         $inicioMesAtual = CarbonImmutable::now(config('app.timezone'))->startOfMonth();
         $inicioProximoMes = $inicioMesAtual->addMonth();
         $inicioMesAnterior = $inicioMesAtual->subMonth();
+        $inicioSerie = $inicioMesAtual->subMonths(11);
 
         $totais = DB::connection('raw')
             ->table('coletas')
@@ -33,10 +34,32 @@ class LeiteIndicadorService
             ? round((($mesAtual - $mesAnterior) / $mesAnterior) * 100, 2)
             : null;
 
+        $totaisMensais = DB::connection('raw')
+            ->table('coletas')
+            ->where('datahora', '>=', $inicioSerie->format('Y-m-d H:i:s'))
+            ->where('datahora', '<', $inicioProximoMes->format('Y-m-d H:i:s'))
+            ->selectRaw("DATE_FORMAT(datahora, '%Y-%m') AS periodo, COALESCE(SUM(litros), 0) AS litros, COUNT(*) AS coletas")
+            ->groupByRaw("DATE_FORMAT(datahora, '%Y-%m')")
+            ->orderBy('periodo')
+            ->get()
+            ->keyBy('periodo');
+
+        $serieMensal = [];
+        for ($indice = 0; $indice < 12; $indice++) {
+            $periodo = $inicioSerie->addMonths($indice)->format('Y-m');
+            $total = $totaisMensais->get($periodo);
+            $serieMensal[] = [
+                'periodo' => $periodo,
+                'litros' => round((float) ($total?->litros ?? 0), 2),
+                'coletas' => (int) ($total?->coletas ?? 0),
+            ];
+        }
+
         return [
             'litros_mes_atual' => $mesAtual,
             'litros_mes_anterior' => $mesAnterior,
             'variacao_percentual' => $variacao,
+            'serie_mensal' => $serieMensal,
         ];
     }
 }
