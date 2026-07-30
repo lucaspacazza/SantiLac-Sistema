@@ -57,13 +57,22 @@ export function DashboardResumoApp() {
         </article>
 
         <article className="dashboard-indicator">
-          <span className="dashboard-indicator-label">Leite · mês anterior</span>
+          <span className="dashboard-indicator-label">Leite recebido no mês</span>
           {leite.carregando ? (
             <span className="dashboard-indicator-skeleton" aria-label="Carregando evolução do leite" />
           ) : (
-            <strong className={`dashboard-indicator-value ${classeVariacao}`}>
-              {variacao === null ? '—' : `${percentual.format(variacao)}%`}
-            </strong>
+            <div className="dashboard-indicator-metric">
+              <strong className="dashboard-indicator-value">
+                {leite.valor === null ? '—' : numero.format(leite.valor.litros_mes_atual)}
+                {leite.valor !== null && <small className="dashboard-indicator-unit"> L</small>}
+              </strong>
+              <span
+                className={`dashboard-indicator-change ${classeVariacao}`}
+                aria-label={variacao === null ? 'Comparativo indisponível' : `${percentual.format(variacao)} por cento em relação ao mês anterior`}
+              >
+                {variacao === null ? '—' : `${percentual.format(variacao)}%`}
+              </span>
+            </div>
           )}
         </article>
       </div>

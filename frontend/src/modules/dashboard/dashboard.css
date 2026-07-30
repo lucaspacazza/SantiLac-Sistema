@@ -1,17 +1,18 @@
 .dashboard-page {
   min-height: 100vh;
-  padding: 32px;
+  padding: 24px;
 }
 
 .dashboard-indicators {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .dashboard-indicator {
-  min-height: 144px;
-  padding: 24px;
+  grid-column: span 2;
+  min-height: 112px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
@@ -22,44 +23,77 @@
 
 .dashboard-indicator-label {
   color: var(--body);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
 }
 
 .dashboard-indicator-value {
   color: var(--text);
-  font-size: clamp(32px, 4vw, 46px);
+  font-size: clamp(28px, 2.2vw, 36px);
   font-weight: 650;
   line-height: 1;
   letter-spacing: -0.035em;
   font-variant-numeric: tabular-nums;
 }
 
-.dashboard-indicator-value.is-positive {
+.dashboard-indicator-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.dashboard-indicator-unit {
+  color: var(--body);
+  font-size: 0.45em;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.dashboard-indicator-change {
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-indicator-change.is-positive {
   color: var(--success);
 }
 
-.dashboard-indicator-value.is-negative {
+.dashboard-indicator-change.is-negative {
   color: var(--danger);
 }
 
-.dashboard-indicator-value.is-neutral {
-  color: var(--text);
+.dashboard-indicator-change.is-neutral {
+  color: var(--body);
 }
 
 .dashboard-indicator-skeleton {
-  width: 112px;
-  height: 42px;
+  width: 84px;
+  height: 32px;
   border-radius: 6px;
   background: var(--surface-active);
 }
 
-@media (max-width: 700px) {
+@media (max-width: 1500px) {
+  .dashboard-indicator {
+    grid-column: span 3;
+  }
+}
+
+@media (max-width: 900px) {
   .dashboard-page {
     padding: 16px;
   }
 
-  .dashboard-indicators {
-    grid-template-columns: 1fr;
+  .dashboard-indicator {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard-indicator {
+    grid-column: span 12;
   }
 }
