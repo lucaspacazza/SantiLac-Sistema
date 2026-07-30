@@ -107,6 +107,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.dashboard-indicator-value.is-textual {
+  font-size: 20px;
+  letter-spacing: -0.015em;
+}
+
 .dashboard-indicator-metric {
   display: flex;
   flex-direction: column;
@@ -133,6 +138,13 @@
   color: var(--muted);
   font-size: inherit;
   font-weight: 500;
+}
+
+.dashboard-indicator-detail {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .dashboard-indicator-skeleton {
