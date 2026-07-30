@@ -45,7 +45,7 @@ export function DashboardResumoApp() {
   const pasteurizer = dashboard.pasteurizador.data
   const latestCollection = pasteurizer?.ultima_coleta ?? null
   const productionPending = production
-    ? production.totais.ops_aguardando_formato + production.totais.rascunhos
+    ? production.ops_aguardando_formato + production.rascunhos
     : null
   const qualityCoverage = quality?.produtores_ativos
     ? (quality.produtores_com_analise / quality.produtores_ativos) * 100
@@ -54,7 +54,7 @@ export function DashboardResumoApp() {
   const pasteurizerStale = pasteurizerAgeHours === null || pasteurizerAgeHours > 36
   const attention = buildAttentionItems({
     qualityWithoutAnalysis: quality?.produtores_sem_analise ?? null,
-    lowStock: stock?.totais.abaixo_minimo ?? null,
+    lowStock: stock?.abaixo_minimo ?? null,
     productionPending,
     fuelPercentage: fuel?.porcentagem ?? null,
     pasteurizerStatus: latestCollection?.status ?? null,
@@ -205,16 +205,16 @@ export function DashboardResumoApp() {
                 href="#/producao/inicio"
                 state={dashboard.producao}
                 value={productionPending === null ? null : `${integer.format(productionPending)} pendências`}
-                detail={production ? `${integer.format(production.totais.formulacoes_queijo)} formulações de queijo` : null}
+                detail={production ? `${integer.format(production.formulacoes_queijo)} formulações de queijo` : null}
               />
               <OperationRow
                 icon={Boxes}
                 label="Estoque"
                 href="#/estoque/inicio"
                 state={dashboard.estoque}
-                value={stock ? `${integer.format(stock.totais.abaixo_minimo)} itens críticos` : null}
-                detail={stock ? `${integer.format(stock.totais.itens_ativos)} itens ativos` : null}
-                progress={stock?.totais.itens_ativos ? (stock.totais.abaixo_minimo / stock.totais.itens_ativos) * 100 : 0}
+                value={stock ? `${integer.format(stock.abaixo_minimo)} itens críticos` : null}
+                detail={stock ? `${integer.format(stock.itens_ativos)} itens ativos` : null}
+                progress={stock?.itens_ativos ? (stock.abaixo_minimo / stock.itens_ativos) * 100 : 0}
               />
               <OperationRow
                 icon={Fuel}

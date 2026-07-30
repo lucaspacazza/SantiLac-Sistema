@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { combustivelApi, type CombustivelResumo } from '../../combustivel/api/combustivelApi'
-import { estoqueApi, type Overview as EstoqueOverview } from '../../estoque/api/estoqueApi'
-import { expedicaoApi, type Resumo as ExpedicaoResumo } from '../../expedicao/api/expedicaoApi'
-import { pasteurizadorApi, type Overview as PasteurizadorOverview } from '../../pasteurizador/api/pasteurizadorApi'
-import { producaoApi, type Overview as ProducaoOverview } from '../../producao/api/producaoApi'
-import { qualidadeApi, type Overview as QualidadeOverview } from '../../qualidade/api/qualidadeApi'
+import { combustivelIndicadorApi, type CombustivelIndicador } from '../api/combustivelIndicadorApi'
+import { estoqueIndicadorApi, type EstoqueIndicador } from '../api/estoqueIndicadorApi'
+import { expedicaoIndicadorApi, type ExpedicaoIndicador } from '../api/expedicaoIndicadorApi'
 import { leiteIndicadorApi, type LeiteIndicador } from '../api/leiteIndicadorApi'
+import { pasteurizadorIndicadorApi, type PasteurizadorIndicador } from '../api/pasteurizadorIndicadorApi'
+import { producaoIndicadorApi, type ProducaoIndicador } from '../api/producaoIndicadorApi'
 import { produtoresIndicadorApi } from '../api/produtoresIndicadorApi'
+import { qualidadeIndicadorApi, type QualidadeIndicador } from '../api/qualidadeIndicadorApi'
 
 export type DataState<T> = {
   loading: boolean
@@ -21,12 +21,12 @@ export function useDashboardOverview() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [produtores, setProdutores] = useState<DataState<number>>(initialState)
   const [leite, setLeite] = useState<DataState<LeiteIndicador>>(initialState)
-  const [qualidade, setQualidade] = useState<DataState<QualidadeOverview>>(initialState)
-  const [estoque, setEstoque] = useState<DataState<EstoqueOverview>>(initialState)
-  const [expedicao, setExpedicao] = useState<DataState<ExpedicaoResumo>>(initialState)
-  const [combustivel, setCombustivel] = useState<DataState<CombustivelResumo>>(initialState)
-  const [producao, setProducao] = useState<DataState<ProducaoOverview>>(initialState)
-  const [pasteurizador, setPasteurizador] = useState<DataState<PasteurizadorOverview>>(initialState)
+  const [qualidade, setQualidade] = useState<DataState<QualidadeIndicador>>(initialState)
+  const [estoque, setEstoque] = useState<DataState<EstoqueIndicador>>(initialState)
+  const [expedicao, setExpedicao] = useState<DataState<ExpedicaoIndicador>>(initialState)
+  const [combustivel, setCombustivel] = useState<DataState<CombustivelIndicador>>(initialState)
+  const [producao, setProducao] = useState<DataState<ProducaoIndicador>>(initialState)
+  const [pasteurizador, setPasteurizador] = useState<DataState<PasteurizadorIndicador>>(initialState)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -38,12 +38,12 @@ export function useDashboardOverview() {
         controller.signal,
       ),
       loadSource(leiteIndicadorApi.buscar({ signal: controller.signal }), setLeite, controller.signal),
-      loadSource(qualidadeApi.overview(), setQualidade, controller.signal),
-      loadSource(estoqueApi.overview(), setEstoque, controller.signal),
-      loadSource(expedicaoApi.resumo(), setExpedicao, controller.signal),
-      loadSource(combustivelApi.resumo(), setCombustivel, controller.signal),
-      loadSource(producaoApi.overview(), setProducao, controller.signal),
-      loadSource(pasteurizadorApi.overview(), setPasteurizador, controller.signal),
+      loadSource(qualidadeIndicadorApi.buscar({ signal: controller.signal }), setQualidade, controller.signal),
+      loadSource(estoqueIndicadorApi.buscar({ signal: controller.signal }), setEstoque, controller.signal),
+      loadSource(expedicaoIndicadorApi.buscar({ signal: controller.signal }), setExpedicao, controller.signal),
+      loadSource(combustivelIndicadorApi.buscar({ signal: controller.signal }), setCombustivel, controller.signal),
+      loadSource(producaoIndicadorApi.buscar({ signal: controller.signal }), setProducao, controller.signal),
+      loadSource(pasteurizadorIndicadorApi.buscar({ signal: controller.signal }), setPasteurizador, controller.signal),
     ]
 
     void Promise.allSettled(requests).then(() => {

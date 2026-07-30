@@ -16,8 +16,14 @@ use App\Http\Controllers\Api\Coletas\Mobile\RotasOpenRouteController;
 use App\Http\Controllers\Api\Coletas\Mobile\RotasStartController;
 use App\Http\Controllers\Api\Coletas\Mobile\RotasStopsBatchController;
 use App\Http\Controllers\Api\Combustivel\CombustivelController;
+use App\Http\Controllers\Api\Dashboard\CombustivelIndicadorController;
+use App\Http\Controllers\Api\Dashboard\EstoqueIndicadorController;
+use App\Http\Controllers\Api\Dashboard\ExpedicaoIndicadorController;
 use App\Http\Controllers\Api\Dashboard\LeiteIndicadorController;
+use App\Http\Controllers\Api\Dashboard\PasteurizadorIndicadorController;
+use App\Http\Controllers\Api\Dashboard\ProducaoIndicadorController;
 use App\Http\Controllers\Api\Dashboard\ProdutoresIndicadorController;
+use App\Http\Controllers\Api\Dashboard\QualidadeIndicadorController;
 use App\Http\Controllers\Api\Embalagem\EmbalagemController;
 use App\Http\Controllers\Api\Estoque\EstoqueController;
 use App\Http\Controllers\Api\Expedicao\ExpedicaoController;
@@ -103,6 +109,12 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
     Route::prefix('dashboard')->group(function (): void {
         Route::get('/produtores', ProdutoresIndicadorController::class);
         Route::get('/leite', LeiteIndicadorController::class);
+        Route::get('/qualidade', QualidadeIndicadorController::class);
+        Route::get('/estoque', EstoqueIndicadorController::class);
+        Route::get('/expedicao', ExpedicaoIndicadorController::class);
+        Route::get('/combustivel', CombustivelIndicadorController::class);
+        Route::get('/producao', ProducaoIndicadorController::class);
+        Route::get('/pasteurizador', PasteurizadorIndicadorController::class);
     });
 
     Route::prefix('embalagem')->group(function (): void {
