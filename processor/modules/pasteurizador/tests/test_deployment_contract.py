@@ -18,8 +18,15 @@ class DeploymentContractTests(unittest.TestCase):
             / "systemd"
             / "santilac-pasteurizador-daily.service"
         ).read_text(encoding="utf-8")
+        production_redundancy = (
+            MODULE_DIR
+            / "systemd"
+            / "santilac-pasteurizador-production-redundancy.conf"
+        ).read_text(encoding="utf-8")
 
         self.assertIn("OnCalendar=*-*-* *:05:00", timer)
+        self.assertIn("OnBootSec=2min", production_redundancy)
+        self.assertIn("OnUnitInactiveSec=10min", production_redundancy)
         self.assertIn("Persistent=true", timer)
         self.assertIn("Restart=on-failure", service)
         self.assertIn("TimeoutStartSec=3h", service)
@@ -41,6 +48,15 @@ class DeploymentContractTests(unittest.TestCase):
             "/etc/santilac-pasteurizador/processor.env",
             publish,
         )
+        self.assertIn("PASTEURIZADOR_API_BACKEND_CT", publish)
+        self.assertIn("SANTILAC_API_KEY", publish)
+        self.assertIn("--token-file", publish)
+        self.assertIn("--persist-token-file", publish)
+        self.assertIn("PROCESSOR_TOKEN_BACKUP", publish)
+        self.assertIn("santilac-pasteurizador-production-redundancy.conf", publish)
+        self.assertIn('[ "$PROCESSOR_CT" = "102" ]', publish)
+        self.assertIn("systemctl restart santilac-pasteurizador-daily.service", publish)
+        self.assertNotIn('echo "$SANTILAC_API_TOKEN"', publish)
 
     def test_example_never_reintroduces_silent_size_cap(self):
         example = (
@@ -55,6 +71,10 @@ class DeploymentContractTests(unittest.TestCase):
         )
         self.assertIn("SANTILAC_HTTP_TIMEOUT=10800", example)
         self.assertIn("SANTILAC_SYNC_TIMEOUT_SECONDS=45", example)
+        self.assertIn(
+            "SANTILAC_API_TOKEN_FILE=/etc/santilac-pasteurizador/api-token",
+            example,
+        )
 
 
 if __name__ == "__main__":

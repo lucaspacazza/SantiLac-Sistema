@@ -54,6 +54,20 @@ def load_env(path):
     return env
 
 
+def resolve_api_token(env):
+    token = str(env.get("SANTILAC_API_TOKEN", "")).strip()
+    if token:
+        return token
+
+    token_file = str(env.get("SANTILAC_API_TOKEN_FILE", "")).strip()
+    if not token_file:
+        return ""
+    try:
+        return Path(token_file).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def write_health_status(exit_code, error=None):
     env_file = os.environ.get("PASTEURIZADOR_ENV", DEFAULT_ENV_FILE)
     env = {**load_env(env_file), **os.environ}
@@ -79,13 +93,16 @@ def write_health_status(exit_code, error=None):
             last_rejected_reason = reason_payload.get("reason")
         except Exception:
             last_rejected_reason = "motivo de rejeição ilegível"
+    reported_error = error
+    if reported_error is None and int(exit_code) != 0:
+        reported_error = RUNTIME_DETAILS.get("failure_reason")
     payload = {
         **previous,
         **RUNTIME_DETAILS,
         "ok": exit_code == 0 and error is None,
         "exit_code": int(exit_code),
         "last_run_at": datetime.now().isoformat(timespec="seconds"),
-        "last_error": str(error) if error is not None else None,
+        "last_error": str(reported_error) if reported_error is not None else None,
         "pending_payloads": len(list((out_dir / "pending").glob("*.pending.json"))),
         "rejected_payloads": len(rejected_payloads),
         "last_rejected_reason": last_rejected_reason,
@@ -1071,7 +1088,7 @@ def main():
         env.get("FIELDLOGGER_SNAPSHOT_SYNC_ATTEMPTS", str(DEFAULT_SNAPSHOT_SYNC_ATTEMPTS))
     )
     api_url = env.get("SANTILAC_API_URL", "").strip()
-    api_token = env.get("SANTILAC_API_TOKEN", "").strip()
+    api_token = resolve_api_token(env)
     sync_state_url = env.get("SANTILAC_SYNC_STATE_URL", "").strip()
     http_timeout = int(env.get("SANTILAC_HTTP_TIMEOUT", "10800"))
     sync_timeout = min(
@@ -1114,9 +1131,14 @@ def main():
         "post_interval": catchup_post_interval,
     }
     if api_url and not api_token:
+        RUNTIME_DETAILS.update({
+            "equipment": equipment,
+            "stage": "configuration_validation",
+            "failure_reason": "credencial da API ausente no env e no backup",
+        })
         print(
-            f"[{APP_NAME}] SANTILAC_API_URL está configurada, mas "
-            "SANTILAC_API_TOKEN está vazio; coleta abortada antes de tocar no FieldLogger.",
+            f"[{APP_NAME}] SANTILAC_API_URL está configurada, mas a credencial "
+            "está ausente no env e no backup; coleta abortada antes de tocar no FieldLogger.",
             file=sys.stderr,
         )
         return 2

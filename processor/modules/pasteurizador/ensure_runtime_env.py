@@ -11,6 +11,13 @@ EXACT_VALUES = {
     "FIELDLOGGER_MAX_BYTES": "0",
 }
 
+PRODUCTION_EXACT_VALUES = {
+    "FIELDLOGGER_HOST": "192.168.5.101",
+    "SANTILAC_API_URL": "http://192.168.5.202/api/pasteurizador/coletas",
+    "SANTILAC_SYNC_STATE_URL": "http://192.168.5.202/api/pasteurizador/sync-state",
+    "SANTILAC_API_TOKEN_FILE": "/etc/santilac-pasteurizador/api-token",
+}
+
 MINIMUM_VALUES = {
     "PASTEURIZADOR_CATCHUP_LOOKBACK_DAYS": 90,
     "FIELDLOGGER_REQUEST_TIMEOUT_SECONDS": 30,
@@ -63,7 +70,35 @@ def _effective_value(key, current):
     return current or DEFAULT_VALUES[key]
 
 
-def ensure_env(path):
+def _read_token_file(path):
+    if not path:
+        return None
+
+    token_path = Path(path)
+    raw = token_path.read_text(encoding="utf-8").strip()
+    if "=" in raw:
+        key, raw = raw.split("=", 1)
+        if key.strip() not in {"SANTILAC_API_KEY", "SANTILAC_API_TOKEN"}:
+            raise ValueError("arquivo de token nao contem uma chave reconhecida")
+    token = raw.strip().strip('"').strip("'")
+    if not token:
+        raise ValueError("token de ingestao do pasteurizador esta vazio")
+    if "\n" in token or "\r" in token:
+        raise ValueError("token de ingestao do pasteurizador e invalido")
+    return token
+
+
+def _persist_token_file(path, token):
+    token_path = Path(path)
+    token_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = token_path.with_suffix(token_path.suffix + ".tmp")
+    tmp_path.write_text(token + "\n", encoding="utf-8")
+    os.chmod(tmp_path, 0o600)
+    tmp_path.replace(token_path)
+    os.chmod(token_path, 0o600)
+
+
+def ensure_env(path, api_token=None, production=False):
     env_path = Path(path)
     original = (
         env_path.read_text(encoding="utf-8")
@@ -77,6 +112,10 @@ def ensure_env(path):
         **DEFAULT_VALUES,
         **VALUE_REPLACEMENTS,
     }
+    if api_token is not None:
+        managed["SANTILAC_API_TOKEN"] = api_token
+    if production:
+        managed.update(PRODUCTION_EXACT_VALUES)
     found = set()
     changed_keys = []
     output = []
@@ -94,7 +133,13 @@ def ensure_env(path):
 
         found.add(normalized_key)
         current = raw_value.strip().strip('"').strip("'")
-        desired = _effective_value(normalized_key, current)
+        desired = (
+            api_token
+            if normalized_key == "SANTILAC_API_TOKEN" and api_token is not None
+            else PRODUCTION_EXACT_VALUES[normalized_key]
+            if production and normalized_key in PRODUCTION_EXACT_VALUES
+            else _effective_value(normalized_key, current)
+        )
         if current != desired:
             changed_keys.append(normalized_key)
         output.append(f"{normalized_key}={desired}")
@@ -109,7 +154,14 @@ def ensure_env(path):
             output.append("")
         output.append("# Limites gerenciados pelo deploy do pasteurizador")
         for key in missing:
-            output.append(f"{key}={_effective_value(key, None)}")
+            desired = (
+                api_token
+                if key == "SANTILAC_API_TOKEN" and api_token is not None
+                else PRODUCTION_EXACT_VALUES[key]
+                if production and key in PRODUCTION_EXACT_VALUES
+                else _effective_value(key, None)
+            )
+            output.append(f"{key}={desired}")
             changed_keys.append(key)
 
     rendered = "\n".join(output).rstrip() + "\n"
@@ -135,9 +187,34 @@ def main():
         "--path",
         default="/etc/santilac-pasteurizador/processor.env",
     )
+    parser.add_argument(
+        "--token-file",
+        help=(
+            "Arquivo temporario contendo SANTILAC_API_KEY ou "
+            "SANTILAC_API_TOKEN. O valor nunca e exibido."
+        ),
+    )
+    parser.add_argument(
+        "--production",
+        action="store_true",
+        help="Fixa FieldLogger e API nos endpoints de producao.",
+    )
+    parser.add_argument(
+        "--persist-token-file",
+        help="Copia protegida da credencial para recuperacao automatica.",
+    )
     args = parser.parse_args()
 
-    changed = ensure_env(args.path)
+    api_token = _read_token_file(args.token_file)
+    if args.persist_token_file:
+        if api_token is None:
+            parser.error("--persist-token-file exige --token-file")
+        _persist_token_file(args.persist_token_file, api_token)
+    changed = ensure_env(
+        args.path,
+        api_token=api_token,
+        production=args.production,
+    )
     if changed:
         print("processor.env atualizado: " + ", ".join(sorted(changed)))
     else:
