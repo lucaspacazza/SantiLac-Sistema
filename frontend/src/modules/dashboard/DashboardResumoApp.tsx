@@ -43,39 +43,49 @@ export function DashboardResumoApp() {
     : variacao > 0 ? 'is-positive' : 'is-negative'
 
   return (
-    <section className="dashboard-page" aria-label="Dashboard">
-      <div className="dashboard-indicators" aria-label="Indicadores">
-        <article className="dashboard-indicator">
-          <span className="dashboard-indicator-label">Produtores</span>
-          {produtores.carregando ? (
-            <span className="dashboard-indicator-skeleton" aria-label="Carregando produtores" />
-          ) : (
-            <strong className="dashboard-indicator-value">
-              {produtores.valor === null ? '—' : numero.format(produtores.valor)}
-            </strong>
-          )}
-        </article>
+    <div className="dashboard-module">
+      <section className="dashboard-page" aria-labelledby="dashboard-title">
+        <header className="dashboard-page-head">
+          <h1 id="dashboard-title">Dashboard</h1>
+        </header>
 
-        <article className="dashboard-indicator">
-          <span className="dashboard-indicator-label">Leite recebido no mês</span>
-          {leite.carregando ? (
-            <span className="dashboard-indicator-skeleton" aria-label="Carregando evolução do leite" />
-          ) : (
-            <div className="dashboard-indicator-metric">
-              <strong className="dashboard-indicator-value">
-                {leite.valor === null ? '—' : numero.format(leite.valor.litros_mes_atual)}
-                {leite.valor !== null && <small className="dashboard-indicator-unit"> L</small>}
-              </strong>
-              <span
-                className={`dashboard-indicator-change ${classeVariacao}`}
-                aria-label={variacao === null ? 'Comparativo indisponível' : `${percentual.format(variacao)} por cento em relação ao mês anterior`}
-              >
-                {variacao === null ? '—' : `${percentual.format(variacao)}%`}
-              </span>
+        <div className="dashboard-content">
+          <section className="dashboard-section" aria-label="Indicadores principais">
+            <div className="dashboard-grid">
+              <article className="dashboard-indicator dashboard-grid-item-kpi">
+                <span className="dashboard-indicator-label">Produtores</span>
+                {produtores.carregando ? (
+                  <span className="dashboard-indicator-skeleton" aria-label="Carregando produtores" />
+                ) : (
+                  <strong className="dashboard-indicator-value">
+                    {produtores.valor === null ? '—' : numero.format(produtores.valor)}
+                  </strong>
+                )}
+              </article>
+
+              <article className="dashboard-indicator dashboard-grid-item-kpi">
+                <span className="dashboard-indicator-label">Leite recebido no mês</span>
+                {leite.carregando ? (
+                  <span className="dashboard-indicator-skeleton" aria-label="Carregando evolução do leite" />
+                ) : (
+                  <div className="dashboard-indicator-metric">
+                    <strong className="dashboard-indicator-value">
+                      {leite.valor === null ? '—' : numero.format(leite.valor.litros_mes_atual)}
+                      {leite.valor !== null && <small className="dashboard-indicator-unit"> L</small>}
+                    </strong>
+                    <span
+                      className={`dashboard-indicator-change ${classeVariacao}`}
+                      aria-label={variacao === null ? 'Comparativo indisponível' : `${percentual.format(variacao)} por cento em relação ao mês anterior`}
+                    >
+                      {variacao === null ? '—' : `${percentual.format(variacao)}%`}
+                    </span>
+                  </div>
+                )}
+              </article>
             </div>
-          )}
-        </article>
-      </div>
-    </section>
+          </section>
+        </div>
+      </section>
+    </div>
   )
 }
