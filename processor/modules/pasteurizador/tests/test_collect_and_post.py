@@ -696,7 +696,7 @@ class RuntimeEnvMigrationTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            ensure_runtime_env.ensure_env(env_path)
+            ensure_runtime_env.ensure_env(env_path, production=True)
             contents = env_path.read_text(encoding="utf-8")
 
         self.assertIn("SANTILAC_API_TOKEN=segredo", contents)
@@ -713,6 +713,90 @@ class RuntimeEnvMigrationTests(unittest.TestCase):
         self.assertIn("SANTILAC_HTTP_TIMEOUT=10800", contents)
         self.assertIn("SANTILAC_SYNC_TIMEOUT_SECONDS=45", contents)
         self.assertIn("SANTILAC_SYNC_RETRY_ATTEMPTS=3", contents)
+
+    def test_forces_the_single_production_ingestion_api(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env_path = Path(tmp) / "processor.env"
+            env_path.write_text(
+                "\n".join([
+                    "SANTILAC_API_URL=http://192.168.5.121/api/pasteurizador/coletas",
+                    "FIELDLOGGER_HOST=192.168.0.101",
+                    "",
+                ]),
+                encoding="utf-8",
+            )
+
+            ensure_runtime_env.ensure_env(env_path, production=True)
+            contents = env_path.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "SANTILAC_API_URL=http://192.168.5.202/api/pasteurizador/coletas",
+            contents,
+        )
+        self.assertIn("FIELDLOGGER_HOST=192.168.5.101", contents)
+
+    def test_imports_backend_api_key_without_exposing_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env_path = Path(tmp) / "processor.env"
+            token_path = Path(tmp) / "token"
+            env_path.write_text("SANTILAC_API_TOKEN=antigo\n", encoding="utf-8")
+            token_path.write_text(
+                'SANTILAC_API_KEY="segredo-producao"\n',
+                encoding="utf-8",
+            )
+
+            token = ensure_runtime_env._read_token_file(token_path)
+            changed = ensure_runtime_env.ensure_env(
+                env_path,
+                api_token=token,
+                production=True,
+            )
+            contents = env_path.read_text(encoding="utf-8")
+
+        self.assertIn("SANTILAC_API_TOKEN=segredo-producao", contents)
+        self.assertIn("SANTILAC_API_TOKEN", changed)
+        self.assertNotIn("segredo-producao", changed)
+
+    @unittest.skipIf(sys.platform == "win32", "permissoes POSIX indisponiveis")
+    def test_persists_a_mode_600_recovery_token(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            token_path = Path(tmp) / "api-token"
+            ensure_runtime_env._persist_token_file(
+                token_path,
+                "segredo-producao",
+            )
+
+            contents = token_path.read_text(encoding="utf-8").strip()
+            mode = token_path.stat().st_mode & 0o777
+
+        self.assertEqual("segredo-producao", contents)
+        self.assertEqual(0o600, mode)
+
+
+class RuntimeCredentialRedundancyTests(unittest.TestCase):
+    def test_direct_token_has_priority(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            token_path = Path(tmp) / "api-token"
+            token_path.write_text("backup\n", encoding="utf-8")
+
+            token = collector.resolve_api_token({
+                "SANTILAC_API_TOKEN": "primario",
+                "SANTILAC_API_TOKEN_FILE": str(token_path),
+            })
+
+        self.assertEqual("primario", token)
+
+    def test_uses_protected_backup_when_primary_is_empty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            token_path = Path(tmp) / "api-token"
+            token_path.write_text("backup\n", encoding="utf-8")
+
+            token = collector.resolve_api_token({
+                "SANTILAC_API_TOKEN": "",
+                "SANTILAC_API_TOKEN_FILE": str(token_path),
+            })
+
+        self.assertEqual("backup", token)
 
 
 class SafeDefaultModeTests(unittest.TestCase):
