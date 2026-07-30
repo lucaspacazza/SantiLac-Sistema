@@ -22,7 +22,9 @@ export const sidebarModules = [
     levels: ['7.0'],
     icon: 'fa-chart-line',
     href: '#/dashboard',
-    children: [],
+    children: [
+      { title: 'Resumo geral', icon: 'fa-chart-line', href: '#/dashboard' },
+    ],
   },
   {
     slug: 'qualidade',
