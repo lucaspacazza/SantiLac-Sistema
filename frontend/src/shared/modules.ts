@@ -21,11 +21,8 @@ export const sidebarModules = [
     desc: 'Leitura executiva e operacional da empresa.',
     levels: ['7.0'],
     icon: 'fa-chart-line',
-    href: '#/dashboard/visao-geral',
-    children: [
-      { title: 'Operação do dia', icon: 'fa-calendar-day', href: '#/dashboard/operacao' },
-      { title: 'Riscos e qualidade', icon: 'fa-chart-line', href: '#/dashboard/riscos' },
-    ],
+    href: '#/dashboard',
+    children: [],
   },
   {
     slug: 'qualidade',
