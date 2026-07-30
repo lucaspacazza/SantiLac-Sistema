@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Services\Dashboard\PasteurizadorResumoService;
 use DateTimeImmutable;
 use DateTimeZone;
 use Illuminate\Database\Schema\Blueprint;
@@ -149,16 +148,6 @@ class PasteurizadorHistoricoTest extends TestCase
         $this->assertSame(50_002, substr_count($csv, "\n"));
         $this->assertStringContainsString($lastTimestamp, $csv);
 
-        $dashboard = app(PasteurizadorResumoService::class)->dia(
-            Carbon::parse('2026-07-16', 'America/Sao_Paulo')
-        );
-        $this->assertSame(50_001, $dashboard['total_pontos']);
-        $this->assertLessThanOrEqual(900, count($dashboard['pontos']));
-        $this->assertSame($firstTimestamp, $dashboard['pontos'][0]['timestamp']);
-        $this->assertSame(
-            $lastTimestamp,
-            $dashboard['pontos'][array_key_last($dashboard['pontos'])]['timestamp']
-        );
     }
 
     public function test_cross_collection_duplicates_keep_newest_row_without_merging_channels(): void

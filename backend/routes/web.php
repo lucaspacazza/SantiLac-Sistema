@@ -16,7 +16,6 @@ use App\Http\Controllers\Api\Coletas\Mobile\RotasOpenRouteController;
 use App\Http\Controllers\Api\Coletas\Mobile\RotasStartController;
 use App\Http\Controllers\Api\Coletas\Mobile\RotasStopsBatchController;
 use App\Http\Controllers\Api\Combustivel\CombustivelController;
-use App\Http\Controllers\Api\Dashboard\DashboardResumoController;
 use App\Http\Controllers\Api\Embalagem\EmbalagemController;
 use App\Http\Controllers\Api\Estoque\EstoqueController;
 use App\Http\Controllers\Api\Expedicao\ExpedicaoController;
@@ -126,12 +125,6 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
         Route::post('/carregamentos/{id}/iniciar', [ExpedicaoController::class, 'iniciar'])->whereNumber('id');
         Route::post('/carregamentos/{id}/escanear', [ExpedicaoController::class, 'escanear'])->whereNumber('id');
         Route::post('/carregamentos/{id}/concluir', [ExpedicaoController::class, 'concluir'])->whereNumber('id');
-    });
-
-    Route::prefix('dashboard-resumo')->group(function (): void {
-        Route::get('/home', [DashboardResumoController::class, 'homeResumo']);
-        Route::get('/diario', [DashboardResumoController::class, 'resumoDiario']);
-        Route::get('/snapshot', [DashboardResumoController::class, 'snapshot']);
     });
 
     Route::prefix('produtores')->group(function (): void {

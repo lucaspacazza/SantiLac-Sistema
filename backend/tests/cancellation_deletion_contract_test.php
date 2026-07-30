@@ -20,7 +20,6 @@ $baseForms = (string) file_get_contents($root.'/app/Services/Producao/BaseFormul
 $orders = (string) file_get_contents($root.'/app/Services/Producao/OrdemProducaoService.php');
 $shipping = (string) file_get_contents($root.'/app/Services/Expedicao/ExpedicaoService.php');
 $collections = (string) file_get_contents($root.'/app/Services/Coletas/ColetasGestaoService.php');
-$productionSummary = (string) file_get_contents($root.'/app/Services/Dashboard/ProducaoResumoService.php');
 $shippingUi = (string) file_get_contents(dirname($root).'/frontend/src/modules/expedicao/ExpedicaoModule.tsx');
 $deployMigration = $root.'/database/migrations/2026_07_16_000002_delete_cancelled_business_records.php';
 $publishScript = dirname($root).'/deploy/scripts/publish-backend.sh';
@@ -65,10 +64,6 @@ if (str_contains($collections, "'cancelada' => 'HAVING status_codigo = 2'")) {
 $collectionDetail = methodSource($collections, 'buscarRotaResumo', 'rotasResumoSql');
 if (! str_contains($collectionDetail, 'HAVING status_codigo <> 2')) {
     throw new RuntimeException('Uma rota cancelada ainda pode ser aberta diretamente pelo endereço.');
-}
-
-if (! str_contains($productionSummary, "->where('status', '<>', 'cancelada')")) {
-    throw new RuntimeException('O resumo da produção ainda pode contabilizar formulações canceladas antigas.');
 }
 
 if (! is_file($deployMigration)) {
