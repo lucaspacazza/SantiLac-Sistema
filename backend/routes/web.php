@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\Coletas\Mobile\RotasOpenRouteController;
 use App\Http\Controllers\Api\Coletas\Mobile\RotasStartController;
 use App\Http\Controllers\Api\Coletas\Mobile\RotasStopsBatchController;
 use App\Http\Controllers\Api\Combustivel\CombustivelController;
+use App\Http\Controllers\Api\Dashboard\LeiteIndicadorController;
+use App\Http\Controllers\Api\Dashboard\ProdutoresIndicadorController;
 use App\Http\Controllers\Api\Embalagem\EmbalagemController;
 use App\Http\Controllers\Api\Estoque\EstoqueController;
 use App\Http\Controllers\Api\Expedicao\ExpedicaoController;
@@ -98,6 +100,11 @@ Route::prefix('api/embalagem')->group(function (): void {
 });
 
 Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): void {
+    Route::prefix('dashboard')->group(function (): void {
+        Route::get('/produtores', ProdutoresIndicadorController::class);
+        Route::get('/leite', LeiteIndicadorController::class);
+    });
+
     Route::prefix('embalagem')->group(function (): void {
         Route::post('/ordens/validar', [EmbalagemController::class, 'validarOrdem']);
         Route::get('/lotes/{loteId}', [EmbalagemController::class, 'estado'])->whereNumber('loteId');
