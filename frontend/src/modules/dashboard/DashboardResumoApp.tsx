@@ -48,12 +48,16 @@ export function DashboardResumoApp() {
     <div className="dashboard-module">
       <section className="dashboard-page" aria-labelledby="dashboard-title">
         <header className="dashboard-page-head">
-          <h1 id="dashboard-title">Resumo geral</h1>
+          <h1 id="dashboard-title">Dashboard</h1>
           <time dateTime={referenciaCodigo}>{referenciaMensal}</time>
         </header>
 
         <div className="dashboard-content">
-          <section className="dashboard-section" aria-label="Indicadores principais">
+          <section className="dashboard-section" aria-labelledby="dashboard-overview-title">
+            <header className="dashboard-section-head">
+              <h2 id="dashboard-overview-title">Visão geral</h2>
+            </header>
+
             <div className="dashboard-grid">
               <IndicadorCard label="Produtores" loading={produtores.carregando} loadingLabel="Carregando produtores">
                 <div className="dashboard-indicator-metric">
