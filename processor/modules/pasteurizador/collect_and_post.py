@@ -37,6 +37,9 @@ DEFAULT_SENT_PAYLOAD_RETENTION = 30
 DEFAULT_RAW_SNAPSHOT_RETENTION = 3
 DEFAULT_HEALTH_FILE = "/var/lib/santilac-pasteurizador/health.json"
 DEFAULT_PERIOD_COVERAGE_TOLERANCE_SECONDS = 10 * 60
+DEFAULT_MAX_HOT_GAP_SECONDS = 10 * 60
+DEFAULT_OPERATING_TEMPERATURE_C = 60.0
+DEFAULT_REQUIRED_PERIOD_CHANNEL = "Temp.Pasteuriza"
 RUNTIME_DETAILS = {}
 
 
@@ -949,6 +952,11 @@ def resolve_period_status(
     period_start,
     period_end,
     coverage_tolerance_seconds=DEFAULT_PERIOD_COVERAGE_TOLERANCE_SECONDS,
+    period_samples=None,
+    require_period_samples=True,
+    max_hot_gap_seconds=DEFAULT_MAX_HOT_GAP_SECONDS,
+    operating_temperature_threshold=DEFAULT_OPERATING_TEMPERATURE_C,
+    required_channel=DEFAULT_REQUIRED_PERIOD_CHANNEL,
 ):
     if (period_start or period_end) and all_samples:
         arquivo_inicio = min(sample.timestamp for sample in all_samples)
@@ -979,6 +987,59 @@ def resolve_period_status(
     elif (period_start or period_end) and not all_samples:
         return "erro", "Nenhuma amostra foi decodificada do histórico baixado do equipamento."
 
+    if period_samples is None:
+        period_samples = filter_samples_by_period(
+            all_samples,
+            period_start,
+            period_end,
+        )
+
+    valid_channel_samples = [
+        sample
+        for sample in all_samples
+        if sample.values.get(required_channel) is not None
+    ]
+    max_hot_gap = timedelta(seconds=max(float(max_hot_gap_seconds), 0.0))
+    if max_hot_gap.total_seconds() > 0:
+        for previous, current in zip(
+            valid_channel_samples,
+            valid_channel_samples[1:],
+        ):
+            gap = current.timestamp - previous.timestamp
+            overlaps_period = (
+                (period_start is None or current.timestamp > period_start)
+                and (period_end is None or previous.timestamp < period_end)
+            )
+            previous_value = previous.values.get(required_channel)
+            stopped_while_operating = (
+                previous_value is not None
+                and previous_value >= float(operating_temperature_threshold)
+            )
+            if gap > max_hot_gap and overlaps_period and stopped_while_operating:
+                return "erro", (
+                    "Histórico do equipamento possui lacuna de aquisição de "
+                    f"{int(gap.total_seconds())}s entre "
+                    f"{previous.timestamp:%Y-%m-%d %H:%M:%S} e "
+                    f"{current.timestamp:%Y-%m-%d %H:%M:%S}; "
+                    f"{required_channel} estava em {previous_value:.2f} C, "
+                    "o período não será certificado como completo."
+                )
+
+    valid_period_samples = [
+        sample
+        for sample in period_samples
+        if sample.values.get(required_channel) is not None
+    ]
+    if (
+        require_period_samples
+        and (period_start is not None or period_end is not None)
+        and not valid_period_samples
+    ):
+        return "erro", (
+            f"O período solicitado não possui nenhuma amostra válida de {required_channel}; "
+            "o dia não será certificado como completo."
+        )
+
     return "processada", None
 
 
@@ -997,7 +1058,21 @@ def process_period(result, all_samples, channels, raw_path, env, period_start, p
         return PERIOD_PENDING
 
     samples = filter_samples_by_period(all_samples, period_start, period_end)
-    status, mensagem_erro = resolve_period_status(all_samples, period_start, period_end)
+    status, mensagem_erro = resolve_period_status(
+        all_samples,
+        period_start,
+        period_end,
+        period_samples=samples,
+        require_period_samples=env.get("require_period_samples", True),
+        max_hot_gap_seconds=env.get(
+            "max_hot_gap_seconds",
+            DEFAULT_MAX_HOT_GAP_SECONDS,
+        ),
+        operating_temperature_threshold=env.get(
+            "operating_temperature_threshold",
+            DEFAULT_OPERATING_TEMPERATURE_C,
+        ),
+    )
     payload = build_payload(result, samples, channels, equipment, raw_path, period_start, period_end, status, mensagem_erro)
     stamp = period_start.strftime("%Y%m%d") if period_start else datetime.now().strftime("%Y%m%d_%H%M%S")
     diagnostic_path = out_dir / "diagnostics" / f"pasteurizador_payload_{stamp}.json"
@@ -1104,6 +1179,22 @@ def main():
     )
     out_dir = env.get("OUTBOX_DIR", "/var/lib/santilac-pasteurizador/outbox")
     post_empty_periods = env.get("POST_EMPTY_PERIODS", "1").strip().lower() in {"1", "true", "yes", "sim"}
+    require_period_samples = env.get(
+        "PASTEURIZADOR_REQUIRE_PERIOD_SAMPLES",
+        "1",
+    ).strip().lower() in {"1", "true", "yes", "sim"}
+    max_hot_gap_seconds = float(
+        env.get(
+            "PASTEURIZADOR_MAX_HOT_GAP_SECONDS",
+            str(DEFAULT_MAX_HOT_GAP_SECONDS),
+        )
+    )
+    operating_temperature_threshold = float(
+        env.get(
+            "PASTEURIZADOR_OPERATING_TEMPERATURE_C",
+            str(DEFAULT_OPERATING_TEMPERATURE_C),
+        )
+    )
     state_file = env.get("PASTEURIZADOR_STATE_FILE", DEFAULT_STATE_FILE)
     catchup_lookback_days = int(env.get("PASTEURIZADOR_CATCHUP_LOOKBACK_DAYS", "90"))
     catchup_start_date = parse_state_date(env.get("PASTEURIZADOR_CATCHUP_START_DATE"))
@@ -1128,6 +1219,9 @@ def main():
         "post_retry_max_delay": post_retry_max_delay,
         "sent_payload_retention": sent_payload_retention,
         "post_empty_periods": post_empty_periods,
+        "require_period_samples": require_period_samples,
+        "max_hot_gap_seconds": max_hot_gap_seconds,
+        "operating_temperature_threshold": operating_temperature_threshold,
         "post_interval": catchup_post_interval,
     }
     if api_url and not api_token:

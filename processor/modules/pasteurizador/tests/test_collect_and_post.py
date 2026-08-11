@@ -507,19 +507,19 @@ class DurableOutboxTests(unittest.TestCase):
 
 
 class PeriodCoverageTests(unittest.TestCase):
-    def sample(self, timestamp):
+    def sample(self, timestamp, value=72.5):
         return HistorySample(
             sample_index=1,
             raw_offset=420,
             timestamp=timestamp,
-            values={"Temp.Pasteuriza": 72.5},
+            values={"Temp.Pasteuriza": value},
         )
 
     def test_accepts_small_boundary_delay_within_tolerance(self):
         start, end = collector.day_range(date(2026, 7, 17))
         samples = [
-            self.sample(start + timedelta(seconds=44)),
-            self.sample(end - timedelta(minutes=2)),
+            self.sample(start + timedelta(seconds=44), value=30.0),
+            self.sample(end - timedelta(minutes=2), value=28.0),
         ]
 
         status, error = collector.resolve_period_status(samples, start, end)
@@ -550,6 +550,175 @@ class PeriodCoverageTests(unittest.TestCase):
 
         self.assertEqual("erro", status)
         self.assertIn("fim integral", error)
+
+    def test_rejects_closed_period_without_samples_even_when_file_spans_it(self):
+        start, end = collector.day_range(date(2026, 8, 8))
+        all_samples = [
+            self.sample(start - timedelta(hours=8)),
+            self.sample(end + timedelta(hours=8)),
+        ]
+
+        status, error = collector.resolve_period_status(
+            all_samples,
+            start,
+            end,
+            period_samples=[],
+            require_period_samples=True,
+            max_hot_gap_seconds=7 * 24 * 60 * 60,
+        )
+
+        self.assertEqual("erro", status)
+        self.assertIn("nenhuma amostra", error.lower())
+
+    def test_explicit_empty_period_policy_remains_available(self):
+        start, end = collector.day_range(date(2026, 8, 8))
+        all_samples = [
+            self.sample(start - timedelta(hours=8)),
+            self.sample(end + timedelta(hours=8)),
+        ]
+
+        status, error = collector.resolve_period_status(
+            all_samples,
+            start,
+            end,
+            period_samples=[],
+            require_period_samples=False,
+            max_hot_gap_seconds=7 * 24 * 60 * 60,
+        )
+
+        self.assertEqual("processada", status)
+        self.assertIsNone(error)
+
+    def test_rejects_multiday_hole_that_overlaps_variable_working_hours(self):
+        start, end = collector.day_range(date(2026, 8, 7))
+        last_before_failure = self.sample(datetime(2026, 8, 7, 8, 20, 32))
+        all_samples = [
+            self.sample(start - timedelta(minutes=1), value=25.0),
+            last_before_failure,
+            self.sample(datetime(2026, 8, 10, 12, 44, 51)),
+            self.sample(end + timedelta(days=4)),
+        ]
+
+        status, error = collector.resolve_period_status(
+            all_samples,
+            start,
+            end,
+            period_samples=[last_before_failure],
+            require_period_samples=True,
+        )
+
+        self.assertEqual("erro", status)
+        self.assertIn("lacuna", error.lower())
+        self.assertIn("2026-08-07 08:20:32", error)
+        self.assertIn("2026-08-10 12:44:51", error)
+
+    def test_accepts_variable_hours_and_a_normal_overnight_gap(self):
+        start, end = collector.day_range(date(2026, 8, 7))
+        day_sample = self.sample(datetime(2026, 8, 7, 11, 0, 0), value=32.0)
+        all_samples = [
+            self.sample(start - timedelta(minutes=1), value=28.0),
+            day_sample,
+            self.sample(datetime(2026, 8, 8, 9, 0, 0), value=25.0),
+            self.sample(end + timedelta(days=1), value=25.0),
+        ]
+
+        status, error = collector.resolve_period_status(
+            all_samples,
+            start,
+            end,
+            period_samples=[day_sample],
+            require_period_samples=True,
+        )
+
+        self.assertEqual("processada", status)
+        self.assertIsNone(error)
+
+    def test_rejects_shorter_gap_when_logging_stops_during_pasteurization(self):
+        start, end = collector.day_range(date(2026, 8, 7))
+        hot_sample = self.sample(datetime(2026, 8, 7, 8, 20, 32), value=74.27)
+        all_samples = [
+            self.sample(start - timedelta(minutes=1), value=25.0),
+            hot_sample,
+            self.sample(datetime(2026, 8, 8, 9, 0, 0), value=30.0),
+            self.sample(end + timedelta(days=2), value=25.0),
+        ]
+
+        status, error = collector.resolve_period_status(
+            all_samples,
+            start,
+            end,
+            period_samples=[hot_sample],
+            require_period_samples=True,
+        )
+
+        self.assertEqual("erro", status)
+        self.assertIn("74.27", error)
+
+    def test_accepts_long_shutdown_when_last_record_is_cool(self):
+        start, end = collector.day_range(date(2026, 8, 7))
+        cool_sample = self.sample(datetime(2026, 8, 7, 14, 0, 0), value=30.0)
+        all_samples = [
+            self.sample(start - timedelta(minutes=1), value=25.0),
+            cool_sample,
+            self.sample(datetime(2026, 8, 10, 15, 0, 0), value=28.0),
+            self.sample(end + timedelta(days=4), value=25.0),
+        ]
+
+        status, error = collector.resolve_period_status(
+            all_samples,
+            start,
+            end,
+            period_samples=[cool_sample],
+            require_period_samples=True,
+        )
+
+        self.assertEqual("processada", status)
+        self.assertIsNone(error)
+
+    def test_rejects_period_without_valid_pasteurization_values(self):
+        start, end = collector.day_range(date(2026, 8, 7))
+        null_sample = self.sample(datetime(2026, 8, 7, 10, 0, 0), value=None)
+        all_samples = [
+            self.sample(start - timedelta(minutes=1), value=25.0),
+            null_sample,
+            self.sample(end + timedelta(minutes=1), value=25.0),
+        ]
+
+        status, error = collector.resolve_period_status(
+            all_samples,
+            start,
+            end,
+            period_samples=[null_sample],
+            require_period_samples=True,
+        )
+
+        self.assertEqual("erro", status)
+        self.assertIn("Temp.Pasteuriza", error)
+
+    def test_null_channel_record_does_not_hide_gap_after_hot_value(self):
+        start, end = collector.day_range(date(2026, 8, 7))
+        hot_sample = self.sample(datetime(2026, 8, 7, 8, 15, 0), value=74.0)
+        null_sample = self.sample(datetime(2026, 8, 7, 8, 20, 0), value=None)
+        resumed_sample = self.sample(datetime(2026, 8, 8, 9, 0, 0), value=30.0)
+        all_samples = [
+            self.sample(start - timedelta(minutes=1), value=25.0),
+            hot_sample,
+            null_sample,
+            resumed_sample,
+            self.sample(end + timedelta(days=2), value=25.0),
+        ]
+
+        status, error = collector.resolve_period_status(
+            all_samples,
+            start,
+            end,
+            period_samples=[hot_sample, null_sample],
+            require_period_samples=True,
+        )
+
+        self.assertEqual("erro", status)
+        self.assertIn("74.00", error)
+        self.assertIn("2026-08-07 08:15:00", error)
 
     def test_multi_day_partial_range_splits_and_preserves_edge_times(self):
         requested_start = datetime(2026, 7, 17, 8, 15, 0)
@@ -635,6 +804,51 @@ class PeriodCoverageTests(unittest.TestCase):
         queue_payload.assert_not_called()
         deliver.assert_not_called()
 
+    def test_process_period_does_not_queue_a_day_crossed_by_multiday_hole(self):
+        start, end = collector.day_range(date(2026, 8, 7))
+        period_sample = self.sample(datetime(2026, 8, 7, 8, 20, 32))
+        all_samples = [
+            self.sample(start - timedelta(minutes=1), value=25.0),
+            period_sample,
+            self.sample(datetime(2026, 8, 10, 12, 44, 51)),
+            self.sample(end + timedelta(days=4)),
+        ]
+        result = {
+            "remote_file": "2:/24085425/MemFlash.fl",
+            "downloaded_at": "2026-08-11T16:00:00",
+            "data": b"snapshot",
+        }
+        env = {
+            "equipment": "pasteurizador",
+            "api_url": "http://api.test/coletas",
+            "post_empty_periods": True,
+            "require_period_samples": True,
+            "max_hot_gap_seconds": 10 * 60,
+            "operating_temperature_threshold": 60.0,
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            raw_path = Path(tmp) / "raw" / "snapshot.fl"
+            with (
+                patch.object(collector, "ZoneInfo", return_value=timezone.utc),
+                patch.object(collector, "queue_payload") as queue_payload,
+                patch.object(collector, "deliver_pending_payload") as deliver,
+            ):
+                outcome = collector.process_period(
+                    result,
+                    all_samples,
+                    [ChannelInfo(name="Temp.Pasteuriza", unit="C")],
+                    raw_path,
+                    env,
+                    start,
+                    end,
+                    "UTC",
+                )
+
+        self.assertEqual(collector.PERIOD_PENDING, outcome)
+        queue_payload.assert_not_called()
+        deliver.assert_not_called()
+
 
 class IdempotencyTests(unittest.TestCase):
     def test_ingestion_key_is_stable_when_raw_file_grows(self):
@@ -713,6 +927,12 @@ class RuntimeEnvMigrationTests(unittest.TestCase):
         self.assertIn("SANTILAC_HTTP_TIMEOUT=10800", contents)
         self.assertIn("SANTILAC_SYNC_TIMEOUT_SECONDS=45", contents)
         self.assertIn("SANTILAC_SYNC_RETRY_ATTEMPTS=3", contents)
+        self.assertIn("PASTEURIZADOR_REQUIRE_PERIOD_SAMPLES=1", contents)
+        self.assertIn(
+            "PASTEURIZADOR_MAX_HOT_GAP_SECONDS=600",
+            contents,
+        )
+        self.assertIn("PASTEURIZADOR_OPERATING_TEMPERATURE_C=60", contents)
 
     def test_forces_the_single_production_ingestion_api(self):
         with tempfile.TemporaryDirectory() as tmp:
