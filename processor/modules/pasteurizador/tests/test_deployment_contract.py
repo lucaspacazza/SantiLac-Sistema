@@ -55,7 +55,14 @@ class DeploymentContractTests(unittest.TestCase):
         self.assertIn("PROCESSOR_TOKEN_BACKUP", publish)
         self.assertIn("santilac-pasteurizador-production-redundancy.conf", publish)
         self.assertIn('[ "$PROCESSOR_CT" = "102" ]', publish)
-        self.assertIn("systemctl restart santilac-pasteurizador-daily.service", publish)
+        self.assertIn(
+            "systemctl restart --no-block santilac-pasteurizador-daily.service",
+            publish,
+        )
+        self.assertNotIn(
+            "systemctl restart santilac-pasteurizador-daily.service;",
+            publish,
+        )
         self.assertNotIn('echo "$SANTILAC_API_TOKEN"', publish)
 
     def test_example_never_reintroduces_silent_size_cap(self):
