@@ -1,4 +1,4 @@
-const CACHE_NAME = 'santilac-shell-v2'
+const CACHE_NAME = 'santilac-shell-v3'
 const SHELL_ASSETS = [
   '/',
   '/manifest.webmanifest',

@@ -102,7 +102,14 @@ export function App() {
       setUltimoCodigo(codigo)
       setCodigoBarra('')
       setStatus('ok')
-      setMensagem('Caixa registrada.')
+      const caixaRegistrada = data.historico[0]
+      const palete = caixaRegistrada
+        ? data.paletes.find((item) => item.id === caixaRegistrada.palete_id)
+        : data.palete_atual
+      const peso = caixaRegistrada?.peso ?? extrairPesoCodigo(codigo, data.barcode)
+      const detalhePeso = peso === null || peso === undefined ? '' : ` de ${formatPesoInput(peso)} kg`
+      const detalhePalete = palete ? ` no palete ${palete.numero} (${palete.caixas}/${data.lote.caixas_por_palete})` : ''
+      setMensagem(`Caixa${detalhePeso} registrada${detalhePalete}.`)
     } catch (error) {
       setStatus('error')
       setMensagem(error instanceof Error ? error.message : 'Não foi possível registrar a caixa.')
