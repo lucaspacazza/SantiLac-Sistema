@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { embalagemApi, type OperacaoEmbalagem } from './api/embalagemApi'
+import { embalagemApi, type OperacaoEmbalagem, type OrdemDisponivel } from './api/embalagemApi'
 import { HistoricoCaixas } from './views/HistoricoCaixas'
 import { IniciarEmbalagem } from './views/IniciarEmbalagem'
 import { OperacaoLote } from './views/OperacaoLote'
@@ -8,7 +8,7 @@ type Status = 'idle' | 'loading' | 'ok' | 'error'
 type Tela = 'operacao' | 'historico'
 
 export function App() {
-  const [codigoOrdem, setCodigoOrdem] = useState('')
+  const [ordensDisponiveis, setOrdensDisponiveis] = useState<OrdemDisponivel[]>([])
   const [codigoBarra, setCodigoBarra] = useState('')
   const [pecasAvulsas, setPecasAvulsas] = useState(0)
   const [modalAvulsasAberto, setModalAvulsasAberto] = useState(false)
@@ -18,7 +18,7 @@ export function App() {
   const [pesoAvulsas, setPesoAvulsas] = useState('')
   const [erroAvulsas, setErroAvulsas] = useState('')
   const [status, setStatus] = useState<Status>('idle')
-  const [mensagem, setMensagem] = useState('Digite uma OP para iniciar.')
+  const [mensagem, setMensagem] = useState('Carregando OPs disponíveis.')
   const [operacao, setOperacao] = useState<OperacaoEmbalagem | null>(null)
   const [tela, setTela] = useState<Tela>('operacao')
   const [ultimoCodigo, setUltimoCodigo] = useState('')
@@ -50,7 +50,10 @@ export function App() {
 
   useEffect(() => {
     const loteId = Number(window.localStorage.getItem('embalagem-lote-id') || 0)
-    if (!loteId) return
+    if (!loteId) {
+      void carregarOrdensDisponiveis()
+      return
+    }
 
     setStatus('loading')
     setMensagem('Carregando lote em andamento.')
@@ -63,12 +66,26 @@ export function App() {
       })
       .catch(() => {
         window.localStorage.removeItem('embalagem-lote-id')
-        setStatus('idle')
-        setMensagem('Digite uma OP para iniciar.')
+        void carregarOrdensDisponiveis()
       })
   }, [])
 
-  async function validarOrdem() {
+  async function carregarOrdensDisponiveis() {
+    setStatus('loading')
+    setMensagem('Carregando OPs disponíveis.')
+
+    try {
+      const data = await embalagemApi.ordensDisponiveis()
+      setOrdensDisponiveis(data)
+      setStatus(data.length > 0 ? 'ok' : 'idle')
+      setMensagem(data.length === 1 ? '1 OP disponível.' : `${data.length} OPs disponíveis.`)
+    } catch (error) {
+      setStatus('error')
+      setMensagem(error instanceof Error ? error.message : 'Não foi possível carregar as OPs disponíveis.')
+    }
+  }
+
+  async function validarOrdem(codigoOrdem: string) {
     setStatus('loading')
     setMensagem('Validando OP.')
 
@@ -173,15 +190,13 @@ export function App() {
       await embalagemApi.finalizar(operacao.lote.id, pecasAvulsas, pesoPecasAvulsas, paleteParcial)
       setOperacao(null)
       operacaoRef.current = null
-      setCodigoOrdem('')
       setCodigoBarra('')
       setUltimoCodigo('')
       setPecasAvulsas(0)
       navegarOperacao(true)
-      setStatus('ok')
-      setMensagem('OP finalizada. Digite uma nova OP.')
       window.localStorage.removeItem('embalagem-lote-id')
       fecharModalAvulsas()
+      await carregarOrdensDisponiveis()
     } catch (error) {
       setStatus('error')
       setMensagem(error instanceof Error ? error.message : 'Não foi possível finalizar a OP.')
@@ -247,9 +262,8 @@ export function App() {
     setUltimoCodigo('')
     navegarOperacao(true)
     setPecasAvulsas(0)
-    setStatus('idle')
-    setMensagem('Digite uma OP para iniciar.')
     window.localStorage.removeItem('embalagem-lote-id')
+    void carregarOrdensDisponiveis()
   }
 
   function abrirHistorico() {
@@ -272,17 +286,17 @@ export function App() {
 
   return (
     <main className="page">
-      <div className={`status-line is-${status}`}>
+      <div className={`status-line is-${status}`} aria-live="polite" aria-atomic="true">
         <span />
         {mensagem}
       </div>
 
       {!operacao ? (
         <IniciarEmbalagem
-          codigo={codigoOrdem}
+          ordens={ordensDisponiveis}
           carregando={status === 'loading'}
-          onCodigoChange={setCodigoOrdem}
-          onSubmit={validarOrdem}
+          onAtualizar={() => void carregarOrdensDisponiveis()}
+          onSelecionar={(ordem) => void validarOrdem(ordem.codigo_ordem)}
         />
       ) : tela === 'historico' ? (
         <HistoricoCaixas

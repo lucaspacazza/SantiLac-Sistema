@@ -7,6 +7,14 @@ export type Caixa = {
   created_at: string | null
 }
 
+export type OrdemDisponivel = {
+  id: number
+  codigo_ordem: string
+  nome: string
+  lote: string
+  tipo_queijo: string
+}
+
 export type Palete = {
   id: number
   numero: number
@@ -52,6 +60,10 @@ export type OperacaoEmbalagem = {
 }
 
 export const embalagemApi = {
+  ordensDisponiveis() {
+    return apiGet<OrdemDisponivel[]>('/api/embalagem/ordens/disponiveis')
+  },
+
   validarOrdem(codigoOrdem: string) {
     return apiPost<OperacaoEmbalagem>('/api/embalagem/ordens/validar', { codigo_ordem: codigoOrdem })
   },

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+const inicio = readFileSync(new URL('./views/IniciarEmbalagem.tsx', import.meta.url), 'utf8')
 const carregamento = readFileSync(new URL('./views/CarregamentoExpedicao.tsx', import.meta.url), 'utf8')
 
 function sectionBetween(start, end) {
@@ -13,14 +14,24 @@ function sectionBetween(start, end) {
   return app.slice(startIndex, endIndex)
 }
 
-test('returns to OP entry after successfully finalizing a lot', () => {
+test('returns to the available OP list after successfully finalizing a lot', () => {
   const finalization = sectionBetween('async function finalizar(', 'function solicitarFinalizacao()')
 
   assert.match(finalization, /setOperacao\(null\)/)
   assert.match(finalization, /operacaoRef\.current = null/)
-  assert.match(finalization, /setCodigoOrdem\(''\)/)
-  assert.match(finalization, /OP finalizada\. Digite uma nova OP\./)
+  assert.match(finalization, /await carregarOrdensDisponiveis\(\)/)
+  assert.doesNotMatch(finalization, /setCodigoOrdem/)
   assert.doesNotMatch(finalization, /setOperacao\(data\)/)
+})
+
+test('loads and renders selectable OPs with name, lot and cheese type', () => {
+  assert.match(app, /embalagemApi\.ordensDisponiveis\(\)/)
+  assert.match(inicio, />Nome</)
+  assert.match(inicio, />Lote</)
+  assert.match(inicio, />Tipo de queijo</)
+  assert.match(inicio, /ordens\.map\(\(ordem\) =>/)
+  assert.match(inicio, /onClick=\{\(\) => onSelecionar\(ordem\)\}/)
+  assert.doesNotMatch(inicio, /<input\b|<form\b/)
 })
 
 test('allows dismissing the partial pallet decision without changing the pallet', () => {

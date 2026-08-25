@@ -27,25 +27,25 @@ test('does not install global focus recovery that can steal input selection', ()
 })
 
 test('marks only barcode entry fields as scanner targets', () => {
-  assert.doesNotMatch(inputAfter(start, 'Código da OP'), /data-scanner-input/)
+  assert.doesNotMatch(start, /<input\b/)
+  assert.doesNotMatch(start, /data-scanner-input/)
   assert.match(inputAfter(operation, 'Código da balança'), /data-scanner-input="true"/)
   assert.match(inputAfter(loading, 'Código de barras do palete'), /data-scanner-input="true"/)
   assert.match(inputAfter(app, 'Código da balança'), /data-scanner-input="true"/)
 })
 
-test('shows the keyboard for OP and manual fields but hides it only on barcode readers', () => {
+test('shows the keyboard for manual fields but hides it only on barcode readers', () => {
   for (const source of [app, start, operation, loading]) {
     assert.doesNotMatch(source, /openScannerKeyboard/)
     assert.doesNotMatch(source, /closeScannerKeyboard/)
   }
 
-  assert.match(inputAfter(start, 'Código da OP'), /inputMode="text"/)
+  assert.doesNotMatch(start, /<input\b/)
   assert.match(inputAfter(operation, 'Código da balança'), /inputMode="none"/)
   assert.match(inputAfter(app, 'Código da balança'), /inputMode="none"/)
   assert.match(inputAfter(loading, 'Código de barras do palete'), /inputMode="none"/)
   assert.match(inputAfter(app, 'Peso manual'), /inputMode="decimal"/)
   assert.match(inputAfter(operation, 'Peças avulsas'), /type="number"/)
-  assert.match(start, /autoFocus/)
   assert.match(operation, /autoFocus/)
   assert.match(loading, /autoFocus/)
 })
