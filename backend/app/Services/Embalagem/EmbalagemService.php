@@ -158,10 +158,11 @@ class EmbalagemService
 
             $palete = $this->paleteAtual($lote, (int) $queijo['caixas_por_palete'], true);
             $caixasNoPalete = EmbalagemCaixa::query()
+                ->where('lote_id', $lote->id)
                 ->where('palete_id', $palete->id)
-                ->get(['palete_id', 'peso']);
+                ->get(['lote_id', 'palete_id', 'peso']);
 
-            if ($this->pesoJaRegistradoNoPalete($caixasNoPalete, (int) $palete->id, $parsed['peso'])) {
+            if ($this->pesoJaRegistradoNoPalete($caixasNoPalete, (int) $lote->id, (int) $palete->id, $parsed['peso'])) {
                 $peso = number_format($parsed['peso'], 3, ',', '.');
 
                 throw new DomainException(
@@ -587,15 +588,18 @@ class EmbalagemService
         ]);
     }
 
-    private function pesoJaRegistradoNoPalete(iterable $caixas, int $paleteId, float $peso): bool
+    private function pesoJaRegistradoNoPalete(iterable $caixas, int $loteId, int $paleteId, float $peso): bool
     {
         $pesoEmGramas = (int) round($peso * 1000);
 
         foreach ($caixas as $caixa) {
+            $loteDaCaixa = is_array($caixa) ? $caixa['lote_id'] : $caixa->lote_id;
             $paleteDaCaixa = is_array($caixa) ? $caixa['palete_id'] : $caixa->palete_id;
             $pesoDaCaixa = is_array($caixa) ? $caixa['peso'] : $caixa->peso;
 
-            if ((int) $paleteDaCaixa === $paleteId && (int) round((float) $pesoDaCaixa * 1000) === $pesoEmGramas) {
+            if ((int) $loteDaCaixa === $loteId
+                && (int) $paleteDaCaixa === $paleteId
+                && (int) round((float) $pesoDaCaixa * 1000) === $pesoEmGramas) {
                 return true;
             }
         }

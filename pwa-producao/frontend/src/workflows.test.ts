@@ -132,12 +132,14 @@ test('lets the operator choose the mozzarella format and manually finalize its d
 test('lets the operator end the current PWA session', () => {
   const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
   const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8')
+  const logout = app.match(/async function logout\(\) \{[\s\S]*?\n  \}/)?.[0] ?? ''
 
   assert.match(api, /logout:\s*(?:async\s*)?\(\)\s*=>/)
   assert.match(app, /async function logout/)
   assert.match(app, /authApi\.logout\(\)/)
   assert.match(app, /aria-label="Sair"/)
   assert.match(app, /setAuthState\('guest'\)/)
+  assert.match(logout, /setUser\(null\)/)
 })
 
 test('forces reauthentication as soon as the server reports an expired session', () => {
@@ -222,7 +224,7 @@ test('restores the exact PWA workspace for the same operator after logout or aut
   assert.match(app, /sameUser/)
   const logout = app.match(/async function logout\(\) \{[\s\S]*?\n  \}/)?.[0] ?? ''
   assert.doesNotMatch(logout, /setView\('inicio'\)/)
-  assert.doesNotMatch(logout, /setUser\(null\)/)
+  assert.match(logout, /setUser\(null\)/)
   assert.match(app, /authState === 'guest'[\s\S]*ReauthDialog/)
 })
 

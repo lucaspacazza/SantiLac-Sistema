@@ -12,40 +12,52 @@ use ReflectionMethod;
 class EmbalagemDuplicateWeightTest extends TestCase
 {
     #[DataProvider('weightCases')]
-    public function test_detects_duplicate_weight_only_on_the_same_pallet(
+    public function test_detects_duplicate_weight_only_on_the_same_lot_and_pallet(
         array $boxes,
+        int $lotId,
         int $palletId,
         float $weight,
         bool $expected,
     ): void {
         $method = new ReflectionMethod(EmbalagemService::class, 'pesoJaRegistradoNoPalete');
 
-        self::assertSame($expected, $method->invoke(new EmbalagemService, $boxes, $palletId, $weight));
+        self::assertSame($expected, $method->invoke(new EmbalagemService, $boxes, $lotId, $palletId, $weight));
     }
 
     public static function weightCases(): array
     {
         return [
             'same weight on same pallet' => [
-                [['palete_id' => 10, 'peso' => 0.458]],
+                [['lote_id' => 20, 'palete_id' => 10, 'peso' => 0.458]],
+                20,
                 10,
                 0.458,
                 true,
             ],
             'same scale weight with floating point residue' => [
-                [['palete_id' => 10, 'peso' => 0.457999999]],
+                [['lote_id' => 20, 'palete_id' => 10, 'peso' => 0.457999999]],
+                20,
                 10,
                 0.458,
                 true,
             ],
+            'same weight on same pallet from another lot' => [
+                [['lote_id' => 19, 'palete_id' => 10, 'peso' => 0.458]],
+                20,
+                10,
+                0.458,
+                false,
+            ],
             'same weight on another pallet' => [
-                [['palete_id' => 9, 'peso' => 0.458]],
+                [['lote_id' => 20, 'palete_id' => 9, 'peso' => 0.458]],
+                20,
                 10,
                 0.458,
                 false,
             ],
             'different weight on same pallet' => [
-                [['palete_id' => 10, 'peso' => 0.459]],
+                [['lote_id' => 20, 'palete_id' => 10, 'peso' => 0.459]],
+                20,
                 10,
                 0.458,
                 false,

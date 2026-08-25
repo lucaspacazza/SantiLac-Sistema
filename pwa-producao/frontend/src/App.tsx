@@ -498,6 +498,7 @@ export function App() {
     } catch {
       // The local session must close even when the server is unavailable.
     }
+    setUser(null)
     setAuthState('guest')
     setSessionExpired(false)
     setState('ready')

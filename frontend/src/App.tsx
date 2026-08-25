@@ -250,6 +250,7 @@ function CoreApp() {
     snapshotAllDurableForms()
     if (user) rememberSystemWorkspace(user.id)
     await authApi.logout().catch(() => null)
+    setUser(null)
     setState('guest')
     setSessionExpired(false)
   }
@@ -347,8 +348,6 @@ function EmbalagemPortal() {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
-  const [sessionTimeoutMs, setSessionTimeoutMs] = useState(DEFAULT_SESSION_TIMEOUT_MS)
-  const [sessionExpired, setSessionExpired] = useSessionExpiry(state, setUser, sessionTimeoutMs, setSessionTimeoutMs)
   const [area, setArea] = useState<'embalagem' | 'carregamento'>(() =>
     window.localStorage.getItem('embalagem-area') === 'carregamento' ? 'carregamento' : 'embalagem')
 
@@ -361,7 +360,6 @@ function EmbalagemPortal() {
         const session = await authApi.me()
         if (session.user) {
           setUser(session.user)
-          setSessionTimeoutMs(timeoutFromSession(session))
           setState('authenticated')
           return
         }
@@ -380,17 +378,15 @@ function EmbalagemPortal() {
       : "Santi'Lac"
   }, [area, state])
 
-  async function login(loginValue: string, password: string, remember: boolean) {
+  async function login(loginValue: string, password: string, _remember: boolean) {
     setIsLoggingIn(true)
     setLoginError(null)
     try {
       const previousUserId = user?.id ?? null
-      const result = await authApi.login(loginValue, password, remember)
+      const result = await authApi.login(loginValue, password, true)
       const sameUser = previousUserId !== null && String(previousUserId) === String(result.user.id)
       setUser(result.user)
-      setSessionTimeoutMs(timeoutFromSession(result))
       setState('authenticated')
-      setSessionExpired(false)
       if (sameUser) snapshotAllDurableForms()
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : 'Não foi possível entrar no sistema.')
@@ -402,8 +398,8 @@ function EmbalagemPortal() {
   async function logout() {
     snapshotAllDurableForms()
     await authApi.logout().catch(() => null)
+    setUser(null)
     setState('guest')
-    setSessionExpired(false)
   }
 
   function selectArea(value: 'embalagem' | 'carregamento') {
@@ -420,8 +416,8 @@ function EmbalagemPortal() {
     return <LoginPage loading={isLoggingIn} error={loginError} onLogin={login} variant="factory" />
   }
 
-  return (<>
-    <div className="packaging-workspace" data-draft-owner={user.id} key={user.id} aria-hidden={sessionExpired || state === 'guest' || undefined}>
+  return (
+    <div className="packaging-workspace" data-draft-owner={user.id} key={user.id}>
       <header className="packaging-topbar">
         <img src="/assets/img/logo.png" alt="Santi'Lac" />
         <nav className="packaging-tabs" aria-label="Áreas da operação">
@@ -437,8 +433,7 @@ function EmbalagemPortal() {
         {area === 'embalagem' ? <EmbalagemApp /> : <CarregamentoExpedicao />}
       </Suspense>
     </div>
-    {(sessionExpired || state === 'guest') && <ReauthOverlay expired={sessionExpired} loading={isLoggingIn} error={loginError} onLogin={login} />}
-  </>)
+  )
 }
 
 function ReauthOverlay({ expired, loading, error, onLogin }: {
