@@ -121,9 +121,32 @@ class EmbalagemService
         }
 
         return DB::connection('raw')->transaction(function () use ($lote, $ordem, $queijo, $parsed): array {
-            $lote->refresh();
+            $lote = EmbalagemLote::query()
+                ->where('id', $lote->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($lote === null) {
+                throw new DomainException('Lote de embalagem não encontrado.');
+            }
+
+            if ($lote->status === 'finalizado') {
+                throw new DomainException('Este lote já foi finalizado.');
+            }
 
             $palete = $this->paleteAtual($lote, (int) $queijo['caixas_por_palete'], true);
+            $caixasNoPalete = EmbalagemCaixa::query()
+                ->where('palete_id', $palete->id)
+                ->get(['palete_id', 'peso']);
+
+            if ($this->pesoJaRegistradoNoPalete($caixasNoPalete, (int) $palete->id, $parsed['peso'])) {
+                $peso = number_format($parsed['peso'], 3, ',', '.');
+
+                throw new DomainException(
+                    "O peso {$peso} kg já foi registrado no palete {$palete->numero}. A caixa não foi gravada.",
+                );
+            }
+
             $sequencia = ((int) EmbalagemCaixa::query()->where('lote_id', $lote->id)->max('sequencia')) + 1;
 
             EmbalagemCaixa::query()->create([
@@ -521,6 +544,22 @@ class EmbalagemService
             'peso_total' => 0,
             'status' => 'aberto',
         ]);
+    }
+
+    private function pesoJaRegistradoNoPalete(iterable $caixas, int $paleteId, float $peso): bool
+    {
+        $pesoEmGramas = (int) round($peso * 1000);
+
+        foreach ($caixas as $caixa) {
+            $paleteDaCaixa = is_array($caixa) ? $caixa['palete_id'] : $caixa->palete_id;
+            $pesoDaCaixa = is_array($caixa) ? $caixa['peso'] : $caixa->peso;
+
+            if ((int) $paleteDaCaixa === $paleteId && (int) round((float) $pesoDaCaixa * 1000) === $pesoEmGramas) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function respostaOperacao(ProducaoOrdemProducao $ordem, EmbalagemLote $lote, array $queijo, ?EmbalagemPalete $palete): array
