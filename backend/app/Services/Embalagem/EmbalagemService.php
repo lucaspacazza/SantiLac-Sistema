@@ -26,6 +26,28 @@ class EmbalagemService
         'weight_divisor' => 1000,
     ];
 
+    public function ordensDisponiveis(): array
+    {
+        return ProducaoOrdemProducao::query()
+            ->where(function ($query): void {
+                $query->whereNull('status_embalagem')
+                    ->orWhere('status_embalagem', '!=', 'concluida');
+            })
+            ->orderByDesc('data_ordem')
+            ->orderByDesc('id')
+            ->get()
+            ->filter(fn (ProducaoOrdemProducao $ordem): bool => $this->ordemDisponivelParaEmbalagem($ordem))
+            ->map(function (ProducaoOrdemProducao $ordem): ?array {
+                $dados = $this->dadosOrdem($ordem);
+                $queijo = $this->buscarQueijo($dados['tipo_queijo']);
+
+                return $queijo === null ? null : $this->formatarOrdemDisponivel($ordem, $dados, $queijo);
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
     public function validarOrdem(string $codigoOrdem): array
     {
         $codigoOrdem = $this->normalizarCodigo($codigoOrdem);
@@ -376,6 +398,25 @@ class EmbalagemService
             'tipo_queijo' => $tipo,
             'lote' => $lote !== '' ? $lote : preg_replace('/[^0-9]/', '', (string) $ordem->codigo_ordem),
             'data' => optional($ordem->data_ordem)->toDateString(),
+        ];
+    }
+
+    private function ordemDisponivelParaEmbalagem(ProducaoOrdemProducao $ordem): bool
+    {
+        return ($ordem->status ?? '') !== 'cancelada'
+            && ($ordem->status_embalagem ?? '') !== 'concluida';
+    }
+
+    private function formatarOrdemDisponivel(ProducaoOrdemProducao $ordem, array $dados, array $queijo): array
+    {
+        $codigo = (string) $ordem->codigo_ordem;
+
+        return [
+            'id' => (int) $ordem->id,
+            'codigo_ordem' => $codigo,
+            'nome' => $codigo,
+            'lote' => (string) $dados['lote'],
+            'tipo_queijo' => (string) ($queijo['nome'] ?? $dados['tipo_queijo']),
         ];
     }
 

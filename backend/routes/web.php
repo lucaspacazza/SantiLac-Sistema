@@ -118,6 +118,7 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
     });
 
     Route::prefix('embalagem')->group(function (): void {
+        Route::get('/ordens/disponiveis', [EmbalagemController::class, 'ordensDisponiveis']);
         Route::post('/ordens/validar', [EmbalagemController::class, 'validarOrdem']);
         Route::get('/lotes/{loteId}', [EmbalagemController::class, 'estado'])->whereNumber('loteId');
         Route::post('/lotes/{loteId}/caixas', [EmbalagemController::class, 'registrarCaixa'])->whereNumber('loteId');

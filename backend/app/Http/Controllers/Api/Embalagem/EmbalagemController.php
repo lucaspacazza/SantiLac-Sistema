@@ -17,6 +17,11 @@ class EmbalagemController extends Controller
     ) {
     }
 
+    public function ordensDisponiveis(): JsonResponse
+    {
+        return $this->executar(fn (): array => $this->embalagem->ordensDisponiveis());
+    }
+
     public function validarOrdem(Request $request): JsonResponse
     {
         return $this->executar(fn (): array => $this->embalagem->validarOrdem((string) $request->input('codigo_ordem', '')));
