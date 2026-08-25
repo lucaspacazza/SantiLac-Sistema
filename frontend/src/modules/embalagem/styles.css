@@ -210,25 +210,57 @@ button { cursor: pointer; }
   text-transform: uppercase;
 }
 
-.status-line {
+.operation-toast {
+  position: fixed;
+  top: 72px;
+  right: 18px;
+  z-index: 1000;
+  width: min(380px, calc(100vw - 28px));
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .32);
   display: flex;
   align-items: center;
   gap: 10px;
   color: var(--body);
-  min-height: 20px;
   font-size: 13px;
+  pointer-events: none;
+  animation: operation-toast-in .16s ease-out;
 }
 
-.status-line span {
+.operation-toast p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.operation-toast span {
+  flex: 0 0 auto;
   width: 7px;
   height: 7px;
   border-radius: 999px;
   background: var(--muted);
 }
 
-.status-line.is-ok span { background: var(--success); }
-.status-line.is-loading span { background: var(--warning); }
-.status-line.is-error span { background: var(--danger); }
+.operation-toast.is-ok {
+  border-color: rgba(33, 195, 122, .45);
+}
+
+.operation-toast.is-error {
+  border-color: rgba(239, 91, 91, .55);
+}
+
+.operation-toast.is-ok span { background: var(--success); }
+.operation-toast.is-error span { background: var(--danger); }
+
+@keyframes operation-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
 
 .field {
   display: grid;
@@ -641,7 +673,8 @@ th {
   min-height: 58px;
   padding: 0 24px;
   border-bottom: 1px solid var(--line);
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 18px;
 }
@@ -670,10 +703,11 @@ th {
 }
 
 .packaging-user {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
+  justify-self: end;
+  white-space: nowrap;
   color: var(--body);
   font-size: 13px;
 }
@@ -793,17 +827,20 @@ th {
 
 @media (max-width: 760px) {
   .packaging-topbar {
-    padding: 10px 14px;
-    flex-wrap: wrap;
+    padding: 8px 14px;
+    gap: 8px;
   }
 
   .packaging-topbar img {
     width: 96px;
   }
 
-  .packaging-user {
-    width: 100%;
-    margin-left: 0;
+  .packaging-tabs {
+    gap: 0;
+  }
+
+  .packaging-tabs button {
+    padding: 0 9px;
   }
 
   .loading-summary {
@@ -816,6 +853,30 @@ th {
 
   .loading-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .packaging-topbar {
+    padding-inline: 10px;
+  }
+
+  .packaging-topbar img {
+    width: 82px;
+  }
+
+  .packaging-user span {
+    display: none;
+  }
+
+  .packaging-tabs button {
+    padding: 0 7px;
+    font-size: 12px;
+  }
+
+  .operation-toast {
+    top: 66px;
+    right: 14px;
   }
 }
 

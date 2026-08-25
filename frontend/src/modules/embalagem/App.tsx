@@ -35,6 +35,19 @@ export function App() {
   }, [operacao])
 
   useEffect(() => {
+    if ((status !== 'ok' && status !== 'error') || !mensagem) return
+
+    const statusExibido = status
+    const mensagemExibida = mensagem
+    const timer = window.setTimeout(() => {
+      setStatus((atual) => atual === statusExibido ? 'idle' : atual)
+      setMensagem((atual) => atual === mensagemExibida ? '' : atual)
+    }, 5000)
+
+    return () => window.clearTimeout(timer)
+  }, [mensagem, status])
+
+  useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       const telaState = (event.state as { embalagemTela?: Tela } | null)?.embalagemTela
       setTela(telaState === 'historico' ? 'historico' : 'operacao')
@@ -96,8 +109,8 @@ export function App() {
       setUltimoCodigo(data.historico[0]?.codigo_barra ?? '')
       navegarOperacao(true)
       setPecasAvulsas(0)
-      setStatus('ok')
-      setMensagem('OP validada.')
+      setStatus('idle')
+      setMensagem('')
       window.localStorage.setItem('embalagem-lote-id', String(data.lote.id))
     } catch (error) {
       setStatus('error')
@@ -286,10 +299,17 @@ export function App() {
 
   return (
     <main className="page">
-      <div className={`status-line is-${status}`} aria-live="polite" aria-atomic="true">
-        <span />
-        {mensagem}
-      </div>
+      {(status === 'ok' || status === 'error') && mensagem ? (
+        <div
+          className={`operation-toast is-${status}`}
+          role={status === 'error' ? 'alert' : 'status'}
+          aria-live={status === 'error' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+        >
+          <span aria-hidden="true" />
+          <p>{mensagem}</p>
+        </div>
+      ) : null}
 
       {!operacao ? (
         <IniciarEmbalagem

@@ -14,7 +14,7 @@ test('all API calls announce an expired authenticated session', () => {
   assert.match(http, /response\.status\s*===\s*419/)
 })
 
-test('system and packaging portal check sessions while open and on resume', () => {
+test('system checks session expiry while open and on resume', () => {
   assert.match(app, /lastSessionActivityRef/)
   assert.match(app, /scheduleLocalExpiry/)
   assert.match(app, /window\.setTimeout\(/)
@@ -23,6 +23,17 @@ test('system and packaging portal check sessions while open and on resume', () =
   assert.doesNotMatch(app, /setInterval\(/)
   assert.match(app, /visibilitychange/)
   assert.match(app, /ReauthOverlay/)
+})
+
+test('packaging stays signed in without a local expiry timer or reauthentication overlay', () => {
+  const start = app.indexOf('function EmbalagemPortal()')
+  const end = app.indexOf('function ReauthOverlay(', start)
+  assert.notEqual(start, -1)
+  assert.notEqual(end, -1)
+  const packagingPortal = app.slice(start, end)
+
+  assert.doesNotMatch(packagingPortal, /useSessionExpiry|sessionTimeoutMs|sessionExpired|ReauthOverlay/)
+  assert.match(packagingPortal, /authApi\.login\(loginValue, password, true\)/)
 })
 
 test('every form control is snapshotted before navigation and restored after remount', () => {
@@ -50,14 +61,20 @@ test('mounting or immediately leaving a form cannot overwrite an older draft wit
   assert.doesNotMatch(drafts, /MAX_AGE/)
 })
 
-test('session expiry snapshots work immediately and returns the same user to the same route', () => {
+test('manual logout returns to normal login while session expiry preserves the mounted workspace', () => {
   assert.match(app, /snapshotAllDurableForms\(\)/)
   assert.match(app, /rememberSystemWorkspace/)
   assert.match(app, /restoreSystemWorkspace/)
   assert.match(app, /resumingExpiredSession/)
   assert.match(app, /sameUser/)
-  const logout = app.match(/async function handleLogout\(\) \{[\s\S]*?\n  \}/)?.[0] ?? ''
-  assert.doesNotMatch(logout, /setUser\(null\)/)
+  const systemLogout = app.match(/async function handleLogout\(\) \{[\s\S]*?\n  \}/)?.[0] ?? ''
+  const packagingLogout = app.match(/async function logout\(\) \{[\s\S]*?\n  \}/)?.[0] ?? ''
+  const requireLogin = app.match(/const requireLogin = \(\) => \{[\s\S]*?\n    \}/)?.[0] ?? ''
+  assert.match(systemLogout, /setUser\(null\)/)
+  assert.match(packagingLogout, /setUser\(null\)/)
+  assert.match(requireLogin, /setExpired\(true\)/)
+  assert.doesNotMatch(requireLogin, /setUser\(null\)/)
+  assert.equal((app.match(/if \(!user\) \{/g) ?? []).length, 2)
   assert.match(app, /state === 'guest'[\s\S]*ReauthOverlay/)
 })
 

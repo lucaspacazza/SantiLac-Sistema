@@ -5,6 +5,8 @@ import test from 'node:test'
 const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
 const inicio = readFileSync(new URL('./views/IniciarEmbalagem.tsx', import.meta.url), 'utf8')
 const carregamento = readFileSync(new URL('./views/CarregamentoExpedicao.tsx', import.meta.url), 'utf8')
+const operacao = readFileSync(new URL('./views/OperacaoLote.tsx', import.meta.url), 'utf8')
+const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8')
 
 function sectionBetween(start, end) {
   const startIndex = app.indexOf(start)
@@ -51,4 +53,27 @@ test('loading flow asks for the pallet barcode instead of a QR Code', () => {
 test('loading reads the live scanner field value before sending the pallet barcode', () => {
   assert.match(carregamento, /scannerRef\.current\?\.value/)
   assert.match(carregamento, /carregamentoApi\.escanear\(ordem\.id, codigoLido\)/)
+})
+
+test('operation notices are five-second non-blocking toasts and do not announce OP validation', () => {
+  assert.match(app, /operation-toast/)
+  assert.match(app, /window\.setTimeout\([\s\S]*?,\s*5000\)/)
+  assert.doesNotMatch(app, /OP validada\./)
+  assert.match(styles, /\.operation-toast\s*\{[\s\S]*?position:\s*fixed;/)
+  assert.match(styles, /\.operation-toast\s*\{[\s\S]*?pointer-events:\s*none;/)
+})
+
+test('scanner remains enabled while a box is being saved or a notice is visible', () => {
+  const scanner = operacao.match(/<input[\s\S]*?data-scanner-input="true"[\s\S]*?\/>/)?.[0] ?? ''
+
+  assert.notEqual(scanner, '')
+  assert.doesNotMatch(scanner, /processando|disabled=\{status/)
+  assert.match(operacao, /disabled=\{operacao\.lote\.status === 'finalizado'\}/)
+  assert.doesNotMatch(operacao, /disabled=\{processando\}/)
+})
+
+test('packaging header keeps navigation and user actions on the same row', () => {
+  assert.match(styles, /\.packaging-topbar\s*\{[\s\S]*?display:\s*grid;/)
+  assert.match(styles, /\.packaging-topbar\s*\{[\s\S]*?grid-template-columns:\s*auto\s+minmax\(0,\s*1fr\)\s+auto;/)
+  assert.doesNotMatch(styles, /\.packaging-user\s*\{[\s\S]{0,160}?width:\s*100%;/)
 })
