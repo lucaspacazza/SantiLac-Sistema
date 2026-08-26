@@ -3,6 +3,13 @@ export const AUTH_EXPIRED_EVENT = 'santilac:auth-expired'
 export const SESSION_ACTIVITY_EVENT = 'santilac:session-activity'
 export const MUTATION_SUCCEEDED_EVENT = 'santilac:mutation-succeeded'
 
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
 function announceExpiredSession(response: Response): void {
   if (response.status === 401 || response.status === 419) {
     csrfToken = null
@@ -44,7 +51,7 @@ export async function ensureCsrfToken(): Promise<string> {
   announceExpiredSession(response)
 
   if (!response.ok) {
-    throw new Error('Não foi possível iniciar a sessão.')
+    throw new ApiError('Não foi possível iniciar a sessão.', response.status)
   }
 
   const json = (await response.json()) as ApiResponse<{ token: string }>
@@ -93,7 +100,7 @@ export async function apiGet<T>(path: string, options: ApiGetOptions = {}): Prom
           continue
         }
 
-        throw new Error(apiErrorMessage(validEnvelope ? json : null, `HTTP ${response.status}`))
+        throw new ApiError(apiErrorMessage(validEnvelope ? json : null, `HTTP ${response.status}`), response.status)
       }
 
       announceSessionActivity(response)
@@ -188,7 +195,7 @@ export async function apiPost<T>(path: string, payload: Record<string, unknown>)
   const json = (await response.json().catch(() => null)) as ApiResponse<T> | null
   announceExpiredSession(response)
   if (!response.ok || !json?.success || json.data === undefined) {
-    throw new Error(apiErrorMessage(json, 'Falha ao processar solicitação.'))
+    throw new ApiError(apiErrorMessage(json, 'Falha ao processar solicitação.'), response.status)
   }
 
   announceSessionActivity(response)

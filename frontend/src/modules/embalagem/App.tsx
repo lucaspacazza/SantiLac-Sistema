@@ -1,5 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { embalagemApi, type OperacaoEmbalagem, type OrdemDisponivel } from './api/embalagemApi'
+import {
+  createPendingScan,
+  discardRejectedOfflineScans,
+  getOfflineDeviceId,
+  indexedDbOfflineScanRepository,
+  listOfflineScans,
+  readCachedOperation,
+  readCachedOperationByOrder,
+  readCachedOrders,
+  retryRejectedOfflineScans,
+  saveOfflineScans,
+  summarizeOfflineScans,
+  synchronizePendingScans,
+  writeCachedOperation,
+  writeCachedOrders,
+  type OfflineScanSummary,
+} from './offline/offlineQueue'
 import { HistoricoCaixas } from './views/HistoricoCaixas'
 import { IniciarEmbalagem } from './views/IniciarEmbalagem'
 import { OperacaoLote } from './views/OperacaoLote'
@@ -22,9 +39,13 @@ export function App() {
   const [operacao, setOperacao] = useState<OperacaoEmbalagem | null>(null)
   const [tela, setTela] = useState<Tela>('operacao')
   const [ultimoCodigo, setUltimoCodigo] = useState('')
+  const [offlineSummary, setOfflineSummary] = useState<OfflineScanSummary>({ pending: 0, rejected: 0, total: 0 })
+  const [sincronizando, setSincronizando] = useState(false)
+  const [conectado, setConectado] = useState(() => navigator.onLine)
   const operacaoRef = useRef<OperacaoEmbalagem | null>(null)
-  const registrandoRef = useRef(false)
-  const filaCodigosRef = useRef<string[]>([])
+  const sincronizandoRef = useRef(false)
+  const persistindoRef = useRef(false)
+  const codigoBufferRef = useRef('')
 
   useEffect(() => {
     void import('./styles.css')
@@ -33,6 +54,31 @@ export function App() {
   useEffect(() => {
     operacaoRef.current = operacao
   }, [operacao])
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setConectado(true)
+      void syncOfflineScans()
+    }
+    const handleOffline = () => setConectado(false)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void syncOfflineScans()
+    }
+    const interval = window.setInterval(() => void syncOfflineScans(), 15000)
+
+    void atualizarEstadoOffline()
+    void syncOfflineScans()
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [])
 
   useEffect(() => {
     if ((status !== 'ok' && status !== 'error') || !mensagem) return
@@ -72,16 +118,86 @@ export function App() {
     setMensagem('Carregando lote em andamento.')
     embalagemApi.estado(loteId)
       .then((data) => {
-        setOperacao(data)
-        setUltimoCodigo(data.historico[0]?.codigo_barra ?? '')
+        aplicarOperacao(data)
         setStatus('ok')
         setMensagem('Lote carregado.')
       })
-      .catch(() => {
+      .catch(async (error) => {
+        const cached = podeUsarCacheOffline(error) ? await readCachedOperation(loteId) : null
+        if (cached) {
+          aplicarOperacao(cached, false)
+          setConectado(false)
+          setStatus('ok')
+          setMensagem('Lote aberto com os dados salvos no tablet.')
+          return
+        }
+
         window.localStorage.removeItem('embalagem-lote-id')
         void carregarOrdensDisponiveis()
       })
   }, [])
+
+  function aplicarOperacao(data: OperacaoEmbalagem, persistir = true) {
+    setOperacao(data)
+    operacaoRef.current = data
+    setUltimoCodigo(data.historico[0]?.codigo_barra ?? '')
+    window.localStorage.setItem('embalagem-lote-id', String(data.lote.id))
+    if (persistir) void writeCachedOperation(data)
+    void atualizarEstadoOffline(data.lote.id)
+  }
+
+  async function atualizarEstadoOffline(loteId = operacaoRef.current?.lote.id) {
+    try {
+      const scans = await listOfflineScans()
+      setOfflineSummary(loteId ? summarizeOfflineScans(scans, loteId) : { pending: 0, rejected: 0, total: 0 })
+      const ultimoLocal = loteId
+        ? scans.filter((scan) => scan.loteId === loteId).sort((a, b) => b.capturedAt - a.capturedAt)[0]
+        : null
+      if (ultimoLocal) setUltimoCodigo(ultimoLocal.codigoBarra)
+    } catch (error) {
+      setStatus('error')
+      setMensagem(error instanceof Error ? error.message : 'Não foi possível consultar as caixas salvas no tablet.')
+    }
+  }
+
+  async function syncOfflineScans() {
+    if (sincronizandoRef.current) return
+    sincronizandoRef.current = true
+    setSincronizando(true)
+
+    try {
+      const result = await synchronizePendingScans(
+        indexedDbOfflineScanRepository,
+        embalagemApi.registrarCaixa,
+        async (scan, data) => {
+          await writeCachedOperation(data)
+          if (operacaoRef.current?.lote.id === scan.loteId) {
+            aplicarOperacao(data, false)
+            setUltimoCodigo(scan.codigoBarra)
+          }
+        },
+      )
+
+      setConectado(navigator.onLine && !result.paused)
+      await atualizarEstadoOffline()
+
+      if (result.rejected > 0) {
+        setStatus('error')
+        setMensagem(`${result.rejected} caixa(s) não foram aceitas pelo servidor. Elas continuam salvas no tablet para conferência.`)
+      } else if (result.confirmed > 0) {
+        setStatus('ok')
+        setMensagem(`${result.confirmed} caixa(s) sincronizadas com o servidor.`)
+      }
+    } catch (error) {
+      setConectado(false)
+      await atualizarEstadoOffline()
+      setStatus('error')
+      setMensagem(error instanceof Error ? error.message : 'A sincronização foi pausada. As caixas continuam salvas no tablet.')
+    } finally {
+      sincronizandoRef.current = false
+      setSincronizando(false)
+    }
+  }
 
   async function carregarOrdensDisponiveis() {
     setStatus('loading')
@@ -90,9 +206,20 @@ export function App() {
     try {
       const data = await embalagemApi.ordensDisponiveis()
       setOrdensDisponiveis(data)
+      await writeCachedOrders(data)
+      setConectado(true)
       setStatus(data.length > 0 ? 'ok' : 'idle')
       setMensagem(data.length === 1 ? '1 OP disponível.' : `${data.length} OPs disponíveis.`)
     } catch (error) {
+      const cached = podeUsarCacheOffline(error) ? await readCachedOrders() : null
+      if (cached) {
+        setOrdensDisponiveis(cached)
+        setConectado(false)
+        setStatus('ok')
+        setMensagem('OPs disponíveis carregadas do tablet. Sem conexão com o servidor.')
+        return
+      }
+
       setStatus('error')
       setMensagem(error instanceof Error ? error.message : 'Não foi possível carregar as OPs disponíveis.')
     }
@@ -104,61 +231,27 @@ export function App() {
 
     try {
       const data = await embalagemApi.validarOrdem(codigoOrdem)
-      setOperacao(data)
+      aplicarOperacao(data)
       setCodigoBarra('')
-      setUltimoCodigo(data.historico[0]?.codigo_barra ?? '')
       navegarOperacao(true)
       setPecasAvulsas(0)
       setStatus('idle')
       setMensagem('')
-      window.localStorage.setItem('embalagem-lote-id', String(data.lote.id))
     } catch (error) {
+      const cached = podeUsarCacheOffline(error) ? await readCachedOperationByOrder(codigoOrdem) : null
+      if (cached && cached.lote.status !== 'finalizado') {
+        aplicarOperacao(cached, false)
+        setCodigoBarra('')
+        navegarOperacao(true)
+        setPecasAvulsas(0)
+        setConectado(false)
+        setStatus('ok')
+        setMensagem('OP aberta com os dados salvos no tablet. As caixas serão sincronizadas quando a conexão voltar.')
+        return
+      }
+
       setStatus('error')
       setMensagem(error instanceof Error ? error.message : 'Não foi possível validar a OP.')
-    }
-  }
-
-  async function registrarCaixa(codigo: string) {
-    const operacaoAtual = operacaoRef.current
-    if (!operacaoAtual) return
-
-    setStatus('loading')
-    setMensagem('Registrando caixa.')
-
-    try {
-      const data = await embalagemApi.registrarCaixa(operacaoAtual.lote.id, codigo)
-      setOperacao(data)
-      operacaoRef.current = data
-      setUltimoCodigo(codigo)
-      setCodigoBarra('')
-      setStatus('ok')
-      const caixaRegistrada = data.historico[0]
-      const palete = caixaRegistrada
-        ? data.paletes.find((item) => item.id === caixaRegistrada.palete_id)
-        : data.palete_atual
-      const peso = caixaRegistrada?.peso ?? extrairPesoCodigo(codigo, data.barcode)
-      const detalhePeso = peso === null || peso === undefined ? '' : ` de ${formatPesoInput(peso)} kg`
-      const detalhePalete = palete ? ` no palete ${palete.numero} (${palete.caixas}/${data.lote.caixas_por_palete})` : ''
-      setMensagem(`Caixa${detalhePeso} registrada${detalhePalete}.`)
-    } catch (error) {
-      setStatus('error')
-      setMensagem(error instanceof Error ? error.message : 'Não foi possível registrar a caixa.')
-    }
-  }
-
-  async function processarFilaCodigos() {
-    if (registrandoRef.current) return
-    registrandoRef.current = true
-
-    try {
-      while (filaCodigosRef.current.length > 0) {
-        const codigo = filaCodigosRef.current.shift()
-        if (codigo) {
-          await registrarCaixa(codigo)
-        }
-      }
-    } finally {
-      registrandoRef.current = false
     }
   }
 
@@ -166,22 +259,50 @@ export function App() {
     const operacaoAtual = operacaoRef.current
     if (!operacaoAtual || operacaoAtual.lote.status === 'finalizado') return
 
-    const tamanho = operacaoAtual.barcode.length
     const digits = value.replace(/\D/g, '')
-    const codigos: string[] = []
-    let index = 0
+    codigoBufferRef.current = digits
+    setCodigoBarra(digits)
+    void persistirCodigosCompletos()
+  }
 
-    while (index + tamanho <= digits.length) {
-      codigos.push(digits.slice(index, index + tamanho))
-      index += tamanho
-    }
+  async function persistirCodigosCompletos() {
+    if (persistindoRef.current) return
+    persistindoRef.current = true
 
-    const resto = digits.slice(index)
-    setCodigoBarra(resto)
+    try {
+      while (true) {
+        const operacaoAtual = operacaoRef.current
+        if (!operacaoAtual || operacaoAtual.lote.status === 'finalizado') return
 
-    if (codigos.length > 0) {
-      filaCodigosRef.current.push(...codigos)
-      void processarFilaCodigos()
+        const tamanho = operacaoAtual.barcode.length
+        const buffer = codigoBufferRef.current
+        if (buffer.length < tamanho) return
+
+        const codigo = buffer.slice(0, tamanho)
+        const scan = createPendingScan({
+          deviceId: getOfflineDeviceId(),
+          loteId: operacaoAtual.lote.id,
+          codigoBarra: codigo,
+        })
+
+        try {
+          await saveOfflineScans([scan])
+        } catch (error) {
+          setStatus('error')
+          setMensagem(error instanceof Error ? error.message : 'A caixa não pôde ser salva no tablet. Escaneie novamente.')
+          return
+        }
+
+        codigoBufferRef.current = codigoBufferRef.current.slice(tamanho)
+        setCodigoBarra(codigoBufferRef.current)
+        setUltimoCodigo(codigo)
+        await atualizarEstadoOffline(operacaoAtual.lote.id)
+        setStatus('ok')
+        setMensagem('Caixa salva no tablet. A sincronização será feita automaticamente.')
+        void syncOfflineScans()
+      }
+    } finally {
+      persistindoRef.current = false
     }
   }
 
@@ -191,6 +312,11 @@ export function App() {
     paleteParcial: 'preencher' | 'finalizar' = decisaoPaleteParcial,
   ) {
     if (!operacao) return
+    if (offlineSummary.total > 0) {
+      setStatus('error')
+      setMensagem('Aguarde a sincronização ou resolva as caixas pendentes antes de finalizar a OP.')
+      return
+    }
     if (confirmar) {
       const confirmou = window.confirm('Finalizar a embalagem desta OP?')
       if (!confirmou) return
@@ -200,11 +326,14 @@ export function App() {
     setMensagem('Finalizando OP.')
 
     try {
-      await embalagemApi.finalizar(operacao.lote.id, pecasAvulsas, pesoPecasAvulsas, paleteParcial)
+      const finalizada = await embalagemApi.finalizar(operacao.lote.id, pecasAvulsas, pesoPecasAvulsas, paleteParcial)
+      await writeCachedOperation(finalizada)
       setOperacao(null)
       operacaoRef.current = null
+      codigoBufferRef.current = ''
       setCodigoBarra('')
       setUltimoCodigo('')
+      setOfflineSummary({ pending: 0, rejected: 0, total: 0 })
       setPecasAvulsas(0)
       navegarOperacao(true)
       window.localStorage.removeItem('embalagem-lote-id')
@@ -217,6 +346,12 @@ export function App() {
   }
 
   function solicitarFinalizacao() {
+    if (offlineSummary.total > 0) {
+      setStatus('error')
+      setMensagem('Existem caixas aguardando sincronização ou conferência. Resolva-as antes de finalizar a OP.')
+      return
+    }
+
     const palete = operacao?.palete_atual
     if (palete && palete.caixas > 0 && palete.caixas < operacao.lote.caixas_por_palete) {
       setModalPaleteParcialAberto(true)
@@ -224,6 +359,23 @@ export function App() {
     }
 
     continuarFinalizacao('preencher', false)
+  }
+
+  async function tentarNovamenteRejeitadas() {
+    if (!operacao) return
+    await retryRejectedOfflineScans(operacao.lote.id)
+    await atualizarEstadoOffline(operacao.lote.id)
+    void syncOfflineScans()
+  }
+
+  async function descartarRejeitadas() {
+    if (!operacao || offlineSummary.rejected === 0) return
+    const confirmou = window.confirm('Descartar somente as caixas recusadas pelo servidor? Esta ação não apaga caixas já gravadas.')
+    if (!confirmou) return
+    await discardRejectedOfflineScans(operacao.lote.id)
+    await atualizarEstadoOffline(operacao.lote.id)
+    setStatus('ok')
+    setMensagem('Caixas recusadas foram descartadas da fila local.')
   }
 
   function continuarFinalizacao(paleteParcial: 'preencher' | 'finalizar', paleteConfirmado = true) {
@@ -271,8 +423,11 @@ export function App() {
 
   function novaOp() {
     setOperacao(null)
+    operacaoRef.current = null
+    codigoBufferRef.current = ''
     setCodigoBarra('')
     setUltimoCodigo('')
+    setOfflineSummary({ pending: 0, rejected: 0, total: 0 })
     navegarOperacao(true)
     setPecasAvulsas(0)
     window.localStorage.removeItem('embalagem-lote-id')
@@ -330,9 +485,16 @@ export function App() {
           ultimoCodigo={ultimoCodigo}
           pecasAvulsas={pecasAvulsas}
           processando={status === 'loading'}
+          online={conectado}
+          sincronizando={sincronizando}
+          offlinePending={offlineSummary.pending}
+          offlineRejected={offlineSummary.rejected}
           onCodigoChange={atualizarCodigoBarra}
           onPecasAvulsasChange={setPecasAvulsas}
           onFinalizar={solicitarFinalizacao}
+          onSincronizar={() => void syncOfflineScans()}
+          onTentarRejeitadas={() => void tentarNovamenteRejeitadas()}
+          onDescartarRejeitadas={() => void descartarRejeitadas()}
           onAbrirHistorico={abrirHistorico}
           onNovaOp={novaOp}
         />
@@ -434,4 +596,9 @@ function parsePesoInput(value: string) {
 
 function formatPesoInput(value: number) {
   return Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3, useGrouping: false })
+}
+
+function podeUsarCacheOffline(error: unknown) {
+  const status = Number((error as { status?: unknown } | null)?.status)
+  return !Number.isInteger(status) || status < 400 || status >= 500 || [401, 408, 419, 425, 429].includes(status)
 }

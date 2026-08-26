@@ -72,8 +72,12 @@ export const embalagemApi = {
     return apiGet<OperacaoEmbalagem>(`/api/embalagem/lotes/${loteId}`)
   },
 
-  registrarCaixa(loteId: number, codigoBarra: string) {
-    return apiPost<OperacaoEmbalagem>(`/api/embalagem/lotes/${loteId}/caixas`, { codigo_barra: codigoBarra })
+  registrarCaixa(scan: OfflineScan) {
+    return apiPost<OperacaoEmbalagem>(`/api/embalagem/lotes/${scan.loteId}/caixas`, {
+      codigo_barra: scan.codigoBarra,
+      device_id: scan.deviceId,
+      id_local: scan.id,
+    })
   },
 
   finalizar(loteId: number, pecasAvulsas: number, pesoPecasAvulsas = 0, paleteParcial: 'preencher' | 'finalizar' = 'preencher') {
@@ -121,3 +125,4 @@ export const carregamentoApi = {
   concluir: (id: number) => apiPost<Carregamento>(`/api/expedicao/carregamentos/${id}/concluir`, {}),
 }
 import { apiGet, apiPost } from '../../../api/http'
+import type { OfflineScan } from '../offline/offlineQueue'

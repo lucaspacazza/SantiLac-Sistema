@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { authApi, type AuthSession, type AuthUser } from './api/authApi'
 import { AUTH_EXPIRED_EVENT, SESSION_ACTIVITY_EVENT } from './api/http'
 import { LoginPage } from './pages/LoginPage'
+import { clearCachedPackagingUser, readCachedPackagingUser, writeCachedPackagingUser } from './modules/embalagem/offline/offlineSession'
 import { SystemHome } from './pages/SystemHome'
 import { CoreSidebar, routeForModule } from './shared/CoreSidebar'
 import { installDurableForms, snapshotAllDurableForms } from './shared/durableForms'
@@ -30,7 +31,8 @@ const EstoqueModule = lazy(() => import('./modules/estoque/EstoqueModule').then(
 const PasteurizadorModule = lazy(() => import('./modules/pasteurizador/PasteurizadorModule').then((module) => ({ default: module.PasteurizadorModule })))
 const ProducaoModule = lazy(() => import('./modules/producao/ProducaoModule').then((module) => ({ default: module.ProducaoModule })))
 const QualidadeModule = lazy(() => import('./modules/qualidade/QualidadeModule').then((module) => ({ default: module.QualidadeModule })))
-const isEmbalagemHost = window.location.hostname.toLowerCase() === 'embalagem.santilac.com.br'
+const isEmbalagemHost = ['embalagem.santilac.com.br', 'embalagem.localhost']
+  .includes(window.location.hostname.toLowerCase())
 
 function moduleFromHash(user: ModuleAccessUser | null): SystemModule | null {
   const firstPart = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean)[0]
@@ -359,11 +361,18 @@ function EmbalagemPortal() {
       try {
         const session = await authApi.me()
         if (session.user) {
+          writeCachedPackagingUser(session.user)
           setUser(session.user)
           setState('authenticated')
           return
         }
       } catch {
+        const cachedUser = readCachedPackagingUser()
+        if (cachedUser) {
+          setUser(cachedUser)
+          setState('authenticated')
+          return
+        }
         setUser(null)
       }
       setState('guest')
@@ -386,6 +395,7 @@ function EmbalagemPortal() {
       const result = await authApi.login(loginValue, password, true)
       const sameUser = previousUserId !== null && String(previousUserId) === String(result.user.id)
       setUser(result.user)
+      writeCachedPackagingUser(result.user)
       setState('authenticated')
       if (sameUser) snapshotAllDurableForms()
     } catch (error) {
@@ -398,6 +408,7 @@ function EmbalagemPortal() {
   async function logout() {
     snapshotAllDurableForms()
     await authApi.logout().catch(() => null)
+    clearCachedPackagingUser()
     setUser(null)
     setState('guest')
   }

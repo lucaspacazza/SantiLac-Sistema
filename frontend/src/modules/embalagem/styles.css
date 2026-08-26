@@ -105,6 +105,53 @@ button { cursor: pointer; }
   gap: 14px;
 }
 
+.offline-sync-strip {
+  min-height: 48px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--body);
+  font-size: 13px;
+}
+
+.offline-sync-state,
+.offline-sync-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.offline-sync-state {
+  color: var(--success);
+}
+
+.offline-sync-strip.is-offline .offline-sync-state,
+.offline-sync-error {
+  color: var(--danger);
+}
+
+.offline-sync-actions {
+  margin-left: auto;
+}
+
+.offline-sync-actions .icon-btn {
+  width: 38px;
+  min-height: 38px;
+  flex-basis: 38px;
+}
+
+.is-spinning {
+  animation: offline-sync-spin .8s linear infinite;
+}
+
+@keyframes offline-sync-spin {
+  to { transform: rotate(360deg); }
+}
+
 .available-order-head {
   min-height: 36px;
   padding: 0 14px;
@@ -1006,6 +1053,18 @@ th {
 }
 
 @media (max-width: 620px) {
+  .offline-sync-strip {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .offline-sync-actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+
   .available-order-head {
     display: none;
   }

@@ -1,4 +1,4 @@
-import { Check, History, RotateCcw } from 'lucide-react'
+import { Check, History, RefreshCw, RotateCcw, Trash2, Wifi, WifiOff } from 'lucide-react'
 import { type PointerEvent, useEffect, useRef } from 'react'
 import type { OperacaoEmbalagem } from '../api/embalagemApi'
 
@@ -10,9 +10,16 @@ export function OperacaoLote({
   ultimoCodigo,
   pecasAvulsas,
   processando,
+  online,
+  sincronizando,
+  offlinePending,
+  offlineRejected,
   onCodigoChange,
   onPecasAvulsasChange,
   onFinalizar,
+  onSincronizar,
+  onTentarRejeitadas,
+  onDescartarRejeitadas,
   onAbrirHistorico,
   onNovaOp,
 }: {
@@ -21,9 +28,16 @@ export function OperacaoLote({
   ultimoCodigo: string
   pecasAvulsas: number
   processando: boolean
+  online: boolean
+  sincronizando: boolean
+  offlinePending: number
+  offlineRejected: number
   onCodigoChange: (value: string) => void
   onPecasAvulsasChange: (value: number) => void
   onFinalizar: () => void
+  onSincronizar: () => void
+  onTentarRejeitadas: () => void
+  onDescartarRejeitadas: () => void
   onAbrirHistorico: () => void
   onNovaOp: () => void
 }) {
@@ -78,6 +92,27 @@ export function OperacaoLote({
         <button className="icon-btn" type="button" onClick={onNovaOp} title="Trocar OP">
           <RotateCcw size={17} />
         </button>
+      </section>
+
+      <section className={`offline-sync-strip ${online ? 'is-online' : 'is-offline'}`} aria-live="polite">
+        <div className="offline-sync-state">
+          {online ? <Wifi size={16} /> : <WifiOff size={16} />}
+          <strong>{online ? 'Online' : 'Offline'}</strong>
+        </div>
+        <span>Aguardando envio: <strong>{offlinePending}</strong></span>
+        {offlineRejected > 0 ? <span className="offline-sync-error">Para conferir: <strong>{offlineRejected}</strong></span> : null}
+        <div className="offline-sync-actions">
+          {offlineRejected > 0 ? (
+            <>
+              <button className="btn secondary compact-btn" type="button" onClick={onTentarRejeitadas}>Tentar novamente</button>
+              <button className="icon-btn" type="button" title="Descartar recusadas" aria-label="Descartar caixas recusadas" onClick={onDescartarRejeitadas}><Trash2 size={16} /></button>
+            </>
+          ) : null}
+          <button className="btn secondary compact-btn" disabled={sincronizando} type="button" onClick={onSincronizar}>
+            <RefreshCw className={sincronizando ? 'is-spinning' : ''} size={16} />
+            {sincronizando ? 'Sincronizando' : 'Sincronizar'}
+          </button>
+        </div>
       </section>
 
       <section className="grid-two">
@@ -148,7 +183,7 @@ export function OperacaoLote({
               <span>Peças avulsas</span>
               <input className="control" min={0} type="number" value={pecasAvulsas || ''} onBlur={focusScannerUnlessEditing} onChange={(event) => onPecasAvulsasChange(Number(event.target.value || 0))} />
             </label>
-            <button className="btn secondary" disabled={processando || operacao.lote.status === 'finalizado'} type="button" onClick={onFinalizar}>
+            <button className="btn secondary" disabled={processando || offlinePending + offlineRejected > 0 || operacao.lote.status === 'finalizado'} type="button" onClick={onFinalizar}>
               <Check size={17} />
               Finalizar OP
             </button>
