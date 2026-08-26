@@ -37,6 +37,8 @@ class EmbalagemController extends Controller
         return $this->executar(fn (): array => $this->embalagem->registrarCaixa(
             $loteId,
             (string) $request->input('codigo_barra', ''),
+            (string) $request->input('device_id', ''),
+            (string) $request->input('id_local', ''),
         ));
     }
 

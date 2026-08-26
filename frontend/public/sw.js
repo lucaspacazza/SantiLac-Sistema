@@ -1,4 +1,4 @@
-const CACHE_NAME = 'santilac-shell-v3'
+const CACHE_NAME = 'santilac-shell-v4'
 const SHELL_ASSETS = [
   '/',
   '/manifest.webmanifest',
@@ -12,7 +12,21 @@ const SHELL_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS)).then(() => self.skipWaiting()),
+    caches.open(CACHE_NAME)
+      .then(async (cache) => {
+        await cache.addAll(SHELL_ASSETS)
+        const response = await fetch('/asset-manifest.json', { cache: 'no-store' })
+        if (!response.ok) throw new Error('Manifesto de assets indisponível.')
+        await cache.put('/asset-manifest.json', response.clone())
+        const manifest = await response.json()
+        const generatedAssets = [...new Set(Object.values(manifest).flatMap((entry) => [
+          entry.file,
+          ...(entry.css ?? []),
+          ...(entry.assets ?? []),
+        ]).filter(Boolean).map((path) => `/${String(path).replace(/^\//, '')}`))]
+        await cache.addAll(generatedAssets)
+      })
+      .then(() => self.skipWaiting()),
   )
 })
 
@@ -33,9 +47,27 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match('/')))
+    event.respondWith(
+      fetch(request)
+        .then(async (response) => {
+          if (response.ok) {
+            const cache = await caches.open(CACHE_NAME)
+            await cache.put('/', response.clone())
+          }
+          return response
+        })
+        .catch(() => caches.match('/')),
+    )
     return
   }
 
-  event.respondWith(caches.match(request).then((cached) => cached ?? fetch(request)))
+  event.respondWith(caches.match(request).then(async (cached) => {
+    if (cached) return cached
+    const response = await fetch(request)
+    if (response.ok && url.origin === self.location.origin) {
+      const cache = await caches.open(CACHE_NAME)
+      await cache.put(request, response.clone())
+    }
+    return response
+  }))
 })

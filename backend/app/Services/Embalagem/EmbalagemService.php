@@ -7,6 +7,7 @@ use App\Models\Embalagem\EmbalagemLote;
 use App\Models\Embalagem\EmbalagemPalete;
 use App\Models\Producao\ProducaoFormulacaoQueijo;
 use App\Models\Producao\ProducaoOrdemProducao;
+use App\Services\Coletas\Mobile\MobileIdempotencyService;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -25,6 +26,11 @@ class EmbalagemService
         'weight_length' => 5,
         'weight_divisor' => 1000,
     ];
+
+    public function __construct(
+        private readonly ?MobileIdempotencyService $idempotency = null,
+    ) {
+    }
 
     public function ordensDisponiveis(): array
     {
@@ -106,8 +112,22 @@ class EmbalagemService
         return $this->respostaOperacao($ordem, $lote, $queijo, $this->paleteAtual($lote, (int) $queijo['caixas_por_palete']));
     }
 
-    public function registrarCaixa(int $loteId, string $codigoBarra): array
-    {
+    public function registrarCaixa(
+        int $loteId,
+        string $codigoBarra,
+        ?string $deviceId = null,
+        ?string $idLocal = null,
+    ): array {
+        $idempotencyContext = $this->normalizarIdempotencia($loteId, $deviceId, $idLocal);
+        $idempotency = $idempotencyContext === null ? null : $this->idempotencyService();
+
+        if ($idempotency !== null) {
+            $existing = $idempotency->get(...$idempotencyContext);
+            if ($existing !== null) {
+                return $existing;
+            }
+        }
+
         $codigoBarra = trim($codigoBarra);
         if ($codigoBarra === '') {
             throw new DomainException('Informe o código da balança.');
@@ -142,7 +162,7 @@ class EmbalagemService
             throw new DomainException('Código do queijo na balança não pertence à OP aberta.');
         }
 
-        return DB::connection('raw')->transaction(function () use ($lote, $ordem, $queijo, $parsed): array {
+        return DB::connection('raw')->transaction(function () use ($lote, $ordem, $queijo, $parsed, $idempotency, $idempotencyContext): array {
             $lote = EmbalagemLote::query()
                 ->where('id', $lote->id)
                 ->lockForUpdate()
@@ -150,6 +170,13 @@ class EmbalagemService
 
             if ($lote === null) {
                 throw new DomainException('Lote de embalagem não encontrado.');
+            }
+
+            if ($idempotency !== null) {
+                $existing = $idempotency->get(...$idempotencyContext);
+                if ($existing !== null) {
+                    return $existing;
+                }
             }
 
             if ($lote->status === 'finalizado') {
@@ -205,7 +232,14 @@ class EmbalagemService
 
             $this->baixarEstoqueEmbalagem($queijo);
 
-            return $this->respostaOperacao($ordem, $lote->refresh(), $queijo, $palete->refresh());
+            $response = $this->respostaOperacao($ordem, $lote->refresh(), $queijo, $palete->refresh());
+
+            if ($idempotency !== null && $idempotencyContext !== null) {
+                [$endpoint, $device, $local] = $idempotencyContext;
+                $idempotency->save($endpoint, $device, $local, $response);
+            }
+
+            return $response;
         });
     }
 
@@ -605,6 +639,30 @@ class EmbalagemService
         }
 
         return false;
+    }
+
+    /**
+     * @return array{string, string, string}|null
+     */
+    private function normalizarIdempotencia(int $loteId, ?string $deviceId, ?string $idLocal): ?array
+    {
+        $deviceId = trim((string) $deviceId);
+        $idLocal = trim((string) $idLocal);
+
+        if ($deviceId === '' && $idLocal === '') {
+            return null;
+        }
+
+        if (! Str::isUuid($deviceId) || ! Str::isUuid($idLocal)) {
+            throw new DomainException('A identificação da leitura offline está incompleta ou inválida.');
+        }
+
+        return ["/api/embalagem/lotes/{$loteId}/caixas", $deviceId, $idLocal];
+    }
+
+    private function idempotencyService(): MobileIdempotencyService
+    {
+        return $this->idempotency ?? app(MobileIdempotencyService::class);
     }
 
     private function respostaOperacao(ProducaoOrdemProducao $ordem, EmbalagemLote $lote, array $queijo, ?EmbalagemPalete $palete): array
