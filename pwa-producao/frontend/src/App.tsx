@@ -1463,16 +1463,11 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
       <FormSection title="Processo">
         <Field label="Início do enchimento"><TimeWheelInput name="inicio_enchimento" label="Início do enchimento" defaultValue={initial?.inicio_enchimento ?? ''} /></Field>
         <Field label="Leite (L)"><input name="quantidade_leite" inputMode="decimal" defaultValue={initial?.quantidade_leite ?? ''} /></Field>
-        <Field label="Pasteurização (°C)"><input name="temperatura_pasteurizacao" inputMode="decimal" defaultValue={initial?.temperatura_pasteurizacao ?? CHEESE_FORM_DEFAULTS.temperatura_pasteurizacao} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_pasteurizacao} /></Field>
-        <Field label="Fosfatase"><KioskSelect name="fosfatase" ariaLabel="Fosfatase" defaultValue={initial?.fosfatase ?? CHEESE_FORM_DEFAULTS.fosfatase} options={analysisOptions} /></Field>
-        <Field label="Peroxidase"><KioskSelect name="peroxidase" ariaLabel="Peroxidase" defaultValue={initial?.peroxidase ?? CHEESE_FORM_DEFAULTS.peroxidase} options={analysisOptions} /></Field>
         <Field label="Gordura inicial"><input name="gordura_inicial" inputMode="decimal" defaultValue={initial?.gordura_inicial ?? ''} /></Field>
         <Field label="Gordura final"><input name="gordura_final" inputMode="decimal" defaultValue={initial?.gordura_final ?? ''} /></Field>
         <Field label="Acidez"><input name="acidez" inputMode="decimal" defaultValue={initial?.acidez ?? ''} /></Field>
-        <Field label="Coagulação (°C)"><input name="temperatura_coagulacao" inputMode="decimal" defaultValue={initial?.temperatura_coagulacao ?? CHEESE_FORM_DEFAULTS.temperatura_coagulacao} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_coagulacao} /></Field>
         <Field label="Hora da coagulação"><TimeWheelInput name="hora_coagulacao" label="Hora da coagulação" defaultValue={initial?.hora_coagulacao ?? ''} /></Field>
         <Field label="Hora do corte"><TimeWheelInput name="hora_corte" label="Hora do corte" defaultValue={initial?.hora_corte ?? ''} /></Field>
-        <Field label="Cozimento (°C)"><input name="temperatura_cozimento" inputMode="decimal" defaultValue={initial?.temperatura_cozimento ?? CHEESE_FORM_DEFAULTS.temperatura_cozimento} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_cozimento} /></Field>
       </FormSection>
       <FormSection title="Insumos">
         <div className="repeat-list is-wide">
@@ -1494,6 +1489,13 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
           })}
           <button className="add-row-button" type="button" onClick={() => setRows((current) => [...current, Math.max(...current) + 1])}><Plus size={18} />Adicionar insumo</button>
         </div>
+      </FormSection>
+      <FormSection title="Parâmetros usuais">
+        <Field label="Pasteurização (°C)"><input name="temperatura_pasteurizacao" inputMode="decimal" defaultValue={initial?.temperatura_pasteurizacao ?? CHEESE_FORM_DEFAULTS.temperatura_pasteurizacao} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_pasteurizacao} /></Field>
+        <Field label="Fosfatase"><KioskSelect name="fosfatase" ariaLabel="Fosfatase" defaultValue={initial?.fosfatase ?? CHEESE_FORM_DEFAULTS.fosfatase} options={analysisOptions} /></Field>
+        <Field label="Peroxidase"><KioskSelect name="peroxidase" ariaLabel="Peroxidase" defaultValue={initial?.peroxidase ?? CHEESE_FORM_DEFAULTS.peroxidase} options={analysisOptions} /></Field>
+        <Field label="Coagulação (°C)"><input name="temperatura_coagulacao" inputMode="decimal" defaultValue={initial?.temperatura_coagulacao ?? CHEESE_FORM_DEFAULTS.temperatura_coagulacao} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_coagulacao} /></Field>
+        <Field label="Cozimento (°C)"><input name="temperatura_cozimento" inputMode="decimal" defaultValue={initial?.temperatura_cozimento ?? CHEESE_FORM_DEFAULTS.temperatura_cozimento} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_cozimento} /></Field>
       </FormSection>
       <div className="form-footer">
         {initial && <button className="danger-button" type="button" disabled={busy} onClick={onCancel}><Trash2 size={19} />Cancelar formulação</button>}

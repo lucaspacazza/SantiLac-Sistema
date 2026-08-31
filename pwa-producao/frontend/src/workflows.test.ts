@@ -212,6 +212,27 @@ test('keeps cheese defaults visible when an older draft stored empty values', ()
   assert.match(drafts, /restoreDraftValue\(field\.value, control\.dataset\.draftDefaultValue\)/)
 })
 
+test('places the usual cheese parameters at the end of the form after inputs', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const cheeseForm = app.match(/function CheeseForm[\s\S]*?(?=\nfunction SoroForm)/)?.[0] ?? ''
+  const processSection = cheeseForm.match(/<FormSection title="Processo">[\s\S]*?<\/FormSection>/)?.[0] ?? ''
+  const usualSection = cheeseForm.match(/<FormSection title="Parâmetros usuais">[\s\S]*?<\/FormSection>/)?.[0] ?? ''
+  const defaultFields = [
+    'temperatura_pasteurizacao',
+    'fosfatase',
+    'peroxidase',
+    'temperatura_coagulacao',
+    'temperatura_cozimento',
+  ]
+
+  assert.ok(usualSection)
+  assert.ok(cheeseForm.indexOf('title="Parâmetros usuais"') > cheeseForm.indexOf('title="Insumos"'))
+  for (const field of defaultFields) {
+    assert.doesNotMatch(processSection, new RegExp(`name="${field}"`))
+    assert.match(usualSection, new RegExp(`name="${field}"`))
+  }
+})
+
 test('does not recreate a completed kiosk draft during pagehide cleanup', () => {
   const drafts = readFileSync(new URL('./drafts.ts', import.meta.url), 'utf8')
 
