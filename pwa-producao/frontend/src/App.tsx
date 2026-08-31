@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent, MouseEvent as ReactMouseEvent, ReactNode, TouchEvent as ReactTouchEvent } from 'react'
 import {
   ArrowLeft,
   Beaker,
@@ -46,8 +46,10 @@ import {
   readFormDraft,
   snapshotActiveFormDrafts,
 } from './drafts'
+import { CHEESE_FORM_DEFAULTS } from './cheeseFormDefaults'
 import { KioskSelect, type KioskSelectOption } from './KioskSelect'
 import { TimeWheelInput } from './TimeWheelPicker'
+import { dismissSoftKeyboard, movedBeyondTapThreshold, type TouchPoint } from './touchInteraction'
 import { PRODUCTION_WORKFLOWS, type View, type WorkflowId } from './workflows'
 import { readWorkspaceState, saveWorkspaceState, type ProductionWorkspaceState } from './workspace'
 
@@ -1098,6 +1100,8 @@ function FactoryForm({ title, code, draftKey, children, onBack, onSubmit, single
   busy?: boolean
 }) {
   const formRef = useRef<HTMLFormElement>(null)
+  const touchStartRef = useRef<TouchPoint | null>(null)
+  const blockClickUntilRef = useRef(0)
 
   useEffect(() => {
     const form = formRef.current
@@ -1105,8 +1109,45 @@ function FactoryForm({ title, code, draftKey, children, onBack, onSubmit, single
     return bindFormDraft(form, draftKey)
   }, [draftKey])
 
+  function trackTouchStart(event: ReactTouchEvent<HTMLFormElement>) {
+    const touch = event.touches.item(0)
+    touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null
+  }
+
+  function handleTouchMove(event: ReactTouchEvent<HTMLFormElement>) {
+    const start = touchStartRef.current
+    const touch = event.touches.item(0)
+    if (!start || !touch || !movedBeyondTapThreshold(start, { x: touch.clientX, y: touch.clientY })) return
+
+    touchStartRef.current = null
+    blockClickUntilRef.current = Date.now() + 450
+    dismissSoftKeyboard()
+  }
+
+  function clearTouchTracking() {
+    touchStartRef.current = null
+  }
+
+  function blockClickAfterScroll(event: ReactMouseEvent<HTMLFormElement>) {
+    if (Date.now() > blockClickUntilRef.current) return
+
+    blockClickUntilRef.current = 0
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
   return (
-    <form ref={formRef} className="factory-form" data-draft-key={draftKey} onSubmit={onSubmit}>
+    <form
+      ref={formRef}
+      className="factory-form"
+      data-draft-key={draftKey}
+      onSubmit={onSubmit}
+      onTouchStartCapture={trackTouchStart}
+      onTouchMoveCapture={handleTouchMove}
+      onTouchEndCapture={clearTouchTracking}
+      onTouchCancelCapture={clearTouchTracking}
+      onClickCapture={blockClickAfterScroll}
+    >
       <div className="form-heading">
         <button className="back-button" type="button" onClick={onBack}><ArrowLeft size={20} />Voltar</button>
         <div><span className="section-kicker">{code}</span><h1>{title}</h1></div>
@@ -1422,16 +1463,16 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
       <FormSection title="Processo">
         <Field label="Início do enchimento"><TimeWheelInput name="inicio_enchimento" label="Início do enchimento" defaultValue={initial?.inicio_enchimento ?? ''} /></Field>
         <Field label="Leite (L)"><input name="quantidade_leite" inputMode="decimal" defaultValue={initial?.quantidade_leite ?? ''} /></Field>
-        <Field label="Pasteurização (°C)"><input name="temperatura_pasteurizacao" inputMode="decimal" defaultValue={initial?.temperatura_pasteurizacao ?? ''} /></Field>
-        <Field label="Fosfatase"><KioskSelect name="fosfatase" ariaLabel="Fosfatase" defaultValue={initial?.fosfatase ?? ''} options={analysisOptions} /></Field>
-        <Field label="Peroxidase"><KioskSelect name="peroxidase" ariaLabel="Peroxidase" defaultValue={initial?.peroxidase ?? ''} options={analysisOptions} /></Field>
+        <Field label="Pasteurização (°C)"><input name="temperatura_pasteurizacao" inputMode="decimal" defaultValue={initial?.temperatura_pasteurizacao ?? CHEESE_FORM_DEFAULTS.temperatura_pasteurizacao} /></Field>
+        <Field label="Fosfatase"><KioskSelect name="fosfatase" ariaLabel="Fosfatase" defaultValue={initial?.fosfatase ?? CHEESE_FORM_DEFAULTS.fosfatase} options={analysisOptions} /></Field>
+        <Field label="Peroxidase"><KioskSelect name="peroxidase" ariaLabel="Peroxidase" defaultValue={initial?.peroxidase ?? CHEESE_FORM_DEFAULTS.peroxidase} options={analysisOptions} /></Field>
         <Field label="Gordura inicial"><input name="gordura_inicial" inputMode="decimal" defaultValue={initial?.gordura_inicial ?? ''} /></Field>
         <Field label="Gordura final"><input name="gordura_final" inputMode="decimal" defaultValue={initial?.gordura_final ?? ''} /></Field>
         <Field label="Acidez"><input name="acidez" inputMode="decimal" defaultValue={initial?.acidez ?? ''} /></Field>
-        <Field label="Coagulação (°C)"><input name="temperatura_coagulacao" inputMode="decimal" defaultValue={initial?.temperatura_coagulacao ?? ''} /></Field>
+        <Field label="Coagulação (°C)"><input name="temperatura_coagulacao" inputMode="decimal" defaultValue={initial?.temperatura_coagulacao ?? CHEESE_FORM_DEFAULTS.temperatura_coagulacao} /></Field>
         <Field label="Hora da coagulação"><TimeWheelInput name="hora_coagulacao" label="Hora da coagulação" defaultValue={initial?.hora_coagulacao ?? ''} /></Field>
         <Field label="Hora do corte"><TimeWheelInput name="hora_corte" label="Hora do corte" defaultValue={initial?.hora_corte ?? ''} /></Field>
-        <Field label="Cozimento (°C)"><input name="temperatura_cozimento" inputMode="decimal" defaultValue={initial?.temperatura_cozimento ?? ''} /></Field>
+        <Field label="Cozimento (°C)"><input name="temperatura_cozimento" inputMode="decimal" defaultValue={initial?.temperatura_cozimento ?? CHEESE_FORM_DEFAULTS.temperatura_cozimento} /></Field>
       </FormSection>
       <FormSection title="Insumos">
         <div className="repeat-list is-wide">

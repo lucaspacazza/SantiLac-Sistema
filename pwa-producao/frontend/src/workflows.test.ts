@@ -166,7 +166,9 @@ test('uses kiosk-safe custom selection instead of the broken native popup', () =
   const select = readFileSync(new URL('./KioskSelect.tsx', import.meta.url), 'utf8')
 
   assert.match(select, /createPortal/)
-  assert.match(select, /onPointerDown/)
+  assert.match(select, /onClick=\{openSelect\}/)
+  assert.doesNotMatch(select, /onTouchStart=\{openSelect\}/)
+  assert.doesNotMatch(select, /onPointerDown=\{openSelect\}/)
   assert.match(select, /dismissSoftKeyboard/)
   assert.match(select, /SantiLacKeyboard/)
   assert.match(select, /\.dismiss\?\.\(\)/)
@@ -174,23 +176,30 @@ test('uses kiosk-safe custom selection instead of the broken native popup', () =
   assert.doesNotMatch(app, /<Field label="Peroxidase"><select/)
 })
 
-test('opens the time wheel during pointer down so keyboard dismissal cannot cancel it', () => {
+test('opens the time wheel only after a completed tap so scrolling cannot trigger it', () => {
   const picker = readFileSync(new URL('./TimeWheelPicker.tsx', import.meta.url), 'utf8')
+  const trigger = picker.match(/<button\s+className=\{`time-wheel-trigger[\s\S]*?<\/button>/)?.[0] ?? ''
 
   assert.match(picker, /import\s*\{[^}]*flushSync[^}]*\}\s*from\s*['"]react-dom['"]/)
   assert.match(picker, /SantiLacKeyboard/)
   assert.match(picker, /\.dismiss\?\.\(\)/)
-  assert.match(picker, /function handlePointerDown/)
-  assert.match(picker, /event\.preventDefault\(\)/)
-  assert.match(picker, /openPicker\(\)/)
-  assert.match(picker, /onTouchStart=\{handleTouchStart\}/)
-  assert.match(picker, /onClick=\{handleClick\}/)
-  assert.match(picker, /function armRetargetedClickGuard/)
-  assert.match(picker, /document\.addEventListener\('click', blockRetargetedClick, true\)/)
-  assert.match(picker, /event\.stopImmediatePropagation\(\)/)
+  assert.match(trigger, /onClick=\{handleClick\}/)
+  assert.doesNotMatch(trigger, /onTouchStart=/)
+  assert.doesNotMatch(trigger, /onPointerDown=/)
+  assert.doesNotMatch(picker, /armRetargetedClickGuard/)
 
   const openPicker = picker.match(/function openPicker\(\) \{[\s\S]*?\n  \}/)?.[0] ?? ''
   assert.match(openPicker, /flushSync\([\s\S]*setOpen\(true\)[\s\S]*\)[\s\S]*dismissSoftKeyboard\(\)/)
+})
+
+test('blocks the ghost click and dismisses the keyboard when the operator scrolls a form', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+
+  assert.match(app, /movedBeyondTapThreshold/)
+  assert.match(app, /onTouchStartCapture=\{trackTouchStart\}/)
+  assert.match(app, /onTouchMoveCapture=\{handleTouchMove\}/)
+  assert.match(app, /onClickCapture=\{blockClickAfterScroll\}/)
+  assert.match(app, /dismissSoftKeyboard\(\)/)
 })
 
 test('does not recreate a completed kiosk draft during pagehide cleanup', () => {

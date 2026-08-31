@@ -19,7 +19,6 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
   const [draftMinute, setDraftMinute] = useState(0)
   const dialogRef = useRef<HTMLElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const clickGuardCleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     setValue(normalizeTimeValue(defaultValue))
@@ -44,28 +43,6 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
     nativeKeyboard?.dismiss?.()
   }
 
-  function armRetargetedClickGuard() {
-    clickGuardCleanupRef.current?.()
-    let timeoutId = 0
-
-    const cleanup = () => {
-      document.removeEventListener('click', blockRetargetedClick, true)
-      window.clearTimeout(timeoutId)
-      if (clickGuardCleanupRef.current === cleanup) clickGuardCleanupRef.current = null
-    }
-    const blockRetargetedClick = (event: MouseEvent) => {
-      const target = event.target
-      if (target instanceof Element && target.closest('.time-wheel-dialog')) return
-      event.preventDefault()
-      event.stopImmediatePropagation()
-      cleanup()
-    }
-
-    document.addEventListener('click', blockRetargetedClick, true)
-    timeoutId = window.setTimeout(cleanup, 650)
-    clickGuardCleanupRef.current = cleanup
-  }
-
   function openPicker() {
     const parsed = parseTimeValue(value)
     flushSync(() => {
@@ -74,24 +51,6 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
       setOpen(true)
     })
     dismissSoftKeyboard()
-  }
-
-  function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
-    event.preventDefault()
-    event.stopPropagation()
-    if (!open) {
-      armRetargetedClickGuard()
-      openPicker()
-    }
-  }
-
-  function handleTouchStart(event: React.TouchEvent<HTMLButtonElement>) {
-    event.preventDefault()
-    event.stopPropagation()
-    if (!open) {
-      armRetargetedClickGuard()
-      openPicker()
-    }
   }
 
   function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
@@ -138,8 +97,6 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
     }
   }, [open])
 
-  useEffect(() => () => clickGuardCleanupRef.current?.(), [])
-
   return (
     <>
       <input ref={inputRef} name={name} type="hidden" value={value} readOnly />
@@ -147,8 +104,6 @@ export function TimeWheelInput({ name, label, defaultValue = '' }: {
         className={`time-wheel-trigger ${value ? 'has-value' : ''}`}
         type="button"
         inputMode="none"
-        onTouchStart={handleTouchStart}
-        onPointerDown={handlePointerDown}
         onClick={handleClick}
         aria-haspopup="dialog"
       >
