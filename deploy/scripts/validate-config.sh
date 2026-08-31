@@ -37,12 +37,6 @@ if [ "${DEPLOY_PROCESSOR:-false}" = "true" ]; then
   PROCESSOR_PATH="${PROCESSOR_PATH:-/var/www/processor}"
 fi
 
-if [ "${DEPLOY_ADMIN:-false}" = "true" ]; then
-  ADMIN_FRONTEND_CT="${ADMIN_FRONTEND_CT:-100}"
-  ADMIN_BACKEND_CT="${ADMIN_BACKEND_CT:-101}"
-  ADMIN_PATH="${ADMIN_PATH:-/var/www/santilac-admin}"
-fi
-
 if [ "$missing" -ne 0 ]; then
   echo "Corrija o runner ou preencha os Secrets/Variables em Settings > Secrets and variables > Actions."
   exit 1
