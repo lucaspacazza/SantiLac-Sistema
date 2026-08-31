@@ -202,6 +202,16 @@ test('blocks the ghost click and dismisses the keyboard when the operator scroll
   assert.match(app, /dismissSoftKeyboard\(\)/)
 })
 
+test('keeps cheese defaults visible when an older draft stored empty values', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const select = readFileSync(new URL('./KioskSelect.tsx', import.meta.url), 'utf8')
+  const drafts = readFileSync(new URL('./drafts.ts', import.meta.url), 'utf8')
+
+  assert.equal((app.match(/data-draft-default-value=\{CHEESE_FORM_DEFAULTS\./g) ?? []).length, 3)
+  assert.match(select, /data-draft-default-value=\{defaultValue\}/)
+  assert.match(drafts, /restoreDraftValue\(field\.value, control\.dataset\.draftDefaultValue\)/)
+})
+
 test('does not recreate a completed kiosk draft during pagehide cleanup', () => {
   const drafts = readFileSync(new URL('./drafts.ts', import.meta.url), 'utf8')
 
