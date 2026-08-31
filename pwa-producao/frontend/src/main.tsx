@@ -20,7 +20,7 @@ if ('serviceWorker' in navigator) {
   })
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/fabrica/sw.js?v=5', {
+    navigator.serviceWorker.register('/fabrica/sw.js?v=6', {
       scope: '/fabrica/',
       updateViaCache: 'none',
     }).then((registration) => {
