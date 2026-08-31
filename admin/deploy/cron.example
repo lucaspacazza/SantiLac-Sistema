@@ -1,2 +1,0 @@
-* * * * * php /var/www/santilac-admin/collector/collect_laravel.php >> /var/log/santilac-admin-collector.log 2>&1
-* * * * * php /var/www/santilac-admin/collector/collect_health.php >> /var/log/santilac-admin-health.log 2>&1
