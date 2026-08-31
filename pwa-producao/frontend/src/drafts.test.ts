@@ -4,6 +4,7 @@ import {
   draftFieldCount,
   draftFieldValue,
   isDraftFresh,
+  restoreDraftValue,
   type FormDraft,
 } from './drafts.ts'
 
@@ -33,4 +34,11 @@ test('restores named values used by custom time and select controls', () => {
 test('keeps an unfinished kiosk draft until it is successfully saved', () => {
   assert.equal(isDraftFresh(draft), true)
   assert.equal(isDraftFresh({ ...draft, updatedAt: Number.NaN }), false)
+})
+
+test('does not let an old blank draft erase a visible field default', () => {
+  assert.equal(restoreDraftValue('', '73'), '73')
+  assert.equal(restoreDraftValue('', 'negativo'), 'negativo')
+  assert.equal(restoreDraftValue('74', '73'), '74')
+  assert.equal(restoreDraftValue('', undefined), '')
 })

@@ -27,6 +27,12 @@ export function draftFieldCount(draft: FormDraft | null, name: string): number {
   return draft?.fields.filter((field) => field.name === name).length ?? 0
 }
 
+export function restoreDraftValue(savedValue: string, defaultValue: string | undefined): string {
+  return savedValue === '' && defaultValue !== undefined && defaultValue !== ''
+    ? defaultValue
+    : savedValue
+}
+
 export function isDraftFresh(draft: FormDraft): boolean {
   return Number.isFinite(draft.updatedAt)
 }
@@ -84,7 +90,7 @@ export function restoreFormDraft(form: HTMLFormElement, key: string): boolean {
     if (control instanceof HTMLInputElement && (control.type === 'checkbox' || control.type === 'radio')) {
       control.checked = field.checked ?? true
     } else {
-      setNativeValue(control, field.value)
+      setNativeValue(control, restoreDraftValue(field.value, control.dataset.draftDefaultValue))
     }
     control.dispatchEvent(new Event('input', { bubbles: true }))
     control.dispatchEvent(new Event('change', { bubbles: true }))

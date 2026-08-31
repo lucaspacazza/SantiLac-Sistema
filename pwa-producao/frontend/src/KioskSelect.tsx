@@ -114,6 +114,7 @@ export function KioskSelect({
         type="hidden"
         name={name}
         value={currentValue}
+        data-draft-default-value={defaultValue}
         readOnly
         onInput={(event) => applyValue(event.currentTarget.value)}
       />
