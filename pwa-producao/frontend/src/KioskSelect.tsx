@@ -125,8 +125,6 @@ export function KioskSelect({
         aria-expanded={open}
         aria-required={required}
         aria-invalid={invalid}
-        onTouchStart={openSelect}
-        onPointerDown={openSelect}
         onClick={openSelect}
       >
         <span>{selected?.label ?? placeholder}</span>
