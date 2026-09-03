@@ -102,7 +102,7 @@ export type OrdemProducaoPayload = {
   campos: Array<{ rotulo: string; valor: string }>
 }
 
-export type FormulacaoQueijoPayload = {
+type FormulacaoQueijoBase = {
   tipo_queijo: string
   data_formulacao: string
   silo: string | null
@@ -110,27 +110,36 @@ export type FormulacaoQueijoPayload = {
   lote_queijo: string
   numero_queijomatic: string | null
   inicio_enchimento: string | null
-  quantidade_leite: number | null
-  temperatura_pasteurizacao: number | null
   fosfatase: 'negativo' | 'positivo' | 'nao_aplicavel' | null
   peroxidase: 'negativo' | 'positivo' | 'nao_aplicavel' | null
-  gordura_inicial: number | null
-  gordura_final: number | null
-  acidez: number | null
-  temperatura_coagulacao: number | null
   hora_coagulacao: string | null
   hora_corte: string | null
-  temperatura_cozimento: number | null
-  insumos: Array<{
-    tipo_insumo: 'fermento_mvd' | 'fermento_fast' | 'fermento' | 'cloreto' | 'corante' | 'coalho' | 'outro'
-    nome_insumo: string | null
-    quantidade: number
-    unidade: string
-    lote_insumo: string | null
-  }>
 }
 
-export type FormulacaoQueijo = FormulacaoQueijoPayload & {
+type FormulacaoQueijoNumericos<T> = {
+  quantidade_leite: T
+  temperatura_pasteurizacao: T
+  gordura_inicial: T
+  gordura_final: T
+  acidez: T
+  temperatura_coagulacao: T
+  temperatura_cozimento: T
+}
+
+type FormulacaoQueijoInsumo<T> = {
+    tipo_insumo: 'fermento_mvd' | 'fermento_fast' | 'fermento' | 'cloreto' | 'corante' | 'coalho' | 'outro'
+    nome_insumo: string | null
+    quantidade: T
+    unidade: string
+    lote_insumo: string | null
+}
+
+export type FormulacaoQueijoPayload = FormulacaoQueijoBase & FormulacaoQueijoNumericos<string | null> & {
+  insumos: Array<FormulacaoQueijoInsumo<string>>
+}
+
+export type FormulacaoQueijo = FormulacaoQueijoBase & FormulacaoQueijoNumericos<number | null> & {
+  insumos: Array<FormulacaoQueijoInsumo<number>>
   id: number
   codigo_formulacao: string
   status: 'rascunho' | 'finalizada'

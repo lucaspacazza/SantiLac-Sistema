@@ -782,6 +782,30 @@ select:focus-visible {
   border-color: var(--accent);
 }
 
+.no-dot-number-control {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.no-dot-number-control input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.number-input-warning {
+  color: var(--warning);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.repeat-row > .no-dot-number-control {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: left;
+}
+
 .repeat-list {
   display: grid;
   gap: 10px;
@@ -1057,6 +1081,21 @@ select:focus-visible {
   box-shadow: 0 24px 80px rgba(0, 0, 0, .7);
 }
 
+.confirmation-dialog.is-warning {
+  border-color: rgba(251, 191, 36, .55);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .7), 0 0 0 1px rgba(251, 191, 36, .12);
+}
+
+.confirmation-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(251, 191, 36, .12);
+  color: var(--warning);
+}
+
 .confirmation-dialog h2 {
   margin: 0;
   color: #fff;
@@ -1070,6 +1109,23 @@ select:focus-visible {
   line-height: 1.55;
 }
 
+.confirmation-details {
+  margin: 4px 0 0;
+  padding: 12px 14px 12px 34px;
+  display: grid;
+  gap: 7px;
+  border: 1px solid rgba(251, 191, 36, .24);
+  border-radius: 12px;
+  background: rgba(251, 191, 36, .07);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.confirmation-details li::marker {
+  color: var(--warning);
+}
+
 .confirmation-actions {
   margin-top: 10px;
   display: grid;
@@ -1080,6 +1136,10 @@ select:focus-visible {
 .confirmation-actions button {
   min-height: 44px;
   justify-content: center;
+}
+
+.confirmation-actions.is-single {
+  grid-template-columns: 1fr;
 }
 
 .time-wheel-dialog {
@@ -1507,6 +1567,10 @@ select:focus-visible {
 
   .repeat-row input,
   .repeat-row strong {
+    grid-column: 2;
+  }
+
+  .repeat-row > .no-dot-number-control {
     grid-column: 2;
   }
 

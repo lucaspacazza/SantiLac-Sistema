@@ -5,6 +5,7 @@ namespace App\Services\Producao;
 use App\Models\Producao\ProducaoFormulacaoQueijo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class FormulacaoQueijoService extends BaseFormularioService
 {
@@ -112,6 +113,22 @@ class FormulacaoQueijoService extends BaseFormularioService
 
     public function finalizar(int $id): ?array
     {
+        $formulacao = ProducaoFormulacaoQueijo::query()->where('id', $id)->first();
+
+        if ($formulacao === null) {
+            return null;
+        }
+
+        if ($formulacao->status === 'rascunho') {
+            $missingInputs = FormulacaoQueijoFinalizationGuard::missingRequiredInputs($formulacao->insumos_json ?? []);
+
+            if ($missingInputs !== []) {
+                throw ValidationException::withMessages([
+                    'insumos' => 'Não é possível finalizar. Insumos obrigatórios ausentes: '.implode(', ', $missingInputs).'.',
+                ]);
+            }
+        }
+
         return $this->finalizarFormulario(ProducaoFormulacaoQueijo::class, $id, fn (int $id): ?array => $this->buscar($id));
     }
 

@@ -19,7 +19,11 @@ test('keeps every workflow label short enough for a tablet navigation rail', () 
 test('forces the factory shell to update instead of reusing a stale WebView worker', () => {
   const serviceWorker = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8')
   const bootstrap = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8')
+  const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
 
+  assert.equal(packageJson.version, '0.1.4')
+  assert.match(serviceWorker, /santilac-producao-pwa-v7/)
+  assert.match(bootstrap, /\/fabrica\/sw\.js\?v=7/)
   assert.match(serviceWorker, /cache:\s*['"]no-store['"]/)
   assert.match(serviceWorker, /SKIP_WAITING/)
   assert.match(bootstrap, /registration\.update\(\)/)
@@ -231,6 +235,21 @@ test('places the usual cheese parameters at the end of the form after inputs', (
     assert.doesNotMatch(processSection, new RegExp(`name="${field}"`))
     assert.match(usualSection, new RegExp(`name="${field}"`))
   }
+})
+
+test('blocks cheese finalization with a custom popup when required inputs are missing', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const cheeseSave = app.match(/async function saveQueijo[\s\S]*?(?=\n  async function cancelCheeseFormula)/)?.[0] ?? ''
+  const cheeseForm = app.match(/function CheeseForm[\s\S]*?(?=\nfunction SoroForm)/)?.[0] ?? ''
+
+  assert.match(cheeseSave, /missingRequiredCheeseInputs\(form\)/)
+  assert.match(cheeseSave, /action === 'finalizar'/)
+  assert.match(cheeseSave, /Não é possível finalizar/)
+  assert.match(app, /request\.details\.map/)
+  assert.doesNotMatch(app, /window\.alert/)
+  assert.equal((cheeseForm.match(/<NoDotNumberInput/g) ?? []).length, 8)
+  assert.match(cheeseSave, /quantidade_leite:\s*optionalString\(form, 'quantidade_leite'\)/)
+  assert.match(cheeseSave, /quantidade:\s*rawQuantity/)
 })
 
 test('does not recreate a completed kiosk draft during pagehide cleanup', () => {
