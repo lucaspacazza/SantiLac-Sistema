@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Api\Producao;
 
 use App\Services\Producao\FormulacaoQueijoService;
+use App\Services\Producao\FormulacaoQueijoNumericInput;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class FormulacaoQueijoController extends BaseProducaoController
 {
@@ -63,7 +66,16 @@ class FormulacaoQueijoController extends BaseProducaoController
 
     private function validar(Request $request): array
     {
-        return $request->validate([
+        $payload = $request->all();
+        $pointViolations = FormulacaoQueijoNumericInput::pointViolations($payload);
+
+        if ($pointViolations !== []) {
+            throw ValidationException::withMessages([
+                'numeros' => 'Não use ponto nos campos: '.implode(', ', $pointViolations).'. Digite somente números e vírgula.',
+            ]);
+        }
+
+        return Validator::make(FormulacaoQueijoNumericInput::normalize($payload), [
             'tipo_queijo' => ['nullable', 'string', 'max:120'],
             'data_formulacao' => ['required', 'date'],
             'silo' => ['nullable', 'string', 'max:60'],
@@ -89,6 +101,6 @@ class FormulacaoQueijoController extends BaseProducaoController
             'insumos.*.quantidade' => ['required_with:insumos', 'numeric', 'min:0'],
             'insumos.*.unidade' => ['required_with:insumos', 'string', 'max:20'],
             'insumos.*.lote_insumo' => ['nullable', 'string', 'max:80'],
-        ]);
+        ])->validate();
     }
 }

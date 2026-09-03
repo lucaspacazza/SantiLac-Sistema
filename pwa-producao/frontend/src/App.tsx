@@ -15,6 +15,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  TriangleAlert,
   Trash2,
   UserRound,
 } from 'lucide-react'
@@ -47,7 +48,13 @@ import {
   snapshotActiveFormDrafts,
 } from './drafts'
 import { CHEESE_FORM_DEFAULTS } from './cheeseFormDefaults'
+import {
+  cheeseNumericPointViolations,
+  decimalInputValue,
+  missingRequiredCheeseInputs,
+} from './cheeseFormProtection'
 import { KioskSelect, type KioskSelectOption } from './KioskSelect'
+import { NoDotNumberInput } from './NoDotNumberInput'
 import { TimeWheelInput } from './TimeWheelPicker'
 import { dismissSoftKeyboard, movedBeyondTapThreshold, type TouchPoint } from './touchInteraction'
 import { PRODUCTION_WORKFLOWS, type View, type WorkflowId } from './workflows'
@@ -59,8 +66,11 @@ type ConfirmationRequest = {
   title: string
   message: string
   confirmLabel: string
-  cancelLabel: string
+  cancelLabel?: string
   destructive?: boolean
+  details?: string[]
+  noticeOnly?: boolean
+  warning?: boolean
 }
 
 const EMPTY_CHEESE_CATALOGS: FormulacaoQueijoCatalogos = { queijos: [], insumos: [] }
@@ -710,9 +720,39 @@ export function App() {
     event.preventDefault()
     if (cheeseSavingRef.current) return
 
-    cheeseSavingRef.current = true
     const formElement = event.currentTarget
     const form = new FormData(formElement)
+    const action = submitValue(event, 'acao')
+    const pointViolations = cheeseNumericPointViolations(form)
+
+    if (pointViolations.length > 0) {
+      await askConfirmation({
+        title: 'Ponto não permitido',
+        message: 'Corrija os campos abaixo. Use somente números e vírgula para valores decimais.',
+        confirmLabel: 'Voltar e corrigir',
+        details: pointViolations,
+        noticeOnly: true,
+        warning: true,
+      })
+      return
+    }
+
+    if (action === 'finalizar') {
+      const missingInputs = missingRequiredCheeseInputs(form)
+      if (missingInputs.length > 0) {
+        await askConfirmation({
+          title: 'Não é possível finalizar',
+          message: 'Esta formulação ainda não possui todos os insumos obrigatórios:',
+          confirmLabel: 'Voltar e corrigir',
+          details: missingInputs,
+          noticeOnly: true,
+          warning: true,
+        })
+        return
+      }
+    }
+
+    cheeseSavingRef.current = true
     const insumoTypes = form.getAll('insumo_tipo')
     const insumoNames = form.getAll('insumo_nome')
     const insumoQuantities = form.getAll('insumo_quantidade')
@@ -727,32 +767,32 @@ export function App() {
       lote_queijo: field(form, 'lote_queijo'),
       numero_queijomatic: optionalString(form, 'numero_queijomatic'),
       inicio_enchimento: optionalString(form, 'inicio_enchimento'),
-      quantidade_leite: optionalNumber(form, 'quantidade_leite'),
-      temperatura_pasteurizacao: optionalNumber(form, 'temperatura_pasteurizacao'),
+      quantidade_leite: optionalString(form, 'quantidade_leite'),
+      temperatura_pasteurizacao: optionalString(form, 'temperatura_pasteurizacao'),
       fosfatase: optionalString(form, 'fosfatase') as FormulacaoQueijoPayload['fosfatase'],
       peroxidase: optionalString(form, 'peroxidase') as FormulacaoQueijoPayload['peroxidase'],
-      gordura_inicial: optionalNumber(form, 'gordura_inicial'),
-      gordura_final: optionalNumber(form, 'gordura_final'),
-      acidez: optionalNumber(form, 'acidez'),
-      temperatura_coagulacao: optionalNumber(form, 'temperatura_coagulacao'),
+      gordura_inicial: optionalString(form, 'gordura_inicial'),
+      gordura_final: optionalString(form, 'gordura_final'),
+      acidez: optionalString(form, 'acidez'),
+      temperatura_coagulacao: optionalString(form, 'temperatura_coagulacao'),
       hora_coagulacao: optionalString(form, 'hora_coagulacao'),
       hora_corte: optionalString(form, 'hora_corte'),
-      temperatura_cozimento: optionalNumber(form, 'temperatura_cozimento'),
+      temperatura_cozimento: optionalString(form, 'temperatura_cozimento'),
       insumos: insumoQuantities.flatMap((quantity, index) => {
-        const parsed = Number(String(quantity).replace(',', '.'))
+        const rawQuantity = String(quantity).trim()
+        const parsed = Number(rawQuantity.replace(',', '.'))
         const unit = String(insumoUnits[index] ?? '').trim()
         if (!Number.isFinite(parsed) || parsed <= 0 || unit === '') return []
         return [{
           tipo_insumo: String(insumoTypes[index] ?? 'outro') as FormulacaoQueijoPayload['insumos'][number]['tipo_insumo'],
           nome_insumo: String(insumoNames[index] ?? '').trim() || null,
-          quantidade: parsed,
+          quantidade: rawQuantity,
           unidade: unit,
           lote_insumo: String(insumoLots[index] ?? '').trim() || null,
         }]
       }),
     }
 
-    const action = submitValue(event, 'acao')
     const shouldGenerateOrder = action === 'finalizar' && await askConfirmation({
       title: 'Gerar OP automaticamente?',
       message: 'Deseja finalizar a formulação e gerar a OP com os dados atuais?',
@@ -1076,12 +1116,18 @@ function ConfirmationDialog({ request, onAnswer }: {
 
   return (
     <div className="confirmation-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onAnswer(false) }}>
-      <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmation-title" aria-describedby="confirmation-message">
+      <section className={`confirmation-dialog${request.warning ? ' is-warning' : ''}`} role="alertdialog" aria-modal="true" aria-labelledby="confirmation-title" aria-describedby="confirmation-message">
+        {request.warning && <span className="confirmation-icon" aria-hidden="true"><TriangleAlert size={28} /></span>}
         <h2 id="confirmation-title">{request.title}</h2>
         <p id="confirmation-message">{request.message}</p>
-        <div className="confirmation-actions">
-          <button className="secondary-button" type="button" onClick={() => onAnswer(false)} autoFocus>{request.cancelLabel}</button>
-          <button className={request.destructive ? 'danger-button' : 'primary-button'} type="button" onClick={() => onAnswer(true)}>{request.confirmLabel}</button>
+        {request.details && request.details.length > 0 && (
+          <ul className="confirmation-details">
+            {request.details.map((detail) => <li key={detail}>{detail}</li>)}
+          </ul>
+        )}
+        <div className={`confirmation-actions${request.noticeOnly ? ' is-single' : ''}`}>
+          {!request.noticeOnly && <button className="secondary-button" type="button" onClick={() => onAnswer(false)} autoFocus>{request.cancelLabel}</button>}
+          <button className={request.destructive ? 'danger-button' : 'primary-button'} type="button" onClick={() => onAnswer(request.noticeOnly ? false : true)} autoFocus={request.noticeOnly}>{request.confirmLabel}</button>
         </div>
       </section>
     </div>
@@ -1462,10 +1508,10 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
       </FormSection>
       <FormSection title="Processo">
         <Field label="Início do enchimento"><TimeWheelInput name="inicio_enchimento" label="Início do enchimento" defaultValue={initial?.inicio_enchimento ?? ''} /></Field>
-        <Field label="Leite (L)"><input name="quantidade_leite" inputMode="decimal" defaultValue={initial?.quantidade_leite ?? ''} /></Field>
-        <Field label="Gordura inicial"><input name="gordura_inicial" inputMode="decimal" defaultValue={initial?.gordura_inicial ?? ''} /></Field>
-        <Field label="Gordura final"><input name="gordura_final" inputMode="decimal" defaultValue={initial?.gordura_final ?? ''} /></Field>
-        <Field label="Acidez"><input name="acidez" inputMode="decimal" defaultValue={initial?.acidez ?? ''} /></Field>
+        <Field label="Leite (L)"><NoDotNumberInput name="quantidade_leite" defaultValue={decimalInputValue(initial?.quantidade_leite)} /></Field>
+        <Field label="Gordura inicial"><NoDotNumberInput name="gordura_inicial" defaultValue={decimalInputValue(initial?.gordura_inicial)} /></Field>
+        <Field label="Gordura final"><NoDotNumberInput name="gordura_final" defaultValue={decimalInputValue(initial?.gordura_final)} /></Field>
+        <Field label="Acidez"><NoDotNumberInput name="acidez" defaultValue={decimalInputValue(initial?.acidez)} /></Field>
         <Field label="Hora da coagulação"><TimeWheelInput name="hora_coagulacao" label="Hora da coagulação" defaultValue={initial?.hora_coagulacao ?? ''} /></Field>
         <Field label="Hora do corte"><TimeWheelInput name="hora_corte" label="Hora do corte" defaultValue={initial?.hora_corte ?? ''} /></Field>
       </FormSection>
@@ -1477,7 +1523,7 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
               <div className="repeat-row repeat-row-cheese" key={rowId}>
                 <span>{index + 1}</span>
                 <KioskSelect name="insumo_catalogo_id" ariaLabel={`Insumo ${index + 1}`} placeholder="Selecionar insumo" value={selectedInputs[rowId] ?? ''} onChange={(value) => setSelectedInputs((current) => ({ ...current, [rowId]: value }))} options={catalogs.insumos.map((item) => ({ value: String(item.id), label: item.nome }))} />
-                <input name="insumo_quantidade" inputMode="decimal" placeholder="Quantidade" defaultValue={initial?.insumos[index]?.quantidade ?? ''} />
+                <NoDotNumberInput name="insumo_quantidade" placeholder="Quantidade" defaultValue={decimalInputValue(initial?.insumos[index]?.quantidade)} />
                 <input name="insumo_lote" placeholder="Lote" defaultValue={initial?.insumos[index]?.lote_insumo ?? ''} />
                 <strong>{selected?.unidade ?? '—'}</strong>
                 <input name="insumo_tipo" type="hidden" value={selected?.tipo_insumo ?? 'outro'} />
@@ -1491,11 +1537,11 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
         </div>
       </FormSection>
       <FormSection title="Parâmetros usuais">
-        <Field label="Pasteurização (°C)"><input name="temperatura_pasteurizacao" inputMode="decimal" defaultValue={initial?.temperatura_pasteurizacao ?? CHEESE_FORM_DEFAULTS.temperatura_pasteurizacao} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_pasteurizacao} /></Field>
+        <Field label="Pasteurização (°C)"><NoDotNumberInput name="temperatura_pasteurizacao" defaultValue={decimalInputValue(initial?.temperatura_pasteurizacao ?? CHEESE_FORM_DEFAULTS.temperatura_pasteurizacao)} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_pasteurizacao} /></Field>
         <Field label="Fosfatase"><KioskSelect name="fosfatase" ariaLabel="Fosfatase" defaultValue={initial?.fosfatase ?? CHEESE_FORM_DEFAULTS.fosfatase} options={analysisOptions} /></Field>
         <Field label="Peroxidase"><KioskSelect name="peroxidase" ariaLabel="Peroxidase" defaultValue={initial?.peroxidase ?? CHEESE_FORM_DEFAULTS.peroxidase} options={analysisOptions} /></Field>
-        <Field label="Coagulação (°C)"><input name="temperatura_coagulacao" inputMode="decimal" defaultValue={initial?.temperatura_coagulacao ?? CHEESE_FORM_DEFAULTS.temperatura_coagulacao} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_coagulacao} /></Field>
-        <Field label="Cozimento (°C)"><input name="temperatura_cozimento" inputMode="decimal" defaultValue={initial?.temperatura_cozimento ?? CHEESE_FORM_DEFAULTS.temperatura_cozimento} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_cozimento} /></Field>
+        <Field label="Coagulação (°C)"><NoDotNumberInput name="temperatura_coagulacao" defaultValue={decimalInputValue(initial?.temperatura_coagulacao ?? CHEESE_FORM_DEFAULTS.temperatura_coagulacao)} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_coagulacao} /></Field>
+        <Field label="Cozimento (°C)"><NoDotNumberInput name="temperatura_cozimento" defaultValue={decimalInputValue(initial?.temperatura_cozimento ?? CHEESE_FORM_DEFAULTS.temperatura_cozimento)} data-draft-default-value={CHEESE_FORM_DEFAULTS.temperatura_cozimento} /></Field>
       </FormSection>
       <div className="form-footer">
         {initial && <button className="danger-button" type="button" disabled={busy} onClick={onCancel}><Trash2 size={19} />Cancelar formulação</button>}
