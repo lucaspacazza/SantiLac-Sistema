@@ -48,6 +48,7 @@ import {
   snapshotActiveFormDrafts,
 } from './drafts'
 import { CHEESE_FORM_DEFAULTS } from './cheeseFormDefaults'
+import { cheeseInputPreset } from './cheeseInputPresets'
 import {
   cheeseNumericPointViolations,
   decimalInputValue,
@@ -1491,16 +1492,66 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
       if (restored !== undefined) return [rowId, restored]
       const insumo = initial?.insumos[index]
       if (!insumo) return [rowId, '']
-      const match = catalogs.insumos.find((item) => item.nome === insumo.nome_insumo || item.tipo_insumo === insumo.tipo_insumo)
+      const match = catalogs.insumos.find((item) => item.nome === insumo.nome_insumo)
+        ?? catalogs.insumos.find((item) => item.tipo_insumo === insumo.tipo_insumo)
       return [rowId, match ? String(match.id) : '']
     }),
   ))
+  const [cheeseType, setCheeseType] = useState(
+    draftFieldValue(draft, 'tipo_queijo') ?? initial?.tipo_queijo ?? '',
+  )
+  const [quantities, setQuantities] = useState<Record<number, string>>(() => Object.fromEntries(
+    rows.map((rowId, index) => [
+      rowId,
+      draftFieldValue(draft, 'insumo_quantidade', index)
+        ?? decimalInputValue(initial?.insumos[index]?.quantidade),
+    ]),
+  ))
+  const [inputLots, setInputLots] = useState<Record<number, string>>(() => Object.fromEntries(
+    rows.map((rowId, index) => [
+      rowId,
+      draftFieldValue(draft, 'insumo_lote', index) ?? initial?.insumos[index]?.lote_insumo ?? '',
+    ]),
+  ))
+  const [presetActive, setPresetActive] = useState(() => {
+    const restoredPreset = cheeseInputPreset(
+      draftFieldValue(draft, 'tipo_queijo') ?? initial?.tipo_queijo ?? '',
+      catalogs.insumos,
+    )
+    return restoredPreset !== null
+      && restoredPreset.length === rows.length
+      && restoredPreset.every(({ input }, index) => selectedInputs[rows[index]] === String(input.id))
+  })
+
+  function changeCheeseType(nextCheeseType: string) {
+    if (nextCheeseType === cheeseType) return
+    setCheeseType(nextCheeseType)
+
+    const preset = cheeseInputPreset(nextCheeseType, catalogs.insumos)
+    if (!preset) {
+      if (presetActive) {
+        setRows([1])
+        setSelectedInputs({ 1: '' })
+        setQuantities({ 1: '' })
+        setInputLots({ 1: '' })
+      }
+      setPresetActive(false)
+      return
+    }
+
+    const presetRows = preset.map((_, index) => index + 1)
+    setRows(presetRows)
+    setSelectedInputs(Object.fromEntries(preset.map(({ input }, index) => [index + 1, String(input.id)])))
+    setQuantities(Object.fromEntries(preset.map(({ quantity }, index) => [index + 1, quantity])))
+    setInputLots(Object.fromEntries(preset.map((_, index) => [index + 1, ''])))
+    setPresetActive(true)
+  }
 
   return (
     <FactoryForm title="Formulação de queijo" code="PLAN 6.3" draftKey={draftKey} onBack={onBack} onSubmit={onSubmit} hideActions>
       <FormSection title="Lote">
         <Field label="Data"><DateInput name="data_formulacao" defaultValue={initial?.data_formulacao ?? date} required /></Field>
-        <Field label="Tipo de queijo"><KioskSelect name="tipo_queijo" ariaLabel="Tipo de queijo" defaultValue={initial?.tipo_queijo ?? ''} required options={catalogs.queijos.map((item) => ({ value: item.nome, label: item.nome }))} /></Field>
+        <Field label="Tipo de queijo"><KioskSelect name="tipo_queijo" ariaLabel="Tipo de queijo" value={cheeseType} onChange={changeCheeseType} required options={catalogs.queijos.map((item) => ({ value: item.nome, label: item.nome }))} /></Field>
         <Field label="Lote do queijo"><input name="lote_queijo" defaultValue={initial?.lote_queijo ?? ''} required /></Field>
         <Field label="Lote do leite"><input name="lote_leite" defaultValue={initial?.lote_leite ?? ''} /></Field>
         <Field label="Silo"><input name="silo" defaultValue={initial?.silo ?? ''} /></Field>
@@ -1522,18 +1573,25 @@ function CheeseForm({ date, catalogs, initial, busy, onBack, onCancel, onSubmit 
             return (
               <div className="repeat-row repeat-row-cheese" key={rowId}>
                 <span>{index + 1}</span>
-                <KioskSelect name="insumo_catalogo_id" ariaLabel={`Insumo ${index + 1}`} placeholder="Selecionar insumo" value={selectedInputs[rowId] ?? ''} onChange={(value) => setSelectedInputs((current) => ({ ...current, [rowId]: value }))} options={catalogs.insumos.map((item) => ({ value: String(item.id), label: item.nome }))} />
-                <NoDotNumberInput name="insumo_quantidade" placeholder="Quantidade" defaultValue={decimalInputValue(initial?.insumos[index]?.quantidade)} />
-                <input name="insumo_lote" placeholder="Lote" defaultValue={initial?.insumos[index]?.lote_insumo ?? ''} />
+                {presetActive ? (
+                  <div className="preset-input-name">
+                    {selected?.nome ?? 'Insumo não encontrado'}
+                    <input name="insumo_catalogo_id" type="hidden" value={selectedInputs[rowId] ?? ''} readOnly />
+                  </div>
+                ) : (
+                  <KioskSelect name="insumo_catalogo_id" ariaLabel={`Insumo ${index + 1}`} placeholder="Selecionar insumo" value={selectedInputs[rowId] ?? ''} onChange={(value) => setSelectedInputs((current) => ({ ...current, [rowId]: value }))} options={catalogs.insumos.map((item) => ({ value: String(item.id), label: item.nome }))} />
+                )}
+                <NoDotNumberInput name="insumo_quantidade" placeholder="Quantidade" value={quantities[rowId] ?? ''} onChange={(event) => setQuantities((current) => ({ ...current, [rowId]: event.currentTarget.value }))} />
+                <input name="insumo_lote" placeholder="Lote" value={inputLots[rowId] ?? ''} onChange={(event) => setInputLots((current) => ({ ...current, [rowId]: event.currentTarget.value }))} />
                 <strong>{selected?.unidade ?? '—'}</strong>
                 <input name="insumo_tipo" type="hidden" value={selected?.tipo_insumo ?? 'outro'} />
                 <input name="insumo_nome" type="hidden" value={selected?.nome ?? ''} />
                 <input name="insumo_unidade" type="hidden" value={selected?.unidade ?? ''} />
-                <button type="button" aria-label="Remover insumo" disabled={rows.length === 1} onClick={() => setRows((current) => current.filter((id) => id !== rowId))}><Trash2 size={18} /></button>
+                {!presetActive && <button type="button" aria-label="Remover insumo" disabled={rows.length === 1} onClick={() => setRows((current) => current.filter((id) => id !== rowId))}><Trash2 size={18} /></button>}
               </div>
             )
           })}
-          <button className="add-row-button" type="button" onClick={() => setRows((current) => [...current, Math.max(...current) + 1])}><Plus size={18} />Adicionar insumo</button>
+          {!presetActive && <button className="add-row-button" type="button" onClick={() => setRows((current) => [...current, Math.max(...current) + 1])}><Plus size={18} />Adicionar insumo</button>}
         </div>
       </FormSection>
       <FormSection title="Parâmetros usuais">

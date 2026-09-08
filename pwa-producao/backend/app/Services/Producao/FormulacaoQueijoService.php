@@ -275,6 +275,8 @@ class FormulacaoQueijoService extends BaseFormularioService
         return match (true) {
             str_contains($base, 'mvd') => 'fermento_mvd',
             str_contains($base, 'fast') => 'fermento_fast',
+            str_contains(str_replace(' ', '', $base), 'bvadd'),
+            str_contains($base, 'qdt') => 'fermento',
             str_contains($base, 'fermento') => 'fermento',
             str_contains($base, 'cloreto') => 'cloreto',
             str_contains($base, 'corante') => 'corante',

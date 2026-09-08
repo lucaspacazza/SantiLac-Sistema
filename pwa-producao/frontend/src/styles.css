@@ -822,6 +822,19 @@ select:focus-visible {
   grid-template-columns: 30px minmax(170px, 1.5fr) minmax(100px, 0.7fr) minmax(100px, 0.7fr) 54px 48px;
 }
 
+.preset-input-name {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  color: var(--ink);
+  padding: 0 13px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .repeat-row > span {
   color: var(--ink-soft);
   font-size: 12px;
@@ -1566,7 +1579,8 @@ select:focus-visible {
   }
 
   .repeat-row input,
-  .repeat-row strong {
+  .repeat-row strong,
+  .preset-input-name {
     grid-column: 2;
   }
 
