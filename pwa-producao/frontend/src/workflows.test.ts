@@ -21,9 +21,9 @@ test('forces the factory shell to update instead of reusing a stale WebView work
   const bootstrap = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8')
   const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
 
-  assert.equal(packageJson.version, '0.1.4')
-  assert.match(serviceWorker, /santilac-producao-pwa-v7/)
-  assert.match(bootstrap, /\/fabrica\/sw\.js\?v=7/)
+  assert.equal(packageJson.version, '0.1.5')
+  assert.match(serviceWorker, /santilac-producao-pwa-v8/)
+  assert.match(bootstrap, /\/fabrica\/sw\.js\?v=8/)
   assert.match(serviceWorker, /cache:\s*['"]no-store['"]/)
   assert.match(serviceWorker, /SKIP_WAITING/)
   assert.match(bootstrap, /registration\.update\(\)/)
@@ -214,6 +214,16 @@ test('keeps cheese defaults visible when an older draft stored empty values', ()
   assert.equal((app.match(/data-draft-default-value=\{CHEESE_FORM_DEFAULTS\./g) ?? []).length, 3)
   assert.match(select, /data-draft-default-value=\{defaultValue\}/)
   assert.match(drafts, /restoreDraftValue\(field\.value, control\.dataset\.draftDefaultValue\)/)
+})
+
+test('applies fixed catalog inputs when a supported cheese is selected', () => {
+  const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
+  const cheeseForm = app.match(/function CheeseForm[\s\S]*?(?=\nfunction SoroForm)/)?.[0] ?? ''
+
+  assert.match(cheeseForm, /cheeseInputPreset\(nextCheeseType, catalogs\.insumos\)/)
+  assert.match(cheeseForm, /value=\{cheeseType\}\s+onChange=\{changeCheeseType\}/)
+  assert.match(cheeseForm, /preset-input-name/)
+  assert.match(cheeseForm, /\{!presetActive && <button className="add-row-button"/)
 })
 
 test('places the usual cheese parameters at the end of the form after inputs', () => {
