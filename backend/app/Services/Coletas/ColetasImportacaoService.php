@@ -234,7 +234,7 @@ class ColetasImportacaoService
 
         $decoded = $response->json();
         if (is_array($decoded) && ($decoded['success'] ?? null) === false) {
-            return $decoded;
+            return $this->normalizarFalhaProcessor($decoded, $response->status());
         }
         if (! $response->successful() || ! is_array($decoded)) {
             return $this->processorError('PROCESSOR_711', 'Retorno do processor invalido.', [
@@ -243,6 +243,47 @@ class ColetasImportacaoService
         }
 
         return $decoded;
+    }
+
+    private function normalizarFalhaProcessor(array $payload, int $status): array
+    {
+        $errors = array_values(array_filter(
+            is_array($payload['errors'] ?? null) ? $payload['errors'] : [],
+            fn ($error): bool => is_array($error) && is_string($error['message'] ?? null)
+        ));
+
+        if ($errors === []) {
+            $error = $payload['error'] ?? null;
+            if (is_array($error) && is_string($error['message'] ?? null)) {
+                $errors[] = [
+                    'code' => (string) ($error['code'] ?? 'PROCESSOR_711'),
+                    'message' => $error['message'],
+                    'details' => is_array($error['details'] ?? null) ? $error['details'] : [],
+                ];
+            } elseif (is_string($payload['message'] ?? null)) {
+                $errors[] = [
+                    'code' => 'PROCESSOR_711',
+                    'message' => $payload['message'],
+                    'details' => ['status' => $status],
+                ];
+            }
+        }
+
+        if ($errors === []) {
+            $errors[] = [
+                'code' => 'PROCESSOR_711',
+                'message' => 'O processor nao informou a causa da falha.',
+                'details' => ['status' => $status],
+            ];
+        }
+
+        return [
+            ...$payload,
+            'success' => false,
+            'records' => [],
+            'warnings' => array_values(is_array($payload['warnings'] ?? null) ? $payload['warnings'] : []),
+            'errors' => $errors,
+        ];
     }
 
     private function criarProdutoresAusentes(array $registros): int

@@ -353,8 +353,16 @@ def run_json_script(command: list[str]) -> dict[str, Any]:
         )
     except subprocess.TimeoutExpired:
         return error("PROCESSOR_714", "Tempo limite do processor excedido.", {"timeout_seconds": SCRIPT_TIMEOUT_SECONDS})
+
+    stdout = (completed.stdout or "").strip()
+    if not stdout:
+        return error("PROCESSOR_711", "O script do processor nao retornou JSON.", {
+            "stderr": completed.stderr,
+            "returncode": completed.returncode,
+        })
+
     try:
-        decoded = json.loads((completed.stdout or "").strip() or "{}")
+        decoded = json.loads(stdout)
     except json.JSONDecodeError:
         return error("PROCESSOR_711", "Retorno do processor invalido.", {
             "stdout": completed.stdout,
@@ -362,7 +370,7 @@ def run_json_script(command: list[str]) -> dict[str, Any]:
             "returncode": completed.returncode,
         })
 
-    if isinstance(decoded, dict):
+    if isinstance(decoded, dict) and isinstance(decoded.get("success"), bool):
         return decoded
 
     return error("PROCESSOR_711", "Retorno do processor invalido.", {

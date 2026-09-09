@@ -128,6 +128,10 @@ restart_processor_services() {
 }
 
 install_requirements
+if [ -f systemd/santilac-processor.service ]; then
+  cp systemd/santilac-processor.service /etc/systemd/system/santilac-processor.service
+  systemctl daemon-reload
+fi
 restart_processor_services
 rm -rf "$REMOTE_STAGE" "$REMOTE_PACKAGE"
 EOF
