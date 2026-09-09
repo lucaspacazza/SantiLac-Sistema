@@ -14,6 +14,26 @@ export type ExpedicaoIndicador = {
     caixas: number
     peso_total: number
   }>
+  productStock: Array<{
+    product: string
+    available: number
+    reserved: number
+    agingDays: number
+    expiringKg: number
+  }>
+  shipments: Array<{
+    id: string
+    client: string
+    destination: string
+    date: string
+    kg: number
+    status: 'Concluída' | 'Carregando' | 'Programada'
+    progress: number
+  }>
+  dispatchedDays: Array<{
+    date: string
+    kg: number
+  }>
 }
 
 export const expedicaoIndicadorApi = {

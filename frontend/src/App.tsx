@@ -302,18 +302,20 @@ function CoreApp() {
   }
 
   return (<>
-    <div className="app-shell" data-draft-owner={user.id} key={user.id} aria-hidden={sessionExpired || state === 'guest' || undefined}>
-      <CoreSidebar
-        userName={user.nome}
-        theme={theme}
-        activeModule={activeModule}
-        modules={visibleModules}
-        onToggleTheme={handleToggleTheme}
-        onLogout={handleLogout}
-        onBackToSystem={handleBackToSystem}
-        onOpenModule={handleOpenModule}
-        showSystemHomeActive={activeModule === null}
-      />
+    <div className={`app-shell${activeModule === 'dashboard' ? ' is-dashboard' : ''}`} data-draft-owner={user.id} key={user.id} aria-hidden={sessionExpired || state === 'guest' || undefined}>
+      {activeModule !== 'dashboard' ? (
+        <CoreSidebar
+          userName={user.nome}
+          theme={theme}
+          activeModule={activeModule}
+          modules={visibleModules}
+          onToggleTheme={handleToggleTheme}
+          onLogout={handleLogout}
+          onBackToSystem={handleBackToSystem}
+          onOpenModule={handleOpenModule}
+          showSystemHomeActive={activeModule === null}
+        />
+      ) : null}
 
       <main className="content">
         <Suspense fallback={<ModuleLoading />}>

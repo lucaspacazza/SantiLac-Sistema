@@ -7,6 +7,17 @@ export type PasteurizadorIndicador = {
     coletado_em: string | null
     total_amostras: number
   } | null
+  temperatures: Array<{
+    hour: string
+    timestamp: string
+    value: number
+  }>
+  temperatureMetrics: {
+    min: number
+    avg: number
+    max: number
+    updatedAt: string
+  } | null
 }
 
 export const pasteurizadorIndicadorApi = {

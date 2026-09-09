@@ -2,11 +2,17 @@
 
 namespace App\Services\Dashboard;
 
+use App\Services\Dashboard\Support\LeiteDiarioCalculator;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class LeiteIndicadorService
 {
+    public function __construct(
+        private readonly LeiteDiarioCalculator $dailyCalculator,
+    ) {}
+
     public function evolucaoMensal(): array
     {
         $inicioMesAtual = CarbonImmutable::now(config('app.timezone'))->startOfMonth();
@@ -55,11 +61,37 @@ class LeiteIndicadorService
             ];
         }
 
+        $detail = $this->dailyDetail(CarbonImmutable::now(config('app.timezone')));
+
         return [
             'litros_mes_atual' => $mesAtual,
             'litros_mes_anterior' => $mesAnterior,
             'variacao_percentual' => $variacao,
             'serie_mensal' => $serieMensal,
+            ...$detail,
+        ];
+    }
+
+    private function dailyDetail(CarbonImmutable $reference): array
+    {
+        $schema = Schema::connection('raw');
+        if (! $schema->hasTable('coletas')) {
+            return ['serie_diaria' => [], 'rotas' => [], 'atualizado_em' => null];
+        }
+
+        $columns = collect([
+            'produtor_codigo', 'litros', 'datahora', 'temperatura',
+            'rota_uuid', 'rota_nome', 'motorista_nome', 'usuario',
+        ])->filter(fn (string $column): bool => $schema->hasColumn('coletas', $column))->all();
+        $rows = DB::connection('raw')->table('coletas')
+            ->where('datahora', '>=', $reference->startOfDay()->subDays(59)->format('Y-m-d H:i:s'))
+            ->where('datahora', '<', $reference->startOfDay()->addDay()->format('Y-m-d H:i:s'))
+            ->orderBy('datahora')
+            ->get($columns);
+
+        return [
+            ...$this->dailyCalculator->calculate($rows, $reference->toDateString(), 30),
+            'atualizado_em' => $rows->max('datahora'),
         ];
     }
 }

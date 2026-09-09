@@ -9,6 +9,21 @@ export type LeiteIndicador = {
     litros: number
     coletas: number
   }>
+  serie_diaria: Array<{
+    data: string
+    litros: number
+    litros_periodo_anterior: number
+    produtores: number
+  }>
+  rotas: Array<{
+    id: string
+    nome: string
+    motorista: string
+    litros: number
+    produtores: number
+    temperatura_media: number | null
+  }>
+  atualizado_em: string | null
 }
 
 export const leiteIndicadorApi = {
