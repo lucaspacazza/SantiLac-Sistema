@@ -50,7 +50,6 @@ type DashboardSection = keyof typeof dashboardSectionRoutes
 export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
   const [period, setPeriod] = useState<Period>(7)
   const [selectedProduct, setSelectedProduct] = useState('all')
-  const [activeSection, setActiveSection] = useState<DashboardSection>(() => dashboardSectionFromHash(window.location.hash))
   const [shipmentFilter, setShipmentFilter] = useState<'all' | 'pending'>('all')
   const [inventoryPage, setInventoryPage] = useState(1)
   const [lotState, setLotState] = useState<LotState>('all')
@@ -109,7 +108,6 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
   useEffect(() => {
     const scrollToHashSection = () => {
       const section = dashboardSectionFromHash(window.location.hash)
-      setActiveSection(section)
       if (window.location.hash.split('?')[0] === '#/dashboard') {
         window.location.hash = dashboardSectionRoutes.overview
         return
@@ -181,12 +179,12 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
     setToast('Lotes exportados em CSV.')
   }
 
-  return <div className="owner-dashboard" data-active-section={activeSection} ref={rootRef}>
+  return <div className="owner-dashboard" ref={rootRef}>
     <a className="owner-skip" href="#overview" onClick={(event) => { event.preventDefault(); go('overview') }}>Ir para os indicadores</a>
     <div className="owner-page">
         {unavailable.length ? <div className="owner-source-warning" role="status"><AlertTriangle size={15}/><span>Dados indisponíveis: {unavailable.join(', ')}. Os demais indicadores continuam usando as fontes disponíveis.</span></div> : null}
         <section id="overview" className="owner-section">
-          <div className="owner-page-heading"><div><span className="owner-eyebrow">VISÃO COMPLETA DO NEGÓCIO</span><h1>Cada litro. Cada lote. Cada resultado<span>.</span></h1><p>A fábrica inteira no seu primeiro olhar da manhã.</p></div><div className="owner-page-actions"><button className="owner-btn" type="button" disabled={dashboard.refreshing} onClick={dashboard.refresh}><RefreshCw size={14}/>Atualizar dados</button><button className="owner-btn" type="button" onClick={exportSummary}><Download size={14}/>Exportar indicadores</button></div></div>
+          <div className="owner-page-actions owner-page-actions-top"><button className="owner-btn" type="button" disabled={dashboard.refreshing} onClick={dashboard.refresh}><RefreshCw size={14}/>Atualizar dados</button><button className="owner-btn" type="button" onClick={exportSummary}><Download size={14}/>Exportar indicadores</button></div>
           <div className="owner-filterbar">
             <div className="owner-period-buttons" role="group" aria-label="Período dos indicadores">{([7, 14, 30] as Period[]).map((value) => <button key={value} type="button" aria-pressed={period === value} onClick={() => setPeriod(value)}>{value} dias</button>)}</div>
             <span className="owner-period-label">{scoped.days.length ? `${formatDate(scoped.days[0].date)} — ${formatDate(scoped.days.at(-1)?.date ?? '')}` : 'Sem dados no período'}</span><i className="owner-filter-divider"/>

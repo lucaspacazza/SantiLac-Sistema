@@ -22,13 +22,16 @@ test('dashboard usa a sidebar compartilhada do sistema com todos os submódulos'
   assert.doesNotMatch(appSource, /is-dashboard/)
 })
 
-test('dashboard não cria sidebar, cabeçalho ou cartão promocional próprios', () => {
+test('dashboard mantém todas as seções na mesma página e não cria conteúdo decorativo próprio', () => {
   assert.doesNotMatch(dashboardSource, /OwnerSidebar/)
   assert.doesNotMatch(dashboardSource, /owner-topbar/)
   assert.doesNotMatch(dashboardSource, /owner-side-insight/)
   assert.doesNotMatch(dashboardSource, /Últimos movimentos/)
   assert.doesNotMatch(dashboardSource, /Leitura da diretoria/)
   assert.doesNotMatch(dashboardSource, /owner-page-footer/)
+  assert.doesNotMatch(dashboardSource, /Cada litro\. Cada lote\. Cada resultado/)
+  assert.doesNotMatch(dashboardSource, /A fábrica inteira no seu primeiro olhar/)
   assert.match(dashboardSource, /hashchange/)
-  assert.match(dashboardSource, /data-active-section/)
+  assert.match(dashboardSource, /scrollIntoView/)
+  assert.doesNotMatch(dashboardSource, /data-active-section/)
 })
