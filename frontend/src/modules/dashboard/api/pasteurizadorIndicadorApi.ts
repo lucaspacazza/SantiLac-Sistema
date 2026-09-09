@@ -1,4 +1,5 @@
 import { apiGet, type ApiGetOptions } from '../../../api/http'
+import { type DashboardDateRange, withDashboardDateRange } from './dashboardDateRangeApi'
 
 export type PasteurizadorIndicador = {
   amostras: number
@@ -21,7 +22,7 @@ export type PasteurizadorIndicador = {
 }
 
 export const pasteurizadorIndicadorApi = {
-  buscar(options?: ApiGetOptions) {
-    return apiGet<PasteurizadorIndicador>('/api/dashboard/pasteurizador', options)
+  buscar(range: DashboardDateRange, options?: ApiGetOptions) {
+    return apiGet<PasteurizadorIndicador>(withDashboardDateRange('/api/dashboard/pasteurizador', range), options)
   },
 }

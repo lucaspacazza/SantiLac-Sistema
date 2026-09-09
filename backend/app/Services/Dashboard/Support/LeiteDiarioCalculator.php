@@ -6,11 +6,11 @@ use Carbon\CarbonImmutable;
 
 class LeiteDiarioCalculator
 {
-    public function calculate(iterable $rows, string $referenceDate, int $days = 30): array
+    public function calculate(iterable $rows, string $startDate, string $endDate): array
     {
-        $days = min(30, max(7, $days));
-        $reference = CarbonImmutable::parse($referenceDate)->startOfDay();
-        $start = $reference->subDays($days - 1);
+        $start = CarbonImmutable::parse($startDate)->startOfDay();
+        $reference = CarbonImmutable::parse($endDate)->startOfDay();
+        $days = $start->diffInDays($reference) + 1;
         $daily = [];
         $routes = [];
         $rows = collect($rows);

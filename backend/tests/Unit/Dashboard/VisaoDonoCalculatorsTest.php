@@ -3,6 +3,7 @@
 namespace Tests\Unit\Dashboard;
 
 use App\Services\Dashboard\Support\LeiteDiarioCalculator;
+use App\Services\Dashboard\Support\DashboardDateRange;
 use App\Services\Dashboard\Support\ProducaoLotesCalculator;
 use PHPUnit\Framework\TestCase;
 
@@ -17,7 +18,7 @@ class VisaoDonoCalculatorsTest extends TestCase
             (object) ['produtor_codigo' => 'P1', 'litros' => 1500, 'temperatura' => 4.2, 'datahora' => '2026-08-10 06:00:00', 'rota_uuid' => 'R0', 'rota_nome' => 'Rota Norte', 'usuario' => 'João'],
         ];
 
-        $data = $calculator->calculate($rows, '2026-09-09', 30);
+        $data = $calculator->calculate($rows, '2026-08-11', '2026-09-09');
 
         $today = collect($data['serie_diaria'])->firstWhere('data', '2026-09-09');
         $this->assertSame(2000.0, $today['litros']);
@@ -25,6 +26,17 @@ class VisaoDonoCalculatorsTest extends TestCase
         $this->assertSame(2, $today['produtores']);
         $this->assertSame('Rota Norte', $data['rotas'][0]['nome']);
         $this->assertSame(2000.0, $data['rotas'][0]['litros']);
+    }
+
+    public function test_dashboard_accepts_an_arbitrary_inclusive_date_range(): void
+    {
+        $range = DashboardDateRange::from('2026-01-01', '2026-04-01');
+
+        $this->assertSame('2026-01-01', $range->startDate());
+        $this->assertSame('2026-04-01', $range->endDate());
+        $this->assertSame(91, $range->days());
+        $this->assertSame('2025-10-02', $range->previousStartDate());
+        $this->assertSame('2025-12-31', $range->previousEndDate());
     }
 
     public function test_producao_keeps_partial_weight_out_of_final_yield_and_supports_legacy_link(): void

@@ -3,8 +3,8 @@
 namespace App\Services\Dashboard;
 
 use App\Models\Qualidade\ProdutorQualidade;
+use App\Services\Dashboard\Support\DashboardDateRange;
 use App\Services\Qualidade\RelatoriosV2Service;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -16,8 +16,9 @@ class QualidadeIndicadorService
         private readonly RelatoriosV2Service $reports,
     ) {}
 
-    public function resumo(): array
+    public function resumo(?DashboardDateRange $range = null): array
     {
+        $range ??= DashboardDateRange::from();
         $produtoresAtivos = ProdutorQualidade::query()->where('ativo', 1)->count();
 
         if (! Schema::connection('raw')->hasTable(self::ANALISES_TABLE)) {
@@ -33,7 +34,8 @@ class QualidadeIndicadorService
         $analises = DB::connection('raw')
             ->table(self::ANALISES_TABLE.' as ra')
             ->join('produtores as p', 'p.codigo', '=', 'ra.produtor_codigo')
-            ->where('p.ativo', 1);
+            ->where('p.ativo', 1)
+            ->whereBetween('ra.data', [$range->startDate(), $range->endDate()]);
         $produtoresComAnalise = (clone $analises)
             ->whereNotNull('ra.produtor_codigo')
             ->distinct('ra.produtor_codigo')
@@ -44,15 +46,14 @@ class QualidadeIndicadorService
             'produtores_com_analise' => $produtoresComAnalise,
             'produtores_sem_analise' => max($produtoresAtivos - $produtoresComAnalise, 0),
             'ultima_analise' => (clone $analises)->max('ra.data'),
-            'quality' => $this->qualityDetail($produtoresAtivos),
+            'quality' => $this->qualityDetail($produtoresAtivos, $range),
         ];
     }
 
-    private function qualityDetail(int $activeProducers): array
+    private function qualityDetail(int $activeProducers, DashboardDateRange $range): array
     {
-        $reference = CarbonImmutable::now(config('app.timezone'))->startOfDay();
-        $start = $reference->subDays(29)->toDateString();
-        $end = $reference->toDateString();
+        $start = $range->startDate();
+        $end = $range->endDate();
         $rows = DB::connection('raw')->table(self::ANALISES_TABLE)
             ->whereBetween('data', [$start, $end])
             ->orderBy('data')

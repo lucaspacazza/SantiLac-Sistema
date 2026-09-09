@@ -4,6 +4,7 @@ namespace App\Services\Dashboard;
 
 use App\Models\Expedicao\ExpedicaoOrdem;
 use App\Models\Expedicao\ExpedicaoOrdemPalete;
+use App\Services\Dashboard\Support\DashboardDateRange;
 use App\Services\Expedicao\ExpedicaoService;
 use Carbon\CarbonImmutable;
 
@@ -13,8 +14,9 @@ class ExpedicaoIndicadorService
         private readonly ExpedicaoService $expedicao,
     ) {}
 
-    public function resumo(): array
+    public function resumo(?DashboardDateRange $range = null): array
     {
+        $range ??= DashboardDateRange::from();
         $resumo = $this->expedicao->resumo();
         $totais = $resumo['totais'] ?? [];
 
@@ -32,11 +34,11 @@ class ExpedicaoIndicadorService
                 'caixas' => (int) ($produto['caixas'] ?? 0),
                 'peso_total' => (float) ($produto['peso_total'] ?? 0),
             ])->values()->all(),
-            ...$this->detail(),
+            ...$this->detail($range),
         ];
     }
 
-    private function detail(): array
+    private function detail(DashboardDateRange $range): array
     {
         $now = CarbonImmutable::now(config('app.timezone'));
         $stock = collect($this->expedicao->estoque()['itens'] ?? []);
@@ -64,9 +66,9 @@ class ExpedicaoIndicadorService
         })->values()->all();
 
         $orders = ExpedicaoOrdem::query()->where('status', '<>', 'cancelada')
-            ->where(function ($query) use ($now): void {
-                $query->whereDate('data_prevista', '>=', $now->subDays(29)->toDateString())
-                    ->orWhereDate('concluida_at', '>=', $now->subDays(29)->toDateString());
+            ->where(function ($query) use ($range): void {
+                $query->whereBetween('data_prevista', [$range->startDate(), $range->endDate()])
+                    ->orWhereBetween('concluida_at', [$range->start->startOfDay(), $range->end->endOfDay()]);
             })->orderByDesc('data_prevista')->orderByDesc('id')->limit(100)->get();
         $loaded = ExpedicaoOrdemPalete::query()->whereIn('ordem_id', $orders->pluck('id'))
             ->where('status', 'carregado')->selectRaw('ordem_id, COUNT(*) AS total')

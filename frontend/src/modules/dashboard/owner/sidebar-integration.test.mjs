@@ -35,3 +35,11 @@ test('dashboard mantém todas as seções na mesma página e não cria conteúdo
   assert.match(dashboardSource, /scrollIntoView/)
   assert.doesNotMatch(dashboardSource, /data-active-section/)
 })
+
+test('dashboard permite atalho de um dia e intervalo personalizado', () => {
+  assert.match(dashboardSource, /\[1, 7, 14, 30\]/)
+  assert.match(dashboardSource, /type="date"/)
+  assert.match(dashboardSource, /data_inicio/)
+  assert.match(dashboardSource, /data_fim/)
+  assert.doesNotMatch(dashboardSource, /slice\(-30\)/)
+})

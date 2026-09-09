@@ -9,12 +9,12 @@ export function normalizeProductName(value: string): string {
 export function dashboardPeriod<TDay extends PeriodDay, TLot extends PeriodLot>(
   allDays: TDay[],
   allLots: TLot[],
-  period: 7 | 14 | 30,
+  startDate: string,
+  endDate: string,
   selectedProduct: string,
 ) {
-  const days = allDays.slice(-period)
-  const start = days[0]?.date ?? ''
-  const lots = allLots.filter((lot) => lot.date >= start && (selectedProduct === 'all' || lot.productId === selectedProduct))
+  const days = allDays.filter((day) => day.date >= startDate && day.date <= endDate)
+  const lots = allLots.filter((lot) => lot.date >= startDate && lot.date <= endDate && (selectedProduct === 'all' || lot.productId === selectedProduct))
   return { days, lots }
 }
 

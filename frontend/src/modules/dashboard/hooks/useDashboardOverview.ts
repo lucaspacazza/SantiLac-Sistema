@@ -7,6 +7,7 @@ import { pasteurizadorIndicadorApi, type PasteurizadorIndicador } from '../api/p
 import { producaoIndicadorApi, type ProducaoIndicador } from '../api/producaoIndicadorApi'
 import { produtoresIndicadorApi } from '../api/produtoresIndicadorApi'
 import { qualidadeIndicadorApi, type QualidadeIndicador } from '../api/qualidadeIndicadorApi'
+import { quickDashboardDateRange, type DashboardDateRange } from '../api/dashboardDateRangeApi'
 
 export type DataState<T> = {
   loading: boolean
@@ -18,6 +19,7 @@ const initialState = <T,>(): DataState<T> => ({ loading: true, data: null, faile
 
 export function useDashboardOverview() {
   const [refreshKey, setRefreshKey] = useState(0)
+  const [dateRange, setDateRangeState] = useState<DashboardDateRange>(() => quickDashboardDateRange(7))
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [produtores, setProdutores] = useState<DataState<number>>(initialState)
   const [leite, setLeite] = useState<DataState<LeiteIndicador>>(initialState)
@@ -37,13 +39,13 @@ export function useDashboardOverview() {
         setProdutores,
         controller.signal,
       ),
-      loadSource(leiteIndicadorApi.buscar({ signal: controller.signal }), setLeite, controller.signal),
-      loadSource(qualidadeIndicadorApi.buscar({ signal: controller.signal }), setQualidade, controller.signal),
+      loadSource(leiteIndicadorApi.buscar(dateRange, { signal: controller.signal }), setLeite, controller.signal),
+      loadSource(qualidadeIndicadorApi.buscar(dateRange, { signal: controller.signal }), setQualidade, controller.signal),
       loadSource(estoqueIndicadorApi.buscar({ signal: controller.signal }), setEstoque, controller.signal),
-      loadSource(expedicaoIndicadorApi.buscar({ signal: controller.signal }), setExpedicao, controller.signal),
+      loadSource(expedicaoIndicadorApi.buscar(dateRange, { signal: controller.signal }), setExpedicao, controller.signal),
       loadSource(combustivelIndicadorApi.buscar({ signal: controller.signal }), setCombustivel, controller.signal),
-      loadSource(producaoIndicadorApi.buscar({ signal: controller.signal }), setProducao, controller.signal),
-      loadSource(pasteurizadorIndicadorApi.buscar({ signal: controller.signal }), setPasteurizador, controller.signal),
+      loadSource(producaoIndicadorApi.buscar(dateRange, { signal: controller.signal }), setProducao, controller.signal),
+      loadSource(pasteurizadorIndicadorApi.buscar(dateRange, { signal: controller.signal }), setPasteurizador, controller.signal),
     ]
 
     void Promise.allSettled(requests).then(() => {
@@ -51,7 +53,16 @@ export function useDashboardOverview() {
     })
 
     return () => controller.abort()
-  }, [refreshKey])
+  }, [dateRange, refreshKey])
+
+  const setDateRange = useCallback((range: DashboardDateRange) => {
+    setLeite((state) => ({ ...state, loading: true, failed: false }))
+    setQualidade((state) => ({ ...state, loading: true, failed: false }))
+    setExpedicao((state) => ({ ...state, loading: true, failed: false }))
+    setProducao((state) => ({ ...state, loading: true, failed: false }))
+    setPasteurizador((state) => ({ ...state, loading: true, failed: false }))
+    setDateRangeState(range)
+  }, [])
 
   const refresh = useCallback(() => {
     setProdutores((state) => ({ ...state, loading: true, failed: false }))
@@ -74,10 +85,12 @@ export function useDashboardOverview() {
     combustivel,
     producao,
     pasteurizador,
+    dateRange,
     updatedAt,
     refreshing: [produtores, leite, qualidade, estoque, expedicao, combustivel, producao, pasteurizador]
       .some((source) => source.loading),
     refresh,
+    setDateRange,
   }
 }
 

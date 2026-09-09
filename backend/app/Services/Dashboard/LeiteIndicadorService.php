@@ -3,7 +3,7 @@
 namespace App\Services\Dashboard;
 
 use App\Services\Dashboard\Support\LeiteDiarioCalculator;
-use Carbon\CarbonImmutable;
+use App\Services\Dashboard\Support\DashboardDateRange;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -13,10 +13,14 @@ class LeiteIndicadorService
         private readonly LeiteDiarioCalculator $dailyCalculator,
     ) {}
 
-    public function evolucaoMensal(): array
+    public function evolucaoMensal(?DashboardDateRange $range = null): array
     {
-        $inicioMesAtual = CarbonImmutable::now(config('app.timezone'))->startOfMonth();
+        $range ??= DashboardDateRange::from();
+        $inicioMesAtual = $range->end->startOfMonth();
         $inicioProximoMes = $inicioMesAtual->addMonth();
+        if ($range->end->addDay()->lessThan($inicioProximoMes)) {
+            $inicioProximoMes = $range->end->addDay();
+        }
         $inicioMesAnterior = $inicioMesAtual->subMonth();
         $inicioSerie = $inicioMesAtual->subMonths(11);
 
@@ -61,7 +65,7 @@ class LeiteIndicadorService
             ];
         }
 
-        $detail = $this->dailyDetail(CarbonImmutable::now(config('app.timezone')));
+        $detail = $this->dailyDetail($range);
 
         return [
             'litros_mes_atual' => $mesAtual,
@@ -72,7 +76,7 @@ class LeiteIndicadorService
         ];
     }
 
-    private function dailyDetail(CarbonImmutable $reference): array
+    private function dailyDetail(DashboardDateRange $range): array
     {
         $schema = Schema::connection('raw');
         if (! $schema->hasTable('coletas')) {
@@ -84,13 +88,13 @@ class LeiteIndicadorService
             'rota_uuid', 'rota_nome', 'motorista_nome', 'usuario',
         ])->filter(fn (string $column): bool => $schema->hasColumn('coletas', $column))->all();
         $rows = DB::connection('raw')->table('coletas')
-            ->where('datahora', '>=', $reference->startOfDay()->subDays(59)->format('Y-m-d H:i:s'))
-            ->where('datahora', '<', $reference->startOfDay()->addDay()->format('Y-m-d H:i:s'))
+            ->where('datahora', '>=', $range->start->subDays($range->days())->format('Y-m-d H:i:s'))
+            ->where('datahora', '<', $range->end->addDay()->format('Y-m-d H:i:s'))
             ->orderBy('datahora')
             ->get($columns);
 
         return [
-            ...$this->dailyCalculator->calculate($rows, $reference->toDateString(), 30),
+            ...$this->dailyCalculator->calculate($rows, $range->startDate(), $range->endDate()),
             'atualizado_em' => $rows->max('datahora'),
         ];
     }

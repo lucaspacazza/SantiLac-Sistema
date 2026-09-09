@@ -1,4 +1,5 @@
 import { apiGet, type ApiGetOptions } from '../../../api/http'
+import { type DashboardDateRange, withDashboardDateRange } from './dashboardDateRangeApi'
 
 export type ProducaoIndicador = {
   formulacoes_queijo: number
@@ -32,7 +33,7 @@ export type ProducaoIndicador = {
 }
 
 export const producaoIndicadorApi = {
-  buscar(options?: ApiGetOptions) {
-    return apiGet<ProducaoIndicador>('/api/dashboard/producao', options)
+  buscar(range: DashboardDateRange, options?: ApiGetOptions) {
+    return apiGet<ProducaoIndicador>(withDashboardDateRange('/api/dashboard/producao', range), options)
   },
 }

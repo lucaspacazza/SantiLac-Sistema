@@ -1,4 +1,5 @@
 import { apiGet, type ApiGetOptions } from '../../../api/http'
+import { type DashboardDateRange, withDashboardDateRange } from './dashboardDateRangeApi'
 
 export type ExpedicaoIndicador = {
   totais: {
@@ -37,7 +38,7 @@ export type ExpedicaoIndicador = {
 }
 
 export const expedicaoIndicadorApi = {
-  buscar(options?: ApiGetOptions) {
-    return apiGet<ExpedicaoIndicador>('/api/dashboard/expedicao', options)
+  buscar(range: DashboardDateRange, options?: ApiGetOptions) {
+    return apiGet<ExpedicaoIndicador>(withDashboardDateRange('/api/dashboard/expedicao', range), options)
   },
 }

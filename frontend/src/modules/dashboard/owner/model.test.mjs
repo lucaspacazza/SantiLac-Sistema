@@ -14,7 +14,7 @@ test('normaliza todas as grafias legadas de mucarela para Mussarela', () => {
   assert.equal(normalizeProductName('mucarela fatiada'), 'Mussarela fatiada')
 })
 
-test('recorta dias e lotes reais para o período e produto selecionados', () => {
+test('recorta dias e lotes reais para qualquer intervalo e produto selecionados', () => {
   const days = Array.from({ length: 30 }, (_, index) => ({ date: `2026-09-${String(index + 1).padStart(2, '0')}` }))
   const lots = [
     { id: '1', date: '2026-09-24', productId: 'mussarela', state: 'closed' },
@@ -22,9 +22,9 @@ test('recorta dias e lotes reais para o período e produto selecionados', () => 
     { id: '3', date: '2026-09-30', productId: 'mussarela', state: 'packing' },
   ]
 
-  const scoped = dashboardPeriod(days, lots, 7, 'mussarela')
-  assert.deepEqual(scoped.days.map((day) => day.date), days.slice(-7).map((day) => day.date))
-  assert.deepEqual(scoped.lots.map((lot) => lot.id), ['1', '3'])
+  const scoped = dashboardPeriod(days, lots, '2026-09-24', '2026-09-29', 'mussarela')
+  assert.deepEqual(scoped.days.map((day) => day.date), days.slice(23, 29).map((day) => day.date))
+  assert.deepEqual(scoped.lots.map((lot) => lot.id), ['1'])
 })
 
 test('filtra a tabela por situação, data e texto sem distinguir acentos', () => {

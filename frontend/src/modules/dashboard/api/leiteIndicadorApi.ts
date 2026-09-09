@@ -1,4 +1,5 @@
 import { apiGet, type ApiGetOptions } from '../../../api/http'
+import { type DashboardDateRange, withDashboardDateRange } from './dashboardDateRangeApi'
 
 export type LeiteIndicador = {
   litros_mes_atual: number
@@ -27,7 +28,7 @@ export type LeiteIndicador = {
 }
 
 export const leiteIndicadorApi = {
-  buscar(options?: ApiGetOptions) {
-    return apiGet<LeiteIndicador>('/api/dashboard/leite', options)
+  buscar(range: DashboardDateRange, options?: ApiGetOptions) {
+    return apiGet<LeiteIndicador>(withDashboardDateRange('/api/dashboard/leite', range), options)
   },
 }

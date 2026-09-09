@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { useDashboardOverview } from '../hooks/useDashboardOverview'
+import { quickDashboardDateRange } from '../api/dashboardDateRangeApi'
 import { BarChart, compact, DonutChart, formatNumber, LineChart, Sparkline } from './Charts'
 import { closureDays, dashboardPeriod, downloadCsv, filterLots, normalizeProductName, paginateItems, sumBy } from './model'
 import './owner-dashboard.css'
@@ -26,7 +27,7 @@ type Dashboard = ReturnType<typeof useDashboardOverview>
 type Lot = NonNullable<Dashboard['producao']['data']>['lotes'][number]
 type Product = NonNullable<Dashboard['producao']['data']>['products'][number]
 type ModalState = { title: string; body: ReactNode } | null
-type Period = 7 | 14 | 30
+type Period = 1 | 7 | 14 | 30
 type LotState = 'all' | 'open' | Lot['state']
 
 const states: Record<Lot['state'], string> = {
@@ -48,7 +49,9 @@ const dashboardSectionRoutes = {
 type DashboardSection = keyof typeof dashboardSectionRoutes
 
 export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
-  const [period, setPeriod] = useState<Period>(7)
+  const [period, setPeriod] = useState<Period | null>(7)
+  const [startDate, setStartDate] = useState(dashboard.dateRange.data_inicio)
+  const [endDate, setEndDate] = useState(dashboard.dateRange.data_fim)
   const [selectedProduct, setSelectedProduct] = useState('all')
   const [shipmentFilter, setShipmentFilter] = useState<'all' | 'pending'>('all')
   const [inventoryPage, setInventoryPage] = useState(1)
@@ -78,7 +81,7 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
   ].filter((source) => source.failed).map((source) => source.label)
   const products = useMemo(() => (production?.products ?? []).map((product) => ({ ...product, name: normalizeProductName(product.name), short: normalizeProductName(product.short) })), [production])
   const allDays = useMemo(() => mergeDays(milk?.serie_diaria ?? [], production?.days ?? [], shipping?.dispatchedDays ?? []), [milk, production, shipping])
-  const scoped = useMemo(() => dashboardPeriod(allDays, production?.lotes ?? [], period, selectedProduct), [allDays, period, production, selectedProduct])
+  const scoped = useMemo(() => dashboardPeriod(allDays, production?.lotes ?? [], dashboard.dateRange.data_inicio, dashboard.dateRange.data_fim, selectedProduct), [allDays, dashboard.dateRange, production, selectedProduct])
   const lots = scoped.lots
   const closed = lots.filter((lot) => lot.state === 'closed')
   const open = lots.filter((lot) => lot.state !== 'closed')
@@ -104,7 +107,11 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
   const pageCount = Math.max(1, Math.ceil(pagedLots.length / 8))
   const visibleLots = pagedLots.slice((Math.min(page, pageCount) - 1) * 8, Math.min(page, pageCount) * 8)
 
-  useEffect(() => setPage(1), [lotState, lotSearch, lotDate, selectedProduct, period])
+  useEffect(() => setPage(1), [lotState, lotSearch, lotDate, selectedProduct, dashboard.dateRange])
+  useEffect(() => {
+    setStartDate(dashboard.dateRange.data_inicio)
+    setEndDate(dashboard.dateRange.data_fim)
+  }, [dashboard.dateRange])
   useEffect(() => {
     const scrollToHashSection = () => {
       const section = dashboardSectionFromHash(window.location.hash)
@@ -132,6 +139,29 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
       return
     }
     window.location.hash = route
+  }
+  const applyQuickPeriod = (days: Period) => {
+    const range = quickDashboardDateRange(days)
+    setPeriod(days)
+    setStartDate(range.data_inicio)
+    setEndDate(range.data_fim)
+    dashboard.setDateRange(range)
+  }
+  const applyCustomPeriod = () => {
+    if (!startDate || !endDate || startDate > endDate) return
+    setPeriod(null)
+    dashboard.setDateRange({ data_inicio: startDate, data_fim: endDate })
+  }
+  const resetFilters = () => {
+    const range = quickDashboardDateRange(7)
+    setPeriod(7)
+    setStartDate(range.data_inicio)
+    setEndDate(range.data_fim)
+    setSelectedProduct('all')
+    setLotDate(null)
+    setLotState('all')
+    setLotSearch('')
+    dashboard.setDateRange(range)
   }
   const inspectLots = (state: LotState = 'all', date: string | null = null) => {
     setLotState(state)
@@ -186,10 +216,10 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
         <section id="overview" className="owner-section">
           <div className="owner-page-actions owner-page-actions-top"><button className="owner-btn" type="button" disabled={dashboard.refreshing} onClick={dashboard.refresh}><RefreshCw size={14}/>Atualizar dados</button><button className="owner-btn" type="button" onClick={exportSummary}><Download size={14}/>Exportar indicadores</button></div>
           <div className="owner-filterbar">
-            <div className="owner-period-buttons" role="group" aria-label="Período dos indicadores">{([7, 14, 30] as Period[]).map((value) => <button key={value} type="button" aria-pressed={period === value} onClick={() => setPeriod(value)}>{value} dias</button>)}</div>
-            <span className="owner-period-label">{scoped.days.length ? `${formatDate(scoped.days[0].date)} — ${formatDate(scoped.days.at(-1)?.date ?? '')}` : 'Sem dados no período'}</span><i className="owner-filter-divider"/>
+            <div className="owner-period-buttons" role="group" aria-label="Período dos indicadores">{([1, 7, 14, 30] as Period[]).map((value) => <button key={value} type="button" aria-pressed={period === value} onClick={() => applyQuickPeriod(value)}>{value} {value === 1 ? 'dia' : 'dias'}</button>)}</div>
+            <form className="owner-date-range" onSubmit={(event) => { event.preventDefault(); applyCustomPeriod() }}><label>De<input name="data_inicio" type="date" max={endDate} value={startDate} onChange={(event) => setStartDate(event.target.value)}/></label><label>Até<input name="data_fim" type="date" min={startDate} max={quickDashboardDateRange(1).data_fim} value={endDate} onChange={(event) => setEndDate(event.target.value)}/></label><button type="submit" disabled={!startDate || !endDate || startDate > endDate || dashboard.refreshing}>Aplicar</button></form><i className="owner-filter-divider"/>
             <label htmlFor="owner-product-filter">Produção</label><select id="owner-product-filter" value={selectedProduct} onChange={(event) => setSelectedProduct(event.target.value)}><option value="all">Todos os queijos</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select>
-            <button className="owner-text-btn owner-filter-reset" type="button" onClick={() => { setPeriod(7); setSelectedProduct('all'); setLotDate(null); setLotState('all'); setLotSearch('') }}>Limpar filtros</button>
+            <button className="owner-text-btn owner-filter-reset" type="button" onClick={resetFilters}>Limpar filtros</button>
           </div>
           <div className="owner-morning-brief"><Sparkles size={17}/><p>{latestDay ? <>No último dia registrado, <strong>{formatNumber(latestDay.collected)} L foram coletados</strong>. A fábrica tem <strong>{(production?.lotes ?? []).filter((lot) => lot.state !== 'closed').length} lotes sem peso final</strong> e <strong>{lowInventory.length} insumos abaixo do mínimo</strong>.</> : 'Aguardando os primeiros registros do período.'}</p><button className="owner-text-btn" type="button" onClick={() => go('producao')}>Acompanhar produção ↗</button></div>
           <div className="owner-kpi-grid">
@@ -225,7 +255,7 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
         </section>
 
         <section id="qualidade" className="owner-section"><SectionTitle number="03" title="Qualidade & controle de processo" description="Os detalhes que protegem o resultado" scope="Últimos registros disponíveis"/><div className="owner-grid owner-quality-grid">
-          <Card title="Histórico do pasteurizador" subtitle="Últimas 24 horas registradas pelo equipamento" chip={pasteurizer?.temperatureMetrics?.updatedAt ? `ATUALIZADO ${formatDateTime(pasteurizer.temperatureMetrics.updatedAt)}` : 'SEM REGISTRO'} chipTone="amber"><div className="owner-process-metrics">{[['ÚLTIMA AMOSTRA', pasteurizer?.temperatures.at(-1)?.value], ['MÍNIMA', pasteurizer?.temperatureMetrics?.min], ['MÉDIA', pasteurizer?.temperatureMetrics?.avg], ['MÁXIMA', pasteurizer?.temperatureMetrics?.max]].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong>{value == null ? '—' : formatNumber(Number(value), 1)} <i>°C</i></strong></div>)}</div><div className="owner-chart owner-medium"><LineChart labels={(pasteurizer?.temperatures ?? []).map((item) => item.hour)} series={[{ name: 'Temperatura', values: (pasteurizer?.temperatures ?? []).map((item) => item.value), color: 'var(--owner-amber)' }]} format={(value) => `${formatNumber(value, 1)} °C`}/></div><CardFooter><Legend items={[['var(--owner-amber)', 'Temperatura registrada']]}/><span>Dados reais · conforme a última sincronização</span></CardFooter></Card>
+          <Card title="Histórico do pasteurizador" subtitle="Período selecionado" chip={pasteurizer?.temperatureMetrics?.updatedAt ? `ATUALIZADO ${formatDateTime(pasteurizer.temperatureMetrics.updatedAt)}` : 'SEM REGISTRO'} chipTone="amber"><div className="owner-process-metrics">{[['ÚLTIMA AMOSTRA', pasteurizer?.temperatures.at(-1)?.value], ['MÍNIMA', pasteurizer?.temperatureMetrics?.min], ['MÉDIA', pasteurizer?.temperatureMetrics?.avg], ['MÁXIMA', pasteurizer?.temperatureMetrics?.max]].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong>{value == null ? '—' : formatNumber(Number(value), 1)} <i>°C</i></strong></div>)}</div><div className="owner-chart owner-medium"><LineChart labels={(pasteurizer?.temperatures ?? []).map((item) => item.hour)} series={[{ name: 'Temperatura', values: (pasteurizer?.temperatures ?? []).map((item) => item.value), color: 'var(--owner-amber)' }]} format={(value) => `${formatNumber(value, 1)} °C`}/></div><CardFooter><Legend items={[['var(--owner-amber)', 'Temperatura registrada']]}/><span>Dados reais · conforme a última sincronização</span></CardFooter></Card>
           <Card title="Ocorrências de qualidade" subtitle="Produtores que merecem acompanhamento" chip={`${quality?.issues.length ?? 0} OCORRÊNCIAS`} chipTone="red"><div className="owner-issue-list">{quality?.issues.length ? quality.issues.map((issue, index) => <div className="owner-issue-row" key={`${issue.producer}-${index}`}><span>0{index + 1}</span><div><strong>{issue.producer}</strong><p>{issue.route}</p><p>{issue.issue}</p></div><i>{issue.value}</i></div>) : <Empty>Nenhuma ocorrência encontrada no período.</Empty>}</div><CardFooter>Ocorrências das análises · sem bloqueio automático de lote</CardFooter></Card>
         </div></section>
 
@@ -271,7 +301,7 @@ function mergeDays(milk: NonNullable<Dashboard['leite']['data']>['serie_diaria']
   milk.forEach((day) => Object.assign(get(day.data), { collected: day.litros, previousCollected: day.litros_periodo_anterior, producers: day.produtores }))
   production.forEach((day) => Object.assign(get(day.date), { cheeseMilk: day.cheeseMilk, creamKg: day.creamKg, wheyLiters: day.wheyLiters }))
   dispatched.forEach((day) => Object.assign(get(day.date), { dispatchedKg: day.kg }))
-  return [...map.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-30)
+  return [...map.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 function dayYield(lots: Lot[]) { const weight = sumBy(lots, (lot) => lot.weight); return weight ? sumBy(lots, (lot) => lot.milk) / weight : 0 }
 function shortDate(value: string) { return value ? `${value.slice(8, 10)}/${value.slice(5, 7)}` : '—' }

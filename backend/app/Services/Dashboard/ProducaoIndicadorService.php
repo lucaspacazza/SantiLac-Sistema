@@ -7,8 +7,8 @@ use App\Models\Producao\ProducaoFormulacaoQueijo;
 use App\Models\Producao\ProducaoOrdemProducao;
 use App\Models\Producao\ProducaoSoroRefrigerado;
 use App\Services\Dashboard\Support\ProducaoLotesCalculator;
+use App\Services\Dashboard\Support\DashboardDateRange;
 use App\Services\Producao\ProducaoOverviewService;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -19,11 +19,12 @@ class ProducaoIndicadorService
         private readonly ProducaoLotesCalculator $lotCalculator,
     ) {}
 
-    public function resumo(): array
+    public function resumo(?DashboardDateRange $range = null): array
     {
+        $range ??= DashboardDateRange::from();
         $totais = $this->producao->overview()['totais'] ?? [];
 
-        $detail = $this->detail();
+        $detail = $this->detail($range);
 
         return [
             'formulacoes_queijo' => (int) ($totais['formulacoes_queijo'] ?? 0),
@@ -33,15 +34,15 @@ class ProducaoIndicadorService
         ];
     }
 
-    private function detail(): array
+    private function detail(DashboardDateRange $range): array
     {
         $connection = Schema::connection('raw');
         if (! $connection->hasTable('ordens_producao') || ! $connection->hasTable('producao_formulacoes_queijo')) {
             return ['products' => [], 'days' => [], 'lotes' => [], 'rendimento_ponderado' => null, 'atualizado_em' => null];
         }
 
-        $reference = CarbonImmutable::now(config('app.timezone'))->startOfDay();
-        $start = $reference->subDays(29);
+        $reference = $range->end;
+        $start = $range->start;
         $orders = ProducaoOrdemProducao::query()
             ->whereDate('data_ordem', '>=', $start->toDateString())
             ->whereDate('data_ordem', '<=', $reference->toDateString())
@@ -76,7 +77,7 @@ class ProducaoIndicadorService
 
         $calculated = $this->lotCalculator->calculate($orders, $formulations, $packaging);
         $days = [];
-        for ($offset = 0; $offset < 30; $offset++) {
+        for ($offset = 0; $offset < $range->days(); $offset++) {
             $date = $start->addDays($offset)->toDateString();
             $days[$date] = ['date' => $date, 'cheeseMilk' => 0.0, 'creamKg' => 0.0, 'wheyLiters' => 0.0];
         }
