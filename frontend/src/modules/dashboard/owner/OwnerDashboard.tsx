@@ -2,23 +2,16 @@ import {
   AlertTriangle,
   Box,
   Boxes,
-  Clock3,
   Download,
   Droplets,
-  Expand,
   Factory,
   FlaskConical,
   Gauge,
-  LayoutDashboard,
-  List,
-  Maximize2,
-  Moon,
   PieChart,
   RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
-  Sun,
   Thermometer,
   Truck,
   X,
@@ -26,7 +19,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { useDashboardOverview } from '../hooks/useDashboardOverview'
 import { BarChart, compact, DonutChart, formatNumber, LineChart, Sparkline } from './Charts'
-import { dashboardPeriod, downloadCsv, filterLots, normalizeProductName, sumBy } from './model'
+import { closureDays, dashboardPeriod, downloadCsv, filterLots, normalizeProductName, paginateItems, sumBy } from './model'
 import './owner-dashboard.css'
 
 type Dashboard = ReturnType<typeof useDashboardOverview>
@@ -44,12 +37,22 @@ const states: Record<Lot['state'], string> = {
 }
 
 const fallbackTones = ['var(--owner-green)', 'var(--owner-amber)', 'var(--owner-blue)', 'var(--owner-purple)', 'var(--owner-cyan)']
+const dashboardSectionRoutes = {
+  overview: '#/dashboard/visao-geral',
+  captacao: '#/dashboard/captacao',
+  producao: '#/dashboard/producao',
+  qualidade: '#/dashboard/qualidade',
+  estoque: '#/dashboard/estoque',
+  lotes: '#/dashboard/lotes',
+} as const
+type DashboardSection = keyof typeof dashboardSectionRoutes
 
 export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
   const [period, setPeriod] = useState<Period>(7)
   const [selectedProduct, setSelectedProduct] = useState('all')
-  const [activeSection, setActiveSection] = useState('overview')
+  const [activeSection, setActiveSection] = useState<DashboardSection>(() => dashboardSectionFromHash(window.location.hash))
   const [shipmentFilter, setShipmentFilter] = useState<'all' | 'pending'>('all')
+  const [inventoryPage, setInventoryPage] = useState(1)
   const [lotState, setLotState] = useState<LotState>('all')
   const [lotSearch, setLotSearch] = useState('')
   const [lotDate, setLotDate] = useState<string | null>(null)
@@ -95,20 +98,28 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
   const expiringStock = sumBy(shipping?.productStock ?? [], (stock) => stock.expiringKg)
   const lowInventory = inventory.filter((item) => item.min > 0 && item.stock <= item.min)
   const latestDay = scoped.days.at(-1)
+  const productionDays = useMemo(() => closureDays(scoped.days, lots), [lots, scoped.days])
+  const sortedInventory = useMemo(() => [...inventory].sort((a, b) => Number(a.stock > a.min) - Number(b.stock > b.min) || a.name.localeCompare(b.name, 'pt-BR')), [inventory])
+  const inventoryPagination = useMemo(() => paginateItems(sortedInventory, inventoryPage, 6), [inventoryPage, sortedInventory])
   const pagedLots = useMemo(() => filterLots(lots, products, { state: lotState, date: lotDate, search: lotSearch }), [lotDate, lotSearch, lotState, lots, products])
   const pageCount = Math.max(1, Math.ceil(pagedLots.length / 8))
   const visibleLots = pagedLots.slice((Math.min(page, pageCount) - 1) * 8, Math.min(page, pageCount) * 8)
 
   useEffect(() => setPage(1), [lotState, lotSearch, lotDate, selectedProduct, period])
   useEffect(() => {
-    const root = rootRef.current
-    if (!root || !('IntersectionObserver' in window)) return
-    const observer = new IntersectionObserver((entries) => {
-      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)
-      if (visible[0]) setActiveSection(visible[0].target.id)
-    }, { rootMargin: '-10% 0px -60% 0px' })
-    root.querySelectorAll<HTMLElement>('.owner-section[id]').forEach((section) => observer.observe(section))
-    return () => observer.disconnect()
+    const scrollToHashSection = () => {
+      const section = dashboardSectionFromHash(window.location.hash)
+      setActiveSection(section)
+      if (window.location.hash.split('?')[0] === '#/dashboard') {
+        window.location.hash = dashboardSectionRoutes.overview
+        return
+      }
+      window.requestAnimationFrame(() => rootRef.current?.querySelector(`#${section}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    }
+
+    scrollToHashSection()
+    window.addEventListener('hashchange', scrollToHashSection)
+    return () => window.removeEventListener('hashchange', scrollToHashSection)
   }, [])
   useEffect(() => {
     if (!toast) return
@@ -116,7 +127,14 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  const go = (section: string) => rootRef.current?.querySelector(`#${section}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const go = (section: DashboardSection) => {
+    const route = dashboardSectionRoutes[section]
+    if (window.location.hash === route) {
+      rootRef.current?.querySelector(`#${section}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    window.location.hash = route
+  }
   const inspectLots = (state: LotState = 'all', date: string | null = null) => {
     setLotState(state)
     setLotDate(date)
@@ -163,21 +181,12 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
     setToast('Lotes exportados em CSV.')
   }
 
-  return <div className="owner-dashboard" ref={rootRef}>
+  return <div className="owner-dashboard" data-active-section={activeSection} ref={rootRef}>
     <a className="owner-skip" href="#overview" onClick={(event) => { event.preventDefault(); go('overview') }}>Ir para os indicadores</a>
-    <OwnerSidebar active={activeSection} onGo={go} onToggleTheme={() => {
-      document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'
-      window.localStorage.setItem('santilac-theme', document.documentElement.dataset.theme)
-    }}/>
-    <main className="owner-main">
-      <header className="owner-topbar">
-        <div className="owner-breadcrumb">Santi&apos;Lac <span>/</span> <strong>Painel executivo</strong></div>
-        <div className="owner-topbar-right"><span className="owner-demo-label">DADOS DO SISTEMA</span><span className="owner-snapshot"><i className="owner-live-dot"/>{dashboard.updatedAt ? `Atualizado em ${dashboard.updatedAt.toLocaleString('pt-BR')}` : 'Atualizando dados...'}</span><button className="owner-icon-btn" type="button" aria-label="Atualizar dados" title="Atualizar dados" disabled={dashboard.refreshing} onClick={dashboard.refresh}><RefreshCw size={15}/></button><button className="owner-icon-btn" type="button" aria-label="Alternar tela cheia" onClick={() => void toggleFullscreen(rootRef.current, setToast)}><Expand size={15}/></button></div>
-      </header>
-      <div className="owner-page">
+    <div className="owner-page">
         {unavailable.length ? <div className="owner-source-warning" role="status"><AlertTriangle size={15}/><span>Dados indisponíveis: {unavailable.join(', ')}. Os demais indicadores continuam usando as fontes disponíveis.</span></div> : null}
         <section id="overview" className="owner-section">
-          <div className="owner-page-heading"><div><span className="owner-eyebrow">VISÃO COMPLETA DO NEGÓCIO</span><h1>Cada litro. Cada lote. Cada resultado<span>.</span></h1><p>A fábrica inteira no seu primeiro olhar da manhã.</p></div><button className="owner-btn" type="button" onClick={exportSummary}><Download size={14}/>Exportar indicadores</button></div>
+          <div className="owner-page-heading"><div><span className="owner-eyebrow">VISÃO COMPLETA DO NEGÓCIO</span><h1>Cada litro. Cada lote. Cada resultado<span>.</span></h1><p>A fábrica inteira no seu primeiro olhar da manhã.</p></div><div className="owner-page-actions"><button className="owner-btn" type="button" disabled={dashboard.refreshing} onClick={dashboard.refresh}><RefreshCw size={14}/>Atualizar dados</button><button className="owner-btn" type="button" onClick={exportSummary}><Download size={14}/>Exportar indicadores</button></div></div>
           <div className="owner-filterbar">
             <div className="owner-period-buttons" role="group" aria-label="Período dos indicadores">{([7, 14, 30] as Period[]).map((value) => <button key={value} type="button" aria-pressed={period === value} onClick={() => setPeriod(value)}>{value} dias</button>)}</div>
             <span className="owner-period-label">{scoped.days.length ? `${formatDate(scoped.days[0].date)} — ${formatDate(scoped.days.at(-1)?.date ?? '')}` : 'Sem dados no período'}</span><i className="owner-filter-divider"/>
@@ -211,7 +220,10 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
             <Card title="Composição da produção" subtitle="Somente peso final · período selecionado" icon={<PieChart/>}><DonutChart items={scopedProducts.map((product, index) => ({ name: product.short, value: sumBy(closed.filter((lot) => lot.productId === product.id), (lot) => lot.weight), color: productColor(product, index) }))} center={compact(finalWeight)} unit="kg"/><CardFooter><span>{scopedProducts.length} produtos</span><span>{closed.length} lotes na composição</span></CardFooter></Card>
             <Card title="Creme & soro" subtitle="Complementares · todas as linhas" chip="SUBPRODUTOS" chipTone="purple"><div className="owner-byproduct-values"><div><span>CREME PRODUZIDO</span><strong>{compact(sumBy(scoped.days, (day) => day.creamKg))} <i>kg</i></strong></div><div><span>SORO REGISTRADO</span><strong>{compact(sumBy(scoped.days, (day) => day.wheyLiters))} <i>L</i></strong></div></div><div className="owner-chart owner-small"><LineChart labels={scoped.days.map((day) => shortDate(day.date))} series={[{ name: 'Creme', values: scoped.days.map((day) => day.creamKg), color: 'var(--owner-purple)' }]} format={(value) => `${formatNumber(value)} kg`}/></div><CardFooter>Evolução do creme em kg/dia</CardFooter></Card>
           </div>
-          <Card title="Mapa de fechamento da produção" subtitle="Cada coluna é um dia de produção. Fechar depois atualiza o dia de origem." action={<Legend items={[['var(--owner-green)', 'Fechado'], ['var(--owner-amber)', 'Parcial'], ['var(--owner-muted)', 'Aguardando']]}/>}><div className="owner-closure-map">{scoped.days.map((day) => { const rows = lots.filter((lot) => lot.date === day.date); const closedRows = rows.filter((lot) => lot.state === 'closed'); const percentage = rows.length ? closedRows.length / rows.length * 100 : 0; const weight = sumBy(closedRows, (lot) => lot.weight); return <button type="button" className={`owner-closure-day ${percentage === 100 ? '' : percentage ? 'is-partial' : 'is-empty'}`} key={day.date} onClick={() => inspectLots('all', day.date)}><span>{shortDate(day.date)} <i>{closedRows.length}/{rows.length}</i></span><strong>{weight ? formatNumber(weight) : '—'} <i>kg</i></strong><small>{percentage === 100 ? 'Fechamento completo' : percentage ? 'Resultado parcial' : 'Aguardando peso'}</small><Progress value={percentage} max={100} color={percentage === 100 ? 'var(--owner-green)' : 'var(--owner-amber)'}/></button> })}</div><CardFooter><span>{scoped.days.filter((day) => { const rows = lots.filter((lot) => lot.date === day.date); return rows.length > 0 && rows.every((lot) => lot.state === 'closed') }).length} dias totalmente fechados</span><button type="button" className="owner-text-btn" onClick={() => inspectLots('open')}>Inspecionar lotes abertos ↗</button></CardFooter></Card>
+          <Card title="Mapa de fechamento da produção" subtitle="Somente dias que possuem lotes de produção." action={<Legend items={[['var(--owner-green)', 'Fechado'], ['var(--owner-amber)', 'Parcial'], ['var(--owner-muted)', 'Aguardando']]}/>}>
+            {productionDays.length ? <div className="owner-closure-map">{productionDays.map((day) => { const rows = lots.filter((lot) => lot.date === day.date); const closedRows = rows.filter((lot) => lot.state === 'closed'); const percentage = closedRows.length / rows.length * 100; const weight = sumBy(closedRows, (lot) => lot.weight); return <button type="button" className={`owner-closure-day ${percentage === 100 ? '' : percentage ? 'is-partial' : 'is-empty'}`} key={day.date} onClick={() => inspectLots('all', day.date)}><span>{shortDate(day.date)} <i>{closedRows.length}/{rows.length}</i></span><strong>{weight ? formatNumber(weight) : '—'} <i>kg</i></strong><small>{percentage === 100 ? 'Fechamento completo' : percentage ? 'Resultado parcial' : 'Aguardando peso'}</small><Progress value={percentage} max={100} color={percentage === 100 ? 'var(--owner-green)' : 'var(--owner-amber)'}/></button> })}</div> : <Empty>Nenhum lote de produção no período selecionado.</Empty>}
+            <CardFooter><span>{productionDays.filter((day) => lots.filter((lot) => lot.date === day.date).every((lot) => lot.state === 'closed')).length} dias totalmente fechados</span><button type="button" className="owner-text-btn" onClick={() => inspectLots('open')}>Inspecionar lotes abertos ↗</button></CardFooter>
+          </Card>
         </section>
 
         <section id="qualidade" className="owner-section"><SectionTitle number="03" title="Qualidade & controle de processo" description="Os detalhes que protegem o resultado" scope="Últimos registros disponíveis"/><div className="owner-grid owner-quality-grid">
@@ -221,7 +233,10 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
 
         <section id="estoque" className="owner-section"><SectionTitle number="04" title="Estoque & expedição" description="Produto pronto, compromissos e abastecimento" scope="Posição atual · todos os produtos"/><div className="owner-grid owner-stock-grid">
           <Card title="Estoque de produto acabado" subtitle="Disponível e reservado por produto" chip="KG" chipTone="blue"><div className="owner-chart owner-medium"><BarChart labels={(shipping?.productStock ?? []).map((stock) => normalizeProductName(stock.product))} series={[{ name: 'Livre de reserva', values: (shipping?.productStock ?? []).map((stock) => Math.max(0, stock.available - stock.reserved)), color: 'var(--owner-blue)' }, { name: 'Reservado', values: (shipping?.productStock ?? []).map((stock) => stock.reserved), color: 'var(--owner-purple)' }]} stacked format={(value) => `${compact(value)} kg`}/></div><CardFooter><Legend items={[['var(--owner-blue)', 'Livre de reserva'], ['var(--owner-purple)', 'Reservado']]}/><span>{formatNumber(physicalStock)} kg físicos</span></CardFooter></Card>
-          <Card title="Insumos essenciais" subtitle="Saldo atual e estoque mínimo cadastrado" chip={dashboard.estoque.data ? `${lowInventory.length} ABAIXO DO MÍNIMO` : 'SEM DADOS'} chipTone="amber"><div className="owner-inventory-list">{inventory.length ? inventory.map((item) => { const max = item.max && item.max > 0 ? item.max : Math.max(item.stock, item.min, 1) * 1.25; return <div className="owner-inventory-row" key={item.name}><div className="owner-rank-title"><span>{normalizeProductName(item.name)}</span><strong className={item.stock <= item.min ? 'is-amber' : ''}>{formatNumber(item.stock)} {item.unit}</strong></div><Progress value={item.stock} max={max} marker={item.min / max * 100} color={item.stock <= item.min ? 'var(--owner-amber)' : 'var(--owner-green)'}/><p>Mín. {formatNumber(item.min)} {item.unit}{item.stock < item.min ? ` · Repor ${formatNumber(item.min - item.stock)} ${item.unit}` : ''}</p></div>}) : <Empty>{dashboard.estoque.data ? 'Nenhum insumo ativo cadastrado.' : 'Dados de insumos indisponíveis.'}</Empty>}</div></Card>
+          <Card title="Insumos essenciais" subtitle="Saldo atual e estoque mínimo cadastrado" chip={dashboard.estoque.data ? `${lowInventory.length} ABAIXO DO MÍNIMO` : 'SEM DADOS'} chipTone="amber">
+            <div className="owner-inventory-list">{inventoryPagination.items.length ? inventoryPagination.items.map((item) => { const max = item.max && item.max > 0 ? item.max : Math.max(item.stock, item.min, 1) * 1.25; return <div className="owner-inventory-row" key={item.name}><div className="owner-rank-title"><span>{normalizeProductName(item.name)}</span><strong className={item.stock <= item.min ? 'is-amber' : ''}>{formatNumber(item.stock)} {item.unit}</strong></div><Progress value={item.stock} max={max} marker={item.min / max * 100} color={item.stock <= item.min ? 'var(--owner-amber)' : 'var(--owner-green)'}/><p>Mín. {formatNumber(item.min)} {item.unit}{item.stock < item.min ? ` · Repor ${formatNumber(item.min - item.stock)} ${item.unit}` : ''}</p></div>}) : <Empty>{dashboard.estoque.data ? 'Nenhum insumo ativo cadastrado.' : 'Dados de insumos indisponíveis.'}</Empty>}</div>
+            {sortedInventory.length > 6 ? <div className="owner-pagination"><span>{sortedInventory.length} insumos cadastrados</span><div><button type="button" disabled={inventoryPagination.page <= 1} onClick={() => setInventoryPage((value) => value - 1)}>←</button><span>Página {inventoryPagination.page} de {inventoryPagination.pageCount}</span><button type="button" disabled={inventoryPagination.page >= inventoryPagination.pageCount} onClick={() => setInventoryPage((value) => value + 1)}>→</button></div></div> : null}
+          </Card>
           <Card title="Saúde do estoque" subtitle="Validade, permanência e combustível" icon={<ShieldCheck/>}><div className="owner-health-stat"><span>Validade em até 7 dias</span><strong className="is-amber">{shipping ? formatNumber(expiringStock) : '—'} {shipping ? <i>kg</i> : null}</strong><p>Priorizar giro dos lotes com menor validade</p></div><div className="owner-health-stat"><span>Permanência média ponderada</span><strong>{shipping ? formatNumber(weightedAging(shipping.productStock), 1) : '—'} {shipping ? <i>dias</i> : null}</strong><p>Considerando o peso físico de cada produto</p></div><div className="owner-health-stat"><span>Combustível disponível</span><strong>{fuel ? formatNumber(fuel.estoque_atual_litros) : '—'} {fuel ? <i>L</i> : null}</strong>{fuel ? <><Progress value={fuel.estoque_atual_litros} max={fuel.capacidade_litros || 1} color="var(--owner-amber)"/><p>{formatNumber(fuel.porcentagem)}% de {formatNumber(fuel.capacidade_litros)} L de capacidade</p></> : <p>Dados de combustível indisponíveis.</p>}</div></Card>
         </div>
           <Card title="Agenda de expedição" subtitle="Carregamentos recentes e programados" action={<div className="owner-segmented"><button type="button" aria-pressed={shipmentFilter === 'all'} onClick={() => setShipmentFilter('all')}>Todos</button><button type="button" aria-pressed={shipmentFilter === 'pending'} onClick={() => setShipmentFilter('pending')}>Pendentes</button></div>}><div className="owner-table-scroll"><table><thead><tr><th>Carregamento</th><th>Cliente / destino</th><th>Data</th><th className="owner-num">Peso</th><th>Carregado</th><th>Situação</th><th/></tr></thead><tbody>{(shipping?.shipments ?? []).filter((item) => shipmentFilter === 'all' || item.status !== 'Concluída').map((shipment) => <tr key={shipment.id}><td><strong>{shipment.id}</strong></td><td><strong>{shipment.client}</strong><small>{shipment.destination}</small></td><td>{formatDate(shipment.date)}</td><td className="owner-num">{formatNumber(shipment.kg)} kg</td><td><div className="owner-loading-cell"><Progress value={shipment.progress} max={100} color={shipment.status === 'Concluída' ? 'var(--owner-green)' : 'var(--owner-blue)'}/><span>{formatNumber(shipment.progress)}%</span></div></td><td><Badge state={shipment.status}/></td><td><button type="button" className="owner-text-btn" aria-label={`Detalhes de ${shipment.id}`} onClick={() => setModal({ title: `${shipment.id} · ${shipment.client}`, body: <><p>{shipment.destination} · {formatDate(shipment.date)}</p><DetailGrid values={[["PESO DA CARGA", `${formatNumber(shipment.kg)} kg`], ["PROGRESSO", `${formatNumber(shipment.progress)}%`], ["SITUAÇÃO", shipment.status]]}/></> })}>↗</button></td></tr>)}</tbody></table></div></Card>
@@ -229,21 +244,10 @@ export function OwnerDashboard({ dashboard }: { dashboard: Dashboard }) {
 
         <section id="lotes" className="owner-section"><SectionTitle number="05" title="Rastreabilidade da produção" description="Do indicador até o lote que o compõe" action={<button type="button" className="owner-text-btn" onClick={exportLots}><Download size={13}/> Exportar lotes</button>}/><Card><div className="owner-lot-toolbar"><label className="owner-search-box"><Search size={13}/><input type="search" placeholder="Buscar OP ou produto…" aria-label="Buscar ordem ou produto" value={lotSearch} onChange={(event) => setLotSearch(event.target.value)}/></label><select aria-label="Situação dos lotes" value={lotState} onChange={(event) => setLotState(event.target.value as LotState)}><option value="all">Todas as situações</option><option value="open">Todos os abertos</option><option value="closed">Embalagem encerrada</option><option value="packing">Em embalagem</option><option value="waiting">Aguardando embalagem</option><option value="format">Aguardando formato</option></select>{lotDate ? <button type="button" className="owner-text-btn" onClick={() => setLotDate(null)}>Limpar dia {formatDate(lotDate)}</button> : null}<span>{pagedLots.length} lotes encontrados</span></div><div className="owner-table-scroll"><table><thead><tr><th>Ordem / lote</th><th>Produto</th><th>Produção</th><th className="owner-num">Leite aplicado</th><th className="owner-num">Peso final</th><th className="owner-num">L/kg</th><th>Situação</th><th>Embalagem encerrada</th><th/></tr></thead><tbody>{visibleLots.length ? visibleLots.map((lot) => <tr key={lot.id}><td><button type="button" className="owner-table-link" onClick={() => showLot(lot)}>{lot.id}</button></td><td>{products.find((item) => item.id === lot.productId)?.name ?? lot.productId}</td><td>{formatDate(lot.date)}</td><td className="owner-num">{formatNumber(lot.milk)} L</td><td className="owner-num">{lot.weight === null ? '—' : `${formatNumber(lot.weight)} kg`}</td><td className="owner-num">{lot.weight ? formatNumber(lot.milk / lot.weight, 2) : '—'}</td><td><LotBadge state={lot.state}/></td><td>{lot.closedAt ? formatDateTime(lot.closedAt) : '—'}</td><td><button type="button" className="owner-text-btn" aria-label={`Detalhes de ${lot.id}`} onClick={() => showLot(lot)}>↗</button></td></tr>) : <tr><td colSpan={9}><Empty>Nenhum lote encontrado para estes filtros.</Empty></td></tr>}</tbody></table></div><div className="owner-pagination"><span>Peso pendente é excluído do rendimento.</span><div><button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>←</button><span>Página {Math.min(page, pageCount)} de {pageCount}</span><button type="button" disabled={page >= pageCount} onClick={() => setPage((value) => value + 1)}>→</button></div></div></Card></section>
 
-        <div className="owner-grid owner-closing-grid"><Card title="Últimos movimentos" subtitle="Linha do tempo dos dados operacionais" icon={<Clock3/>}><div className="owner-events">{buildEvents({ milk, production, quality, shipping, fuel, pasteurizer }).map((event) => <div className="owner-event" key={event.title}><i className={`is-${event.tone}`}/><div><time>{event.time}</time><strong>{event.title}</strong><p>{event.detail}</p></div></div>)}</div></Card><Card title="Leitura da diretoria" subtitle="Os principais pontos do período selecionado" chip="RESUMO EXECUTIVO" chipTone="green"><div className="owner-executive-notes"><ExecutiveNote number="01">A coleta média foi de <strong>{formatNumber(totalCollected / Math.max(1, scoped.days.length))} L/dia</strong>{growth === null ? '.' : `, ${formatNumber(Math.abs(growth), 1)}% ${growth >= 0 ? 'acima' : 'abaixo'} do período anterior.`}</ExecutiveNote><ExecutiveNote number="02"><strong>{formatNumber(coverage)}% dos lotes selecionados estão fechados.</strong> {open.length} ainda não entram no rendimento.</ExecutiveNote><ExecutiveNote number="03"><strong>{formatNumber(Math.max(0, physicalStock - reservedStock))} kg livres de reserva</strong> e {formatNumber(expiringStock)} kg com validade em até 7 dias.</ExecutiveNote></div></Card></div>
-        <footer className="owner-page-footer"><span>Santi&apos;Lac <b>Inteligência da operação</b></span><span>Dados reais conforme os registros do sistema</span><button type="button" className="owner-text-btn" onClick={() => go('overview')}>Voltar ao topo ↑</button></footer>
-      </div>
-    </main>
+    </div>
     {modal ? <div className="owner-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null) }}><div className="owner-dialog" role="dialog" aria-modal="true" aria-labelledby="owner-dialog-title"><header><div><span className="owner-eyebrow">DETALHAMENTO · DADOS DO SISTEMA</span><h2 id="owner-dialog-title">{modal.title}</h2></div><button type="button" className="owner-icon-btn" aria-label="Fechar detalhes" onClick={() => setModal(null)}><X size={16}/></button></header><div>{modal.body}</div></div></div> : null}
     {toast ? <div className="owner-toast" role="status">{toast}</div> : null}
   </div>
-}
-
-function OwnerSidebar({ active, onGo, onToggleTheme }: { active: string; onGo: (section: string) => void; onToggleTheme: () => void }) {
-  const links = [
-    ['overview', 'Visão geral', LayoutDashboard], ['captacao', 'Captação de leite', Droplets], ['producao', 'Produção e rendimento', Factory],
-    ['qualidade', 'Qualidade e processo', FlaskConical], ['estoque', 'Estoque e expedição', Box], ['lotes', 'Todos os lotes', List],
-  ] as const
-  return <aside className="owner-sidebar"><button type="button" className="owner-brand" onClick={() => onGo('overview')}><img src="/assets/img/logo.png" alt="Santi'Lac"/><span>INTELIGÊNCIA DA OPERAÇÃO</span></button><div className="owner-nav-label">GESTÃO EXECUTIVA</div><nav aria-label="Seções da dashboard">{links.map(([section, label, Icon]) => <button type="button" key={section} className={active === section ? 'is-active' : ''} aria-current={active === section ? 'location' : undefined} onClick={() => onGo(section)}><Icon/><span>{label}</span></button>)}</nav><div className="owner-side-insight"><i className="owner-live-dot"/><strong>Da coleta ao resultado.</strong><p>Volume, eficiência e rastreabilidade.<br/>Uma visão de toda a fábrica.</p><span className="owner-demo-label">DADOS DO SISTEMA</span></div><div className="owner-sidebar-bottom"><div className="owner-profile"><span>SL</span><div><strong>Diretoria</strong><small>Santi&apos;Lac · Gestão industrial</small></div><button type="button" className="owner-icon-btn" aria-label="Alternar tema" onClick={onToggleTheme}>{document.documentElement.dataset.theme === 'light' ? <Moon size={14}/> : <Sun size={14}/>}</button></div></div></aside>
 }
 
 function Kpi({ label, value, unit, note, caption, values, color, icon, onClick }: { label: string; value: string; unit: string; note: string; caption: string; values: Array<number | null>; color: string; icon: ReactNode; onClick: () => void }) {
@@ -263,8 +267,6 @@ function LotBadge({ state }: { state: Lot['state'] }) { return <span className={
 function Badge({ state }: { state: string }) { return <span className={`owner-chip ${state === 'Concluída' ? 'green' : state === 'Carregando' ? 'blue' : ''}`}>{state}</span> }
 function DetailGrid({ values }: { values: Array<[string, string]> }) { return <div className="owner-detail-grid">{values.map(([label, value]) => <div key={label}><small>{label}</small><strong>{value}</strong></div>)}</div> }
 function Empty({ children }: { children: ReactNode }) { return <div className="owner-empty">{children}</div> }
-function ExecutiveNote({ number, children }: { number: string; children: ReactNode }) { return <div className="owner-executive-note"><span>{number}</span><p>{children}</p></div> }
-
 function mergeDays(milk: NonNullable<Dashboard['leite']['data']>['serie_diaria'], production: NonNullable<Dashboard['producao']['data']>['days'], dispatched: NonNullable<Dashboard['expedicao']['data']>['dispatchedDays']) {
   const map = new Map<string, { date: string; collected: number; previousCollected: number; producers: number; cheeseMilk: number; creamKg: number; wheyLiters: number; dispatchedKg: number }>()
   const get = (date: string) => { const current = map.get(date) ?? { date, collected: 0, previousCollected: 0, producers: 0, cheeseMilk: 0, creamKg: 0, wheyLiters: 0, dispatchedKg: 0 }; map.set(date, current); return current }
@@ -279,15 +281,7 @@ function formatDate(value: string) { if (!value) return '—'; const [year, mont
 function formatDateTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) }
 function productColor(product: Product, index: number) { return product.color || fallbackTones[index % fallbackTones.length] }
 function weightedAging(stock: Array<{ available: number; agingDays: number }>) { const total = sumBy(stock, (item) => item.available); return total ? sumBy(stock, (item) => item.available * item.agingDays) / total : 0 }
-async function toggleFullscreen(element: HTMLElement | null, notify: (message: string) => void) { try { if (document.fullscreenElement) await document.exitFullscreen(); else await element?.requestFullscreen() } catch { notify('Tela cheia indisponível neste navegador.') } }
-function buildEvents(input: { milk: Dashboard['leite']['data']; production: Dashboard['producao']['data']; quality: NonNullable<Dashboard['qualidade']['data']>['quality'] | undefined; shipping: Dashboard['expedicao']['data']; fuel: Dashboard['combustivel']['data']; pasteurizer: Dashboard['pasteurizador']['data'] }) {
-  const events: Array<{ time: string; title: string; detail: string; tone: 'green' | 'amber' | 'blue' }> = []
-  const openLots = input.production?.lotes.filter((lot) => lot.state !== 'closed').length ?? 0
-  if (input.shipping?.shipments[0]) events.push({ time: formatDate(input.shipping.shipments[0].date), title: `Expedição ${input.shipping.shipments[0].status.toLocaleLowerCase('pt-BR')}`, detail: `${input.shipping.shipments[0].client} · ${formatNumber(input.shipping.shipments[0].kg)} kg`, tone: input.shipping.shipments[0].status === 'Concluída' ? 'green' : 'blue' })
-  if (openLots) events.push({ time: 'Produção', title: `${openLots} lotes com resultado em formação`, detail: 'O peso final ainda não entra no rendimento consolidado.', tone: 'amber' })
-  if (input.quality?.issues.length) events.push({ time: 'Qualidade', title: `${input.quality.issues.length} ocorrências para acompanhamento`, detail: `Atualizado em ${input.quality.updatedAt ? formatDate(input.quality.updatedAt) : 'data não informada'}.`, tone: 'amber' })
-  if (input.pasteurizer?.temperatureMetrics) events.push({ time: formatDateTime(input.pasteurizer.temperatureMetrics.updatedAt), title: `Pasteurizador em ${formatNumber(input.pasteurizer.temperatures.at(-1)?.value ?? 0, 1)} °C`, detail: `Mínima ${formatNumber(input.pasteurizer.temperatureMetrics.min, 1)} °C · máxima ${formatNumber(input.pasteurizer.temperatureMetrics.max, 1)} °C.`, tone: 'green' })
-  if (input.fuel) events.push({ time: 'Atual', title: `Combustível em ${formatNumber(input.fuel.porcentagem)}%`, detail: `${formatNumber(input.fuel.estoque_atual_litros)} L de ${formatNumber(input.fuel.capacidade_litros)} L.`, tone: input.fuel.porcentagem < 25 ? 'amber' : 'blue' })
-  if (input.milk?.atualizado_em) events.push({ time: formatDateTime(input.milk.atualizado_em), title: 'Última coleta sincronizada', detail: `${input.milk.rotas.length} rotas na última coleta registrada.`, tone: 'green' })
-  return events.slice(0, 6)
+function dashboardSectionFromHash(hash: string): DashboardSection {
+  const entry = Object.entries(dashboardSectionRoutes).find(([, route]) => hash.split('?')[0] === route)
+  return entry?.[0] as DashboardSection ?? 'overview'
 }

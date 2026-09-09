@@ -35,6 +35,21 @@ export function filterLots<TLot extends PeriodLot>(
   }).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id))
 }
 
+export function closureDays<TDay extends PeriodDay, TLot extends PeriodLot>(days: TDay[], lots: TLot[]): TDay[] {
+  const datesWithLots = new Set(lots.map((lot) => lot.date))
+  return days.filter((day) => datesWithLots.has(day.date))
+}
+
+export function paginateItems<T>(items: T[], requestedPage: number, pageSize: number) {
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize))
+  const page = Math.min(Math.max(1, requestedPage), pageCount)
+  return {
+    items: items.slice((page - 1) * pageSize, page * pageSize),
+    page,
+    pageCount,
+  }
+}
+
 function fold(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
 }

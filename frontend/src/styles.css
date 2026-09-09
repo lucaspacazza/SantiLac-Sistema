@@ -93,10 +93,6 @@ button {
   min-height: 100vh;
 }
 
-.app-shell.is-dashboard {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .sidebar {
   background: var(--sidebar);
   border-right: 1px solid var(--line);

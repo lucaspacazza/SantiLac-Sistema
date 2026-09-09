@@ -21,8 +21,15 @@ export const sidebarModules = [
     desc: 'Leitura executiva e operacional da empresa.',
     levels: ['7.0'],
     icon: 'fa-chart-line',
-    href: '#/dashboard',
-    children: [],
+    href: '#/dashboard/visao-geral',
+    children: [
+      { title: 'Visão geral', icon: 'fa-chart-pie', href: '#/dashboard/visao-geral' },
+      { title: 'Captação de leite', icon: 'fa-milk', href: '#/dashboard/captacao' },
+      { title: 'Produção e rendimento', icon: 'fa-chart-line', href: '#/dashboard/producao' },
+      { title: 'Qualidade e processo', icon: 'fa-flask', href: '#/dashboard/qualidade' },
+      { title: 'Estoque e expedição', icon: 'fa-warehouse', href: '#/dashboard/estoque' },
+      { title: 'Todos os lotes', icon: 'fa-clipboard-list', href: '#/dashboard/lotes' },
+    ],
   },
   {
     slug: 'qualidade',

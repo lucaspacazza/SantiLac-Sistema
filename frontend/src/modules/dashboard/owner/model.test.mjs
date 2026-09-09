@@ -2,9 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  closureDays,
   dashboardPeriod,
   normalizeProductName,
   filterLots,
+  paginateItems,
 } from './model.ts'
 
 test('normaliza todas as grafias legadas de mucarela para Mussarela', () => {
@@ -33,4 +35,24 @@ test('filtra a tabela por situação, data e texto sem distinguir acentos', () =
   const products = [{ id: 'mussarela', name: 'Mussarela' }, { id: 'prato', name: 'Queijo prato' }]
 
   assert.deepEqual(filterLots(lots, products, { state: 'open', date: '2026-09-30', search: 'mussarela' }).map((lot) => lot.id), ['OP-1'])
+})
+
+test('o mapa de fechamento exibe somente dias que possuem lotes', () => {
+  const days = [
+    { date: '2026-09-07' },
+    { date: '2026-09-08' },
+    { date: '2026-09-09' },
+  ]
+  const lots = [
+    { id: 'OP-1', date: '2026-09-08', productId: 'mussarela', state: 'waiting' },
+  ]
+
+  assert.deepEqual(closureDays(days, lots).map((day) => day.date), ['2026-09-08'])
+})
+
+test('estoque é dividido em páginas sem criar rolagem infinita', () => {
+  const items = Array.from({ length: 13 }, (_, index) => ({ id: index + 1 }))
+
+  assert.deepEqual(paginateItems(items, 1, 6), { items: items.slice(0, 6), page: 1, pageCount: 3 })
+  assert.deepEqual(paginateItems(items, 3, 6), { items: items.slice(12), page: 3, pageCount: 3 })
 })
