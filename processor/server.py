@@ -13,7 +13,9 @@ from typing import Any
 
 
 BASE_DIR = Path(__file__).resolve().parent
-MAX_BODY_BYTES = 80 * 1024 * 1024
+MAX_BODY_BYTES = int(os.environ.get("PROCESSOR_MAX_BODY_BYTES", str(150 * 1024 * 1024)))
+SCRIPT_TIMEOUT_SECONDS = int(os.environ.get("PROCESSOR_SCRIPT_TIMEOUT_SECONDS", "600"))
+IMPORT_MAX_FILE_BYTES = int(os.environ.get("PROCESSOR_IMPORT_MAX_FILE_BYTES", str(100 * 1024 * 1024)))
 
 
 class ProcessorHandler(BaseHTTPRequestHandler):
@@ -38,6 +40,10 @@ class ProcessorHandler(BaseHTTPRequestHandler):
 
         if self.path == "/qualidade/import-analises":
             self.handle_import_analyses(payload)
+            return
+
+        if self.path == "/coletas/importar-tickets":
+            self.handle_import_tickets(payload)
             return
 
         if self.path == "/qualidade/export-produtores-analises/excel":
@@ -179,6 +185,53 @@ class ProcessorHandler(BaseHTTPRequestHandler):
 
         self.respond_json(200 if isinstance(result, dict) else 500, result)
 
+    def handle_import_tickets(self, payload: dict[str, Any]) -> None:
+        filename = str(payload.get("filename") or "tickets.pdf")
+        file_hash = str(payload.get("hash") or "")
+        content_base64 = str(payload.get("content_base64") or "")
+        if Path(filename).suffix.lower() != ".pdf":
+            self.respond_json(400, error("MILK_IMPORT_411", "Formato de arquivo nao suportado."))
+            return
+
+        try:
+            content = base64.b64decode(content_base64, validate=True)
+        except ValueError as exc:
+            self.respond_json(400, error("PROCESSOR_413", "Arquivo em base64 invalido.", {"error": str(exc)}))
+            return
+
+        if not content.startswith(b"%PDF-"):
+            self.respond_json(400, error("MILK_IMPORT_411", "O arquivo enviado nao e um PDF valido."))
+            return
+
+        if len(content) > IMPORT_MAX_FILE_BYTES:
+            self.respond_json(413, error(
+                "MILK_IMPORT_413",
+                "O PDF excede o tamanho maximo permitido.",
+                {"max_bytes": IMPORT_MAX_FILE_BYTES},
+            ))
+            return
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+            temp_file.write(content)
+            input_path = Path(temp_file.name)
+
+        try:
+            script = BASE_DIR / "modules" / "coletas" / "import_tickets_pdf.py"
+            result = run_json_script([
+                sys.executable,
+                str(script),
+                "--input",
+                str(input_path),
+                "--filename",
+                filename,
+                "--hash",
+                file_hash,
+            ])
+        finally:
+            input_path.unlink(missing_ok=True)
+
+        self.respond_json(200, result)
+
     def handle_export(self, payload: dict[str, Any], kind: str, script: Path | None = None) -> None:
         data = payload.get("payload")
         if not isinstance(data, dict):
@@ -287,9 +340,21 @@ class ProcessorHandler(BaseHTTPRequestHandler):
 
 
 def run_json_script(command: list[str]) -> dict[str, Any]:
-    completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=120, check=False)
     try:
-        decoded = json.loads(completed.stdout.strip() or "{}")
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            timeout=SCRIPT_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return error("PROCESSOR_714", "Tempo limite do processor excedido.", {"timeout_seconds": SCRIPT_TIMEOUT_SECONDS})
+    try:
+        decoded = json.loads((completed.stdout or "").strip() or "{}")
     except json.JSONDecodeError:
         return error("PROCESSOR_711", "Retorno do processor invalido.", {
             "stdout": completed.stdout,

@@ -40,6 +40,13 @@ return [
         'token' => env('PROCESSOR_TOKEN'),
     ],
 
+    'coletas_importacao' => [
+        'max_bytes' => (int) env('COLETAS_IMPORT_MAX_BYTES', 100 * 1024 * 1024),
+        'processor_timeout_seconds' => (int) env('COLETAS_IMPORT_PROCESSOR_TIMEOUT_SECONDS', 600),
+        'processor_script' => env('COLETAS_IMPORT_PROCESSOR_SCRIPT'),
+        'python' => env('PYTHON_BINARY', env('PROCESSOR_PYTHON', 'python')),
+    ],
+
     'pasteurizador' => [
         'processor_url' => env('PASTEURIZADOR_PROCESSOR_URL', 'http://192.168.5.203:8095'),
         'timeout_seconds' => (int) env('PASTEURIZADOR_PROCESSOR_TIMEOUT_SECONDS', 10800),

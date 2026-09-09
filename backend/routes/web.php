@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Cadastros\CadastrosController;
 use App\Http\Controllers\Api\Coletas\ColetasGestaoController;
+use App\Http\Controllers\Api\Coletas\ColetasImportacaoController;
 use App\Http\Controllers\Api\Coletas\Mobile\AppLogsController;
 use App\Http\Controllers\Api\Coletas\Mobile\AppVersionController;
 use App\Http\Controllers\Api\Coletas\Mobile\CatalogoController;
@@ -196,6 +197,8 @@ Route::middleware(['auth', 'audit.action'])->prefix('api')->group(function (): v
         Route::get('/rotas/detalhe', [ColetasGestaoController::class, 'rotaDetalhe']);
         Route::get('/rotas/coletas', [ColetasGestaoController::class, 'rotaColetas']);
         Route::get('/coletas/detalhe', [ColetasGestaoController::class, 'coletaDetalhe']);
+        Route::post('/coletas/importacoes', [ColetasImportacaoController::class, 'importar'])
+            ->middleware('throttle:5,1');
     });
 
     Route::prefix('cadastros')->group(function (): void {

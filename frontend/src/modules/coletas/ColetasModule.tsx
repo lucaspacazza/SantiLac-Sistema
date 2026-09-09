@@ -5,12 +5,14 @@ import { ColetaDetalheRota } from './views/Rotas/ColetaDetalheRota'
 import { ColetasRota } from './views/Rotas/ColetasRota'
 import { DetalheRota } from './views/Rotas/DetalheRota'
 import { LeiteInicio } from './views/Inicio/LeiteInicio'
+import { ImportarColetas } from './views/Importar/ImportarColetas'
 import { ListagemRotas } from './views/Rotas/ListagemRotas'
 import { MapaRota } from './views/Rotas/MapaRota'
 
 type View =
   | { name: 'inicio' }
   | { name: 'rotas' }
+  | { name: 'importar' }
   | { name: 'detalhe'; uuid: string }
   | { name: 'mapa'; uuid: string }
   | { name: 'coletas'; uuid: string }
@@ -33,6 +35,7 @@ function parseRoute(): View {
   if (section === 'rotas' && uuid && action === 'coletas') return { name: 'coletas', uuid: decodeURIComponent(uuid) }
   if (section === 'rotas' && uuid) return { name: 'detalhe', uuid: decodeURIComponent(uuid) }
   if (section === 'rotas') return { name: 'rotas' }
+  if (section === 'importar') return { name: 'importar' }
 
   return { name: 'inicio' }
 }
@@ -53,6 +56,7 @@ export function ColetasModule() {
   return (
     <div className="coletas-module">
       {view.name === 'inicio' && <LeiteInicio />}
+      {view.name === 'importar' && <ImportarColetas />}
       {view.name === 'rotas' && <ListagemRotas onOpen={(uuid) => navigate(`#/coletas/rotas/${encodeURIComponent(uuid)}`)} />}
       {view.name === 'detalhe' && (
         <DetalheRota

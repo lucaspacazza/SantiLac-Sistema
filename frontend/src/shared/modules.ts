@@ -104,6 +104,7 @@ export const sidebarModules = [
     href: '#/coletas/inicio',
     children: [
       { title: 'Rotas', icon: 'fa-route', href: '#/coletas/rotas' },
+      { title: 'Importar', icon: 'fa-file-import', href: '#/coletas/importar' },
     ],
   },
   {
